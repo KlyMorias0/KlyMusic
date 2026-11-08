@@ -66,27 +66,31 @@ struct LibraryRecentEntry: Identifiable {
         // later playback never changes the estimated dates or newly recorded dates.
         var dates = addedDates
         let anchor = saved.compactMap(\.lastPlayed).max() ?? .distantPast
-        for (index, track) in recentlyAdded.enumerated() where dates[track.id] == nil {
+        for (index, track) in insertionOrderedTracks.enumerated() where dates[track.id] == nil {
             dates[track.id] = anchor.timeIntervalSince1970 - Double(index) * 0.001
         }
         insertionDefaults.set(dates, forKey: addedDatesKey)
     }
     private var addedDates: [String: Double] { insertionDefaults.dictionary(forKey: addedDatesKey) as? [String: Double] ?? [:] }
     private func addedAt(_ id: String) -> Date { Date(timeIntervalSince1970: addedDates[id] ?? Date.distantPast.timeIntervalSince1970) }
-    var recentlyAdded: [Track] {
+    private var insertionOrderedTracks: [Track] {
         let records = Dictionary(saved.compactMap { item in item.track.map { (item.id, $0) } }, uniquingKeysWith: { first, _ in first })
         let order = insertionDefaults.stringArray(forKey: insertionKey) ?? []
         let known = Set(order)
         return order.compactMap { records[$0] } + saved.filter { !known.contains($0.id) }.compactMap(\.track)
     }
-    var recentlyAddedCollections: [LibraryRecentEntry] {
-        var albums = Set<String>()
+    var recentlyAdded: [Track] {
         let dates = addedDates
-        let tracks = saved.compactMap(\.track).sorted {
+        return saved.compactMap(\.track).sorted {
             let first = dates[$0.id] ?? Date.distantPast.timeIntervalSince1970
             let second = dates[$1.id] ?? Date.distantPast.timeIntervalSince1970
             return first == second ? $0.id < $1.id : first > second
         }
+    }
+    var recentlyAddedCollections: [LibraryRecentEntry] {
+        var albums = Set<String>()
+        let dates = addedDates
+        let tracks = recentlyAdded
         let entries = tracks.compactMap { track -> LibraryRecentEntry? in
             guard albums.insert(track.albumID ?? track.id).inserted else { return nil }
             return LibraryRecentEntry(content: .album(track), addedAt: Date(timeIntervalSince1970: dates[track.id] ?? Date.distantPast.timeIntervalSince1970))
@@ -163,7 +167,7 @@ struct LibraryRecentEntry: Identifiable {
             guard let track = item.track else { return nil }
             return .init(track: track, favorite: item.favorite, lastPlayed: item.lastPlayed, playCount: item.playCount, addedAt: Date(timeIntervalSince1970: dates[item.id] ?? Date.distantPast.timeIntervalSince1970))
         }
-        var settings = ["quality", "theme", "language", "wifiOnly", "followedArtists"].reduce(into: [String:String]()) { result, key in
+        var settings = ["quality", "theme", "language", "wifiOnly", "followedArtists", "libraryLayout-v1", "librarySort-v1"].reduce(into: [String:String]()) { result, key in
             if let value = UserDefaults.standard.object(forKey: key) { result[key] = String(describing: value) }
         }
         settings["lowDataMode"] = String(PlaybackPreferences.savesData())
@@ -177,7 +181,8 @@ struct LibraryRecentEntry: Identifiable {
         guard backup.version == 1, backup.tracks.count <= 50000 else { throw APIError.invalidResponse }
         for entry in backup.tracks {
             let item = record(entry.track)
-            if let date = entry.addedAt, date < addedAt(item.id) {
+            if let date = entry.addedAt, date > .distantPast,
+               addedAt(item.id) <= .distantPast || date < addedAt(item.id) {
                 var dates = addedDates; dates[item.id] = date.timeIntervalSince1970
                 insertionDefaults.set(dates, forKey: addedDatesKey)
             }
@@ -186,10 +191,19 @@ struct LibraryRecentEntry: Identifiable {
             if let last = entry.lastPlayed, last > (item.lastPlayed ?? .distantPast) { item.lastPlayed = last }
         }
         let known = Set(saved.map(\.id))
-        for entry in backup.playlists where !playlists.contains(where: { $0.id == entry.id }) {
-            let list = SavedPlaylist(name: String(entry.name.prefix(100)), trackIDs: entry.trackIDs.filter { known.contains($0) })
-            list.id = entry.id; context.insert(list)
-            if let date = entry.createdAt { list.createdAt = date }
+        var listsByID = Dictionary(playlists.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for entry in backup.playlists {
+            let list: SavedPlaylist
+            if let existing = listsByID[entry.id] { list = existing }
+            else {
+                list = SavedPlaylist(name: String(entry.name.prefix(100)))
+                list.createdAt = entry.createdAt ?? now()
+                list.id = entry.id; context.insert(list); listsByID[entry.id] = list
+            }
+            // Restoring is additive: retain local edits and append missing backed-up songs once.
+            var contained = Set(list.trackIDs)
+            list.trackIDs.append(contentsOf: entry.trackIDs.filter { known.contains($0) && contained.insert($0).inserted })
+            if let date = entry.createdAt, date < list.createdAt { list.createdAt = date }
         }
         for key in ["quality", "theme", "language", "followedArtists"] {
             if let value = backup.settings[key] { UserDefaults.standard.set(value, forKey: key) }
@@ -197,6 +211,13 @@ struct LibraryRecentEntry: Identifiable {
         if let value = backup.settings["wifiOnly"] { UserDefaults.standard.set(value == "true" || value == "1", forKey: "wifiOnly") }
         if let value = backup.settings["lowDataMode"] { UserDefaults.standard.set(value == "true" || value == "1", forKey: "lowDataMode") }
         else if let quality = backup.settings["quality"] { UserDefaults.standard.set(quality == "data", forKey: "lowDataMode") }
+        if let value = backup.settings["libraryLayout-v1"],
+           (try? JSONDecoder().decode(LibraryLayout.self, from: Data(value.utf8))) != nil {
+            UserDefaults.standard.set(LibraryLayout(storedValue: value).storedValue, forKey: "libraryLayout-v1")
+        }
+        if let value = backup.settings["librarySort-v1"], LibraryCollectionSort(rawValue: value) != nil {
+            UserDefaults.standard.set(value, forKey: "librarySort-v1")
+        }
         commit()
     }
 }

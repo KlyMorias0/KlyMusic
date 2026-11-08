@@ -36,6 +36,15 @@ struct LibraryView: View {
                             recentCard(entry)
                         }
                     }
+                } else {
+                    VStack(spacing: 14) {
+                        Image(systemName: "music.note.list").font(.system(size: 32, weight: .light)).foregroundStyle(.secondary)
+                        Text("Kütüphanen seni bekliyor").font(.title3.weight(.semibold))
+                        Text("Dinlediğin müzikler ve oluşturduğun listeler burada görünür.")
+                            .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        Button { newList = true } label: { Label("Yeni Çalma Listesi…", systemImage: "plus") }
+                            .buttonStyle(.bordered).tint(.primary).accessibilityIdentifier("library.empty.createPlaylist")
+                    }.frame(maxWidth: .infinity).padding(.vertical, 30).accessibilityIdentifier("library.empty")
                 }
             }.padding(.horizontal, 20).padding(.bottom, 28)
         }.background(Color.pageBackground).navigationTitle("Kütüphane").navigationBarTitleDisplayMode(.large)

@@ -146,24 +146,50 @@ struct DiscoverView: View {
 
 private struct CategoryGrid: View {
     @State private var categories: [BrowseCategory] = []
+    @State private var loading = true
     @State private var failed = false
+    @State private var requestID = UUID()
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            ForEach(categories) { category in
-                NavigationLink { QueryView(query: category.query, title: category.title) } label: {
-                    ZStack(alignment: .bottomLeading) {
-                        Artwork(url: category.artwork, radius: 0)
-                        LinearGradient(colors: [.clear, .black.opacity(0.36)], startPoint: .center, endPoint: .bottom)
-                        Text(category.title).font(.system(size: 18, weight: .semibold)).foregroundStyle(.white).padding(12)
-                    }.frame(height: 116).clipShape(RoundedRectangle(cornerRadius: 8))
-                }.buttonStyle(.plain).accessibilityIdentifier("search.category.\(category.id)")
+        Group {
+            if categories.isEmpty {
+                if loading {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 120).accessibilityIdentifier("search.categories.loading")
+                } else {
+                    VStack(spacing: 12) {
+                        Text(L(failed ? "Kategoriler yüklenemedi" : "Kategoriler şu anda kullanılamıyor"))
+                            .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        Button("Yeniden dene") { Task { await load() } }
+                            .buttonStyle(.bordered).tint(.primary).accessibilityIdentifier("search.categories.retry")
+                    }.frame(maxWidth: .infinity, minHeight: 120).padding(.horizontal, 20)
+                }
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    ForEach(categories) { category in
+                        NavigationLink { QueryView(query: category.query, title: category.title) } label: {
+                            ZStack(alignment: .bottomLeading) {
+                                Artwork(url: category.artwork, radius: 0)
+                                LinearGradient(colors: [.clear, .black.opacity(0.36)], startPoint: .center, endPoint: .bottom)
+                                Text(category.title).font(.system(size: 18, weight: .semibold)).foregroundStyle(.white).padding(12)
+                            }.frame(height: 116).clipShape(RoundedRectangle(cornerRadius: 8))
+                        }.buttonStyle(.plain).accessibilityIdentifier("search.category.\(category.id)")
+                    }
+                }.padding(.horizontal, 20)
             }
-        }.padding(.horizontal, 20)
-            .overlay { if failed && categories.isEmpty { Text("Kategoriler yüklenemedi").font(.footnote).foregroundStyle(.secondary) } }
-            .task(id: ListeningLocale.current.cacheKey) {
-                do { categories = try await API.shared.categories(); failed = false }
-                catch { if !Task.isCancelled { failed = true } }
-            }
+        }.task(id: ListeningLocale.current.cacheKey) { await load() }
+    }
+    private func load() async {
+        let request = UUID(); requestID = request
+        loading = true; failed = false
+        defer { if requestID == request { loading = false } }
+        do {
+            let response = try await API.shared.categories()
+            try Task.checkCancellation()
+            guard requestID == request else { return }
+            categories = response
+        } catch {
+            guard requestID == request, !Task.isCancelled else { return }
+            failed = true
+        }
     }
 }
 
@@ -194,6 +220,51 @@ struct QueryView: View {
     }
 }
 
+/// Build local search results without making a catalogue request or resolving remote IDs.
+struct LibrarySearchResults {
+    let response: SearchResponse
+    let playlists: [SavedPlaylist]
+    private let tracks: [Track]
+    init(tracks: [Track], playlists: [SavedPlaylist], query: String) {
+        self.tracks = tracks
+        let terms = NativeCatalog.normalized(query).split(separator: " ")
+        func matches(_ value: String) -> Bool {
+            let text = NativeCatalog.normalized(value)
+            return !terms.isEmpty && terms.allSatisfy { text.contains($0) }
+        }
+        var albums = [MusicCollection](), artists = [MusicArtist]()
+        var seenAlbums = Set<String>(), seenArtists = Set<String>()
+        for track in tracks {
+            if !track.album.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               matches(track.album + " " + track.artist),
+               seenAlbums.insert(Self.albumID(track)).inserted {
+                albums.append(.init(id: Self.albumID(track), title: track.album, artist: track.artist, artwork: track.artwork))
+            }
+            let artistKey = Self.artistID(track)
+            if !NativeCatalog.normalized(track.artist).isEmpty, matches(track.artist), seenArtists.insert(artistKey).inserted {
+                artists.append(.init(id: artistKey, name: track.artist, artwork: nil))
+            }
+        }
+        response = SearchResponse(
+            tracks: tracks.filter { matches($0.title + " " + $0.artist + " " + $0.album) }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending },
+            albums: albums.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending },
+            artists: artists.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending })
+        self.playlists = playlists.filter { matches($0.name) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+    static func albumID(_ track: Track) -> String {
+        if let id = track.albumID, !id.isEmpty { return id }
+        return "local:" + NativeCatalog.normalized(track.artist) + "|" + NativeCatalog.normalized(track.album)
+    }
+    func tracks(in album: MusicCollection) -> [Track] { tracks.filter { Self.albumID($0) == album.id } }
+    static func artistID(_ track: Track) -> String {
+        if let id = track.artistID, !id.isEmpty { return id }
+        return "local:" + NativeCatalog.normalized(track.artist)
+    }
+    func tracks(by artist: MusicArtist) -> [Track] {
+        tracks.filter { Self.artistID($0) == artist.id }
+    }
+}
+
 struct SearchView: View {
     @State private var query = ""
     @State private var result = SearchResponse()
@@ -207,24 +278,28 @@ struct SearchView: View {
     @AppStorage("searchHistory") private var historyData = ""
     private var history: [String] { historyData.components(separatedBy: "\n").filter { !$0.isEmpty } }
     private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    private var songs: [Track] {
-        scope == "library" ? library.saved.compactMap(\.track).filter { NativeCatalog.normalized($0.title + " " + $0.artist + " " + $0.album).contains(NativeCatalog.normalized(query)) } : result.tracks
-    }
+    private var localResults: LibrarySearchResults { LibrarySearchResults(tracks: library.saved.compactMap(\.track), playlists: library.playlists, query: query) }
+    private var visibleResult: SearchResponse { scope == "library" ? localResults.response : result }
+    private var songs: [Track] { visibleResult.tracks }
+    private var playlists: [SavedPlaylist] { scope == "library" ? localResults.playlists : [] }
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 22) {
                 if !hasQuery {
-                    if searchActive && !history.isEmpty { recentSearches.padding(.horizontal, 20) }
+                    if scope == "library" {
+                        EmptyState(symbol: "magnifyingglass", title: "Kitaplığında ara", message: "Şarkı, albüm, sanatçı veya çalma listesi bul.")
+                            .accessibilityIdentifier("search.library.empty")
+                    } else if searchActive && !history.isEmpty { recentSearches.padding(.horizontal, 20) }
                     else {
                         BrowseShelfHeading(title: "Kategorilere göz at")
                         CategoryGrid()
                     }
                 } else {
-                    if scope == "catalog" { filters }
+                    filters
                     if loading && scope == "catalog" { ProgressView().frame(maxWidth: .infinity).padding(30) }
                     else if let failure, scope == "catalog" { ErrorState(message: failure) { Task { await search() } } }
                     else {
-                        if scope == "catalog", (filter == "albums" && result.albums.isEmpty) || (filter == "artists" && result.artists.isEmpty) { noResults }
+                        if (filter == "albums" && visibleResult.albums.isEmpty) || (filter == "artists" && visibleResult.artists.isEmpty) || (filter == "playlists" && playlists.isEmpty) { noResults }
                         else { searchResults }
                     }
                 }
@@ -242,6 +317,7 @@ struct SearchView: View {
                 loading = true; failure = nil
                 do { try await Task.sleep(for: .milliseconds(200)); try Task.checkCancellation(); await search() } catch { }
             }.onSubmit(of: .search) { saveHistory() }
+            .onChange(of: scope) { _, value in if value == "catalog", filter == "playlists" { filter = "all" } }
     }
     private var filters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -250,6 +326,7 @@ struct SearchView: View {
                 filterButton("Şarkılar", value: "songs")
                 filterButton("Albümler", value: "albums")
                 filterButton("Sanatçılar", value: "artists")
+                if scope == "library" { filterButton("Çalma Listeleri", value: "playlists") }
             }.padding(.horizontal, 20)
         }.accessibilityIdentifier("search.filters")
     }
@@ -282,17 +359,18 @@ struct SearchView: View {
         }
     }
     @ViewBuilder private var searchResults: some View {
-        if scope == "library" || filter == "songs" { if songs.isEmpty { noResults } else { trackRows(songs) } }
+        if filter == "songs" { if songs.isEmpty { noResults } else { trackRows(songs) } }
         else if filter == "all" {
-            if songs.isEmpty && result.artists.isEmpty && result.albums.isEmpty { noResults }
+            if songs.isEmpty && visibleResult.artists.isEmpty && visibleResult.albums.isEmpty && playlists.isEmpty { noResults }
             else {
                 VStack(spacing: 0) {
                     ForEach(Array(songs.prefix(3))) { track in
                         TrackRow(track: track, tracks: songs)
                         Divider().padding(.leading, 67)
                     }
-                    ForEach(Array(result.artists.prefix(2))) { artistRow($0) }
-                    ForEach(Array(result.albums.prefix(2))) { albumRow($0) }
+                    ForEach(Array(playlists.prefix(2))) { playlistRow($0) }
+                    ForEach(Array(visibleResult.artists.prefix(2))) { artistRow($0) }
+                    ForEach(Array(visibleResult.albums.prefix(2))) { albumRow($0) }
                     ForEach(Array(songs.dropFirst(3))) { track in
                         TrackRow(track: track, tracks: songs)
                         Divider().padding(.leading, 67)
@@ -301,18 +379,43 @@ struct SearchView: View {
             }
         } else if filter == "albums" {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 24) {
-                ForEach(result.albums) { album in
-                    NavigationLink { AlbumDetailView(collection: album) } label: { AlbumCard(collection: album) }
+                ForEach(visibleResult.albums) { album in
+                    NavigationLink { albumDestination(album) } label: { AlbumCard(collection: album) }
                         .buttonStyle(.plain).accessibilityIdentifier("album.open.\(album.id)")
                 }
             }.padding(.horizontal, 20)
         } else if filter == "artists" {
-            VStack(spacing: 0) { ForEach(result.artists) { artistRow($0) } }.padding(.horizontal, 20)
+            VStack(spacing: 0) { ForEach(visibleResult.artists) { artistRow($0) } }.padding(.horizontal, 20)
+        } else if filter == "playlists" {
+            VStack(spacing: 0) { ForEach(playlists) { playlistRow($0) } }.padding(.horizontal, 20)
+        }
+    }
+    @ViewBuilder private func albumDestination(_ album: MusicCollection) -> some View {
+        if scope == "library" { TrackListView(title: album.title, tracks: localResults.tracks(in: album)) }
+        else { AlbumDetailView(collection: album) }
+    }
+    @ViewBuilder private func artistDestination(_ artist: MusicArtist) -> some View {
+        if scope == "library" { TrackListView(title: artist.name, tracks: localResults.tracks(by: artist)) }
+        else { ArtistDetailView(id: artist.id, name: artist.name) }
+    }
+    private func playlistRow(_ playlist: SavedPlaylist) -> some View {
+        VStack(spacing: 0) {
+            NavigationLink { PlaylistDetailView(playlist: playlist) } label: {
+                HStack(spacing: 14) {
+                    PlaylistArtwork(tracks: library.tracks(in: playlist)).frame(width: 54, height: 54)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(playlist.name).font(.body).foregroundStyle(.primary).lineLimit(1)
+                        Text("Çalma Listesi").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }.padding(.vertical, 7)
+            }.buttonStyle(.plain).accessibilityIdentifier("search.playlist." + playlist.id.uuidString)
+            Divider().padding(.leading, 67)
         }
     }
     private func artistRow(_ artist: MusicArtist) -> some View {
         VStack(spacing: 0) {
-            NavigationLink { ArtistDetailView(id: artist.id, name: artist.name) } label: {
+            NavigationLink { artistDestination(artist) } label: {
                 HStack(spacing: 14) {
                     ArtistPortrait(url: artist.artwork, name: artist.name).frame(width: 54, height: 54)
                     VStack(alignment: .leading, spacing: 4) {
@@ -327,7 +430,7 @@ struct SearchView: View {
     }
     private func albumRow(_ album: MusicCollection) -> some View {
         VStack(spacing: 0) {
-            NavigationLink { AlbumDetailView(collection: album) } label: {
+            NavigationLink { albumDestination(album) } label: {
                 HStack(spacing: 14) {
                     Artwork(url: album.artwork, radius: 5).frame(width: 54, height: 54)
                     VStack(alignment: .leading, spacing: 4) {
@@ -340,22 +443,26 @@ struct SearchView: View {
             Divider().padding(.leading, 67)
         }
     }
-    private var noResults: some View { EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: "Farklı bir şarkı veya sanatçı adıyla tekrar dene.") }
+    private var noResults: some View {
+        EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: scope == "library" ? "Kitaplığında eşleşen içerik yok. Farklı bir adla tekrar dene." : "Farklı bir şarkı veya sanatçı adıyla tekrar dene.")
+            .accessibilityIdentifier("search.results.empty")
+    }
     private func saveHistory() {
         let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return }
         historyData = ([value] + history.filter { $0 != value }).prefix(8).joined(separator: "\n")
     }
     private func search() async {
+        guard scope == "catalog", hasQuery else { return }
         let requested = query
         loading = true; failure = nil
         do {
             let response = try await API.shared.search(requested)
             try Task.checkCancellation()
-            guard requested == query else { return }
+            guard requested == query, scope == "catalog" else { return }
             result = response; player.warm(response.tracks); saveHistory()
         } catch is CancellationError { return }
-        catch { guard requested == query, !Task.isCancelled else { return }; failure = error.localizedDescription }
+        catch { guard requested == query, scope == "catalog", !Task.isCancelled else { return }; failure = error.localizedDescription }
         loading = false
     }
 }

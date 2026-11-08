@@ -287,3 +287,21 @@
 "Başlık" = "Title";
 "Albümler ve Listeler" = "Albums and Playlists";
 "Kütüphaneyi Düzenle" = "Edit Library";
+
+"Kütüphanen seni bekliyor" = "Your library is waiting";
+
+"Dinlediğin müzikler ve oluşturduğun listeler burada görünür." = "Music you listen to and playlists you create appear here.";
+
+"Kitaplığında ara" = "Search your library";
+
+"Şarkı, albüm, sanatçı veya çalma listesi bul." = "Find a song, album, artist or playlist.";
+
+"Kitaplığında eşleşen içerik yok. Farklı bir adla tekrar dene." = "No matches in your library. Try another name.";
+
+"Kategoriler şu anda kullanılamıyor" = "Categories are currently unavailable";
+
+"Kategoriler yüklenemedi" = "Could not load categories";
+
+"Ses dosyaları yedeğe dahil edilmez." = "Audio files are not included in backups.";
+
+"Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır." = "The new setting applies to the next track. Data usage depends on the source and bitrate.";

@@ -6,6 +6,60 @@ import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testLocalLibrarySearchMatchesWordsInAnyOrderAndSeparatesAlbumsByArtist() throws {
+        let first = Track(id: "first", title: "Kuzu Kuzu", artist: "Tarkan", album: "Karma")
+        let second = Track(id: "second", title: "Diğer", artist: "Tarkan", album: "Karma")
+        let other = Track(id: "other", title: "Şarkı", artist: "Başka Sanatçı", album: "Karma")
+        let tracks = [first, second, other]
+        let songs = LibrarySearchResults(tracks: tracks, playlists: [], query: "kuzu tarkan")
+        XCTAssertEqual(songs.response.tracks.map(\.id), [first.id])
+        let albums = LibrarySearchResults(tracks: tracks, playlists: [], query: "karma")
+        XCTAssertEqual(albums.response.albums.count, 2, "Equal titles from different artists must remain separate")
+        let tarkanAlbum = try XCTUnwrap(albums.response.albums.first { $0.artist == "Tarkan" })
+        XCTAssertEqual(albums.tracks(in: tarkanAlbum).map(\.id), [first.id, second.id])
+        let artists = LibrarySearchResults(tracks: tracks, playlists: [], query: "tarkan")
+        XCTAssertEqual(artists.response.artists.count, 1)
+        XCTAssertEqual(artists.tracks(by: try XCTUnwrap(artists.response.artists.first)).map(\.id), [first.id, second.id])
+    }
+
+    @MainActor func testLocalLibrarySearchFindsListsAndDoesNotMatchBlankQuery() {
+        let playlist = SavedPlaylist(name: "Yaz Yolculuğu")
+        let results = LibrarySearchResults(tracks: [], playlists: [playlist], query: "yolculugu yaz")
+        XCTAssertEqual(results.playlists.map(\.id), [playlist.id])
+        let blank = LibrarySearchResults(tracks: [Track(id: "a", title: "A", artist: "Test", album: "Album")], playlists: [playlist], query: "  ")
+        XCTAssertTrue(blank.response.tracks.isEmpty)
+        XCTAssertTrue(blank.response.albums.isEmpty)
+        XCTAssertTrue(blank.response.artists.isEmpty)
+        XCTAssertTrue(blank.playlists.isEmpty)
+    }
+
+    @MainActor func testRestoreUnknownDatesDoNotReplaceKnownDatesAndExactDatesImproveLegacyRecords() throws {
+        let suite = "LibraryDateMerge-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let track = Track(id: "dated", title: "Dated", artist: "Test")
+        let store = LibraryStore(context: context, insertionDefaults: defaults, now: { Date(timeIntervalSince1970: 500) })
+        store.toggleFavorite(track)
+        func data(_ date: Date) throws -> Data {
+            try JSONEncoder().encode(LibraryBackup(tracks: [.init(track: track, favorite: true, lastPlayed: nil, playCount: 0, addedAt: date)], playlists: [], settings: [:]))
+        }
+        try store.restore(data(.distantPast))
+        XCTAssertEqual(store.recentlyAddedCollections.first?.addedAt, Date(timeIntervalSince1970: 500))
+        defaults.set([track.id: Date.distantPast.timeIntervalSince1970 - 0.001], forKey: "savedTrackAddedDates-v1")
+        try store.restore(data(Date(timeIntervalSince1970: 300)))
+        XCTAssertEqual(store.recentlyAddedCollections.first?.addedAt, Date(timeIntervalSince1970: 300))
+    }
+
+    func testLocalArtistSearchKeepsOneIdentityAcrossCollaborationDisplayNames() throws {
+        let solo = Track(id: "solo", title: "A", artist: "BLOK3", artistID: "same-artist")
+        let duet = Track(id: "duet", title: "B", artist: "BLOK3 & Poizi", artistID: "same-artist")
+        let results = LibrarySearchResults(tracks: [solo, duet], playlists: [], query: "blok3")
+        XCTAssertEqual(results.response.artists.map(\.id), ["same-artist"])
+        XCTAssertEqual(results.tracks(by: try XCTUnwrap(results.response.artists.first)).map(\.id), [solo.id, duet.id])
+    }
+
     func testHomeShelvesRemoveReissuesAndRecentSongsWithoutHidingDifferentVersions() {
         let original = Track(id: "apple:1", title: "Kuzu Kuzu", artist: "Tarkan")
         let reissue = Track(id: "apple:2", title: "Kuzu Kuzu", artist: "Tarkan")
@@ -1183,5 +1237,84 @@ private actor PlaybackResolutionGate {
     func complete(_ key: String, asset: PlaybackAsset) {
         if let continuation = continuations.removeValue(forKey: key) { continuation.resume(returning: asset) }
         else { completed[key] = asset }
+    }
+}
+
+extension CoreTests {
+    @MainActor func testLibraryRestoreMergesExistingListsAndRepeatedImportsWithoutLosingLocalSongs() throws {
+        let suite = "LibraryMerge-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = LibraryStore(context: ModelContext(container), insertionDefaults: defaults)
+        let local = Track(id: "local", title: "Local", artist: "Test")
+        let imported = Track(id: "imported", title: "Imported", artist: "Test")
+        store.createPlaylist("Local name")
+        let playlist = try XCTUnwrap(store.playlists.first)
+        store.add(local, to: playlist)
+        let created = Date(timeIntervalSince1970: 100)
+        let duplicateID = UUID()
+        let backup = LibraryBackup(
+            tracks: [.init(track: imported, favorite: true, lastPlayed: nil, playCount: 0, addedAt: Date(timeIntervalSince1970: 200))],
+            playlists: [
+                .init(id: playlist.id, name: "Older name", trackIDs: [imported.id, "missing", imported.id], createdAt: created),
+                .init(id: duplicateID, name: "Imported list", trackIDs: [imported.id, imported.id], createdAt: created),
+                .init(id: duplicateID, name: "Duplicate", trackIDs: [local.id, imported.id], createdAt: created)
+            ], settings: [:])
+        let data = try JSONEncoder().encode(backup)
+        try store.restore(data); try store.restore(data)
+        XCTAssertEqual(store.playlists.count, 2)
+        XCTAssertEqual(playlist.name, "Local name", "A restore must retain local renames")
+        XCTAssertEqual(playlist.trackIDs, [local.id, imported.id], "Missing backed-up songs must be merged without removing local ones")
+        XCTAssertEqual(playlist.createdAt, created)
+        XCTAssertEqual(store.playlists.first { $0.id == duplicateID }?.trackIDs, [imported.id, local.id])
+        XCTAssertEqual(store.saved.count, 2)
+    }
+
+    @MainActor func testLibraryRestoredTrackOrderUsesDatesWithStableTies() throws {
+        let suite = "LibraryRestoredDates-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let store = LibraryStore(context: context, insertionDefaults: defaults)
+        let older = Track(id: "older", title: "Older", artist: "Test")
+        let newestB = Track(id: "new-b", title: "New B", artist: "Test")
+        let newestA = Track(id: "new-a", title: "New A", artist: "Test")
+        let entries = [(newestB, 300.0), (newestA, 300.0), (older, 100.0)].map { track, time in
+            LibraryBackup.BackupTrack(track: track, favorite: true, lastPlayed: nil, playCount: 0, addedAt: Date(timeIntervalSince1970: time))
+        }
+        try store.restore(JSONEncoder().encode(LibraryBackup(tracks: entries, playlists: [], settings: [:])))
+        XCTAssertEqual(store.recentlyAdded.map(\.id), [newestA.id, newestB.id, older.id])
+        store.played(older)
+        let reopened = LibraryStore(context: context, insertionDefaults: defaults)
+        XCTAssertEqual(reopened.recentlyAdded.map(\.id), [newestA.id, newestB.id, older.id])
+        XCTAssertEqual(reopened.recentlyAddedCollections.map(\.id), ["album:new-a", "album:new-b", "album:older"])
+    }
+
+    @MainActor func testLibraryBackupKeepsCategoryLayoutAndSortWithoutResettingLegacyPreferences() throws {
+        let keys = ["libraryLayout-v1", "librarySort-v1"]
+        let defaults = UserDefaults.standard
+        let previous = keys.map { defaults.object(forKey: $0) }
+        defer {
+            for (key, value) in zip(keys, previous) {
+                if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+            }
+        }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = LibraryStore(context: ModelContext(container))
+        var layout = LibraryLayout(storedValue: "")
+        layout.order = [.songs, .albums, .downloads, .artists, .playlists]; layout.hidden = [.artists]
+        defaults.set(layout.storedValue, forKey: keys[0]); defaults.set("artist", forKey: keys[1])
+        let backup = try store.backup()
+        defaults.removeObject(forKey: keys[0]); defaults.set("added", forKey: keys[1])
+        try store.restore(backup)
+        XCTAssertEqual(LibraryLayout(storedValue: defaults.string(forKey: keys[0]) ?? ""), layout)
+        XCTAssertEqual(defaults.string(forKey: keys[1]), "artist")
+        for settings in [[String: String](), ["libraryLayout-v1": "bad JSON", "librarySort-v1": "not-a-sort"]] {
+            try store.restore(JSONEncoder().encode(LibraryBackup(tracks: [], playlists: [], settings: settings)))
+            XCTAssertEqual(LibraryLayout(storedValue: defaults.string(forKey: keys[0]) ?? ""), layout)
+            XCTAssertEqual(defaults.string(forKey: keys[1]), "artist")
+        }
     }
 }

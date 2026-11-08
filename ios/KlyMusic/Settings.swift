@@ -15,6 +15,8 @@ struct SettingsView: View {
     @State private var exporting = false
     @State private var importing = false
     @State private var eraseHistory = false
+    private let themeOptions: [SettingsChoice] = [.init(title: "Sistem", value: "system"), .init(title: "Açık", value: "light"), .init(title: "Koyu", value: "dark")]
+    private let languageOptions: [SettingsChoice] = [.init(title: "Sistem", value: "system"), .init(title: "Türkçe", value: "tr"), .init(title: "English", value: "en")]
     private var selection: String { lowData ? "data" : "high" }
     var body: some View {
         List {
@@ -31,12 +33,14 @@ struct SettingsView: View {
                     settingValue("İndirilen Müzikler", value: storageSize)
                 }.accessibilityIdentifier("settings.downloads")
                 settingsHeader("Görünüm")
-                Picker("Görünüm", selection: $theme) {
-                    Text("Sistem").tag("system"); Text("Açık").tag("light"); Text("Koyu").tag("dark")
-                }.pickerStyle(.navigationLink).frame(minHeight: 52).accessibilityIdentifier("settings.theme")
-                Picker("Dil", selection: $language) {
-                    Text("Sistem").tag("system"); Text("Türkçe").tag("tr"); Text("English").tag("en")
-                }.pickerStyle(.navigationLink).frame(minHeight: 52).accessibilityIdentifier("settings.language")
+                NavigationLink {
+                    SettingsChoiceView(title: "Görünüm", selection: $theme, options: themeOptions, identifier: "settings.theme")
+                } label: { settingValue("Görünüm", value: L(themeOptions.first { $0.value == theme }?.title ?? "Sistem")) }
+                    .accessibilityIdentifier("settings.theme")
+                NavigationLink {
+                    SettingsChoiceView(title: "Dil", selection: $language, options: languageOptions, identifier: "settings.language")
+                } label: { settingValue("Dil", value: L(languageOptions.first { $0.value == language }?.title ?? "Sistem")) }
+                    .accessibilityIdentifier("settings.language")
                 settingsHeader("Kütüphane")
                 NavigationLink { dataSettings } label: { Text("Kütüphane ve Veriler").frame(minHeight: 52) }.accessibilityIdentifier("settings.data")
                 NavigationLink { aboutSettings } label: { Text("Hakkında").frame(minHeight: 52) }.accessibilityIdentifier("settings.about")
@@ -58,7 +62,8 @@ struct SettingsView: View {
                     catch { status = error.localizedDescription }
                 } label: { Text("Kütüphaneyi Yedekle") }.accessibilityIdentifier("settings.backup")
                 Button("Yedeği Geri Yükle") { importing = true }.accessibilityIdentifier("settings.restore")
-            } footer: { Text("Ses dosyaları yedeğe dahil edilmez.") }.listRowBackground(Color.pageBackground)
+            } footer: { SettingsNote(text: "Ses dosyaları yedeğe dahil edilmez.") }
+                .listRowBackground(Color.pageBackground).listSectionSeparator(.hidden, edges: .bottom)
             Section {
                 Button("Dinleme Geçmişini Temizle", role: .destructive) { eraseHistory = true }
                     .accessibilityIdentifier("settings.eraseHistory")
@@ -113,6 +118,40 @@ struct SettingsView: View {
     }
 }
 
+private struct SettingsChoice {
+    let title: String
+    let value: String
+}
+
+private struct SettingsChoiceView: View {
+    let title: String
+    @Binding var selection: String
+    let options: [SettingsChoice]
+    let identifier: String
+    var body: some View {
+        List(options, id: \.value) { option in
+            Button { selection = option.value } label: {
+                HStack {
+                    Text(L(option.title)).foregroundStyle(.primary)
+                    Spacer(minLength: 12)
+                    if selection == option.value { Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(.primary) }
+                }.frame(minHeight: 36).contentShape(Rectangle())
+            }.listRowBackground(Color.pageBackground)
+                .accessibilityIdentifier(identifier + "." + option.value)
+                .accessibilityAddTraits(selection == option.value ? .isSelected : [])
+        }.musicSettingsList().navigationTitle(L(title)).navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SettingsNote: View {
+    let text: String
+    var body: some View {
+        Text(L(text)).font(.footnote).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true).padding(.vertical, 8)
+            .listRowSeparator(.hidden)
+    }
+}
+
 private struct AudioQualitySettings: View {
     @Binding var quality: String
     @Binding var lowData: Bool
@@ -122,8 +161,8 @@ private struct AudioQualitySettings: View {
                 option("Veri Tasarrufu", value: "data", subtitle: "Daha az internet kullanır.")
                 option("Yüksek Kalite", value: "high", subtitle: "Kaynağın sunduğu yüksek kaliteli sesi kullanır.")
             } footer: {
-                Text("Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır.")
-            }.listRowBackground(Color.pageBackground)
+                SettingsNote(text: "Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır.")
+            }.listRowBackground(Color.pageBackground).listSectionSeparator(.hidden, edges: .bottom)
         }.musicSettingsList()
             .navigationTitle("Ses kalitesi").navigationBarTitleDisplayMode(.inline)
     }

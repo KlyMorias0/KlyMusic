@@ -24,6 +24,17 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.buttons["settings.quality.data"].isSelected)
         app.navigationBars["Ses kalitesi"].buttons.firstMatch.tap()
         shot(app, "Redesign-Settings-Dark")
+        app.buttons["settings.theme"].tap()
+        XCTAssertTrue(app.buttons["settings.theme.dark"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["settings.theme.dark"].isSelected)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "settings.theme.")).count, 3)
+        shot(app, "Music-Theme-Settings")
+        app.navigationBars["Görünüm"].buttons.firstMatch.tap()
+        app.buttons["settings.language"].tap()
+        XCTAssertTrue(app.buttons["settings.language.tr"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["settings.language.tr"].isSelected)
+        shot(app, "Music-Language-Settings")
+        app.navigationBars["Dil"].buttons.firstMatch.tap()
         let data = app.buttons["settings.data"]
         for _ in 0..<2 { if data.isHittable { break }; app.swipeUp() }
         data.tap()
@@ -161,7 +172,24 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "search.category.")).firstMatch.waitForExistence(timeout: 10))
         shot(app, "Apple-Search-Categories")
         let search = app.searchFields.firstMatch
-        search.tap(); search.typeText("Gece Yolu\n")
+        search.tap(); search.typeText(name)
+        let libraryScope = app.buttons["Kitaplığın"]
+        XCTAssertTrue(libraryScope.waitForExistence(timeout: 5)); libraryScope.tap()
+        app.scrollViews["search.filters"].swipeLeft()
+        let listsFilter = app.buttons["search.filter.playlists"]
+        XCTAssertTrue(listsFilter.waitForExistence(timeout: 5)); listsFilter.tap()
+        let localList = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "search.playlist.")).firstMatch
+        XCTAssertTrue(localList.waitForExistence(timeout: 5))
+        search.typeText("\n")
+        shot(app, "Music-Library-Search")
+        localList.tap()
+        XCTAssertTrue(app.staticTexts["İlk şarkını ekle"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.firstMatch.tap()
+        search.tap()
+        search.buttons.firstMatch.tap()
+        search.typeText("Gece Yolu")
+        app.buttons["KlyMusic"].tap()
+        search.typeText("\n")
         XCTAssertTrue(app.buttons["search.filter.albums"].waitForExistence(timeout: 10))
         shot(app, "Apple-Search-Results")
         app.buttons["search.filter.albums"].tap()
