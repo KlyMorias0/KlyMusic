@@ -13,14 +13,15 @@ struct LibraryView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 30) {
+                EditorialIntro(eyebrow: "SANA AİT", title: "Müziğin, bir arada.", subtitle: "Tekrar tekrar dönmek istediğin her şey.")
                 destinations
                 playlists
             }
             .padding(.horizontal, 22).padding(.top, 4).padding(.bottom, 32)
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
-        .background(Color.musicBackground).navigationTitle("Kütüphane")
-        .navigationBarTitleDisplayMode(.large)
+        .background(Color.canvas).navigationTitle("Kütüphane")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $destination) { destination in
             switch destination {
             case .favorites: TrackListView(title: L("Favoriler"), tracks: library.favorites)
@@ -40,27 +41,40 @@ struct LibraryView: View {
     }
 
     private var destinations: some View {
-        VStack(spacing: 0) {
-            Button { destination = .favorites } label: {
-                LibraryLink(title: L("Favoriler"), symbol: "heart", count: library.favorites.count, color: .musicAccent)
-            }.accessibilityIdentifier("library.favorites")
-            rowDivider
-            Button { destination = .downloads } label: {
-                LibraryLink(title: L("İndirilenler"), symbol: "arrow.down.circle", count: library.downloaded.count, color: .primary)
-            }.accessibilityIdentifier("library.downloads")
-            rowDivider
-            Button { destination = .recent } label: {
-                LibraryLink(title: L("Son dinlenenler"), symbol: "clock", count: library.recent.count, color: .primary)
-            }.accessibilityIdentifier("library.recent")
-            rowDivider
-            Button { destination = .albums } label: {
-                LibraryLink(title: L("Albümler"), symbol: "square.stack", count: nil, color: .primary)
-            }.accessibilityIdentifier("library.albums")
-            rowDivider
-            Button { destination = .artists } label: {
-                LibraryLink(title: L("Sanatçılar"), symbol: "person.2", count: nil, color: .primary)
-            }.accessibilityIdentifier("library.artists")
+        VStack(spacing: 16) {
+            HStack(spacing: 14) {
+                Button { destination = .favorites } label: {
+                    collectionTile(title: "Favoriler", symbol: "heart.fill", count: library.favorites.count, shade: .coral)
+                }.accessibilityIdentifier("library.favorites")
+                Button { destination = .downloads } label: {
+                    collectionTile(title: "İndirilenler", symbol: "arrow.down.circle.fill", count: library.downloaded.count, shade: Color(red: 0.43, green: 0.66, blue: 0.65))
+                }.accessibilityIdentifier("library.downloads")
+            }
+            VStack(spacing: 0) {
+                Button { destination = .recent } label: {
+                    LibraryLink(title: L("Son dinlenenler"), symbol: "clock", count: library.recent.count, color: .coral)
+                }.accessibilityIdentifier("library.recent")
+                rowDivider
+                Button { destination = .albums } label: {
+                    LibraryLink(title: L("Albümler"), symbol: "square.stack", count: nil, color: .coral)
+                }.accessibilityIdentifier("library.albums")
+                rowDivider
+                Button { destination = .artists } label: {
+                    LibraryLink(title: L("Sanatçılar"), symbol: "person.2", count: nil, color: .coral)
+                }.accessibilityIdentifier("library.artists")
+            }.padding(.horizontal, 15).padding(.vertical, 5).musicPanel()
         }.buttonStyle(.plain)
+    }
+
+    private func collectionTile(title: String, symbol: String, count: Int, shade: Color) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Image(systemName: symbol).font(.system(size: 25)).foregroundStyle(shade)
+                Spacer()
+                Text(String(count)).font(.system(size: 30, weight: .light, design: .rounded)).foregroundStyle(.primary)
+            }
+            Text(L(title)).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary)
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).musicPanel()
     }
 
     private var playlists: some View {
@@ -72,7 +86,7 @@ struct LibraryView: View {
                     listName = ""; newList = true
                 } label: {
                     Image(systemName: "plus").font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(Color.musicAccent).frame(width: 44, height: 44)
+                        .foregroundStyle(Color.coral).frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel("Yeni çalma listesi")
@@ -86,7 +100,7 @@ struct LibraryView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 2).padding(.bottom, 24)
+                .padding(22).musicPanel()
             } else {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 24) {
                     ForEach(library.playlists) { playlist in
@@ -123,8 +137,8 @@ struct LibraryLink: View {
     var color: Color
     var body: some View {
         HStack(spacing: 16) {
-            Image(systemName: symbol).font(.system(size: 21, weight: .regular))
-                .foregroundStyle(color).frame(width: 26).accessibilityHidden(true)
+            Image(systemName: symbol).font(.system(size: 18, weight: .medium))
+                .foregroundStyle(color).frame(width: 40, height: 40).background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13)).accessibilityHidden(true)
             Text(title).font(.body).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             if let count, count > 0 {
@@ -161,11 +175,11 @@ struct PlaylistArtwork: View {
                         Color.musicSurface
                         Image(systemName: "music.note.list")
                             .font(.system(size: min(geometry.size.width, geometry.size.height) * 0.30, weight: .ultraLight))
-                            .foregroundStyle(Color.musicAccent)
+                            .foregroundStyle(Color.coral)
                     }
                 }
             }.frame(width: geometry.size.width, height: geometry.size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }.accessibilityHidden(true)
     }
 }
@@ -197,7 +211,7 @@ struct PlaylistPicker: View {
                                 Text("Oluştur ve ekle").font(.subheadline.weight(.semibold))
                                 Spacer()
                                 Image(systemName: "plus").font(.subheadline.weight(.semibold))
-                            }.foregroundStyle(.white).padding(16).background(Color.musicAccent, in: RoundedRectangle(cornerRadius: 10))
+                            }.foregroundStyle(.white).padding(16).background(Color.coral, in: RoundedRectangle(cornerRadius: 10))
                         }.buttonStyle(.plain).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .opacity(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
                     }
@@ -214,7 +228,7 @@ struct PlaylistPicker: View {
                                             Text("\(list.trackIDs.count) şarkı").font(.caption).foregroundStyle(.secondary)
                                         }.frame(maxWidth: .infinity, alignment: .leading)
                                         Image(systemName: list.trackIDs.contains(track.id) ? "checkmark" : "plus")
-                                            .font(.body.weight(.medium)).foregroundStyle(Color.musicAccent).frame(width: 32, height: 44)
+                                            .font(.body.weight(.medium)).foregroundStyle(Color.coral).frame(width: 32, height: 44)
                                     }.padding(.vertical, 8).contentShape(Rectangle())
                                 }.buttonStyle(.plain)
                                 Divider().padding(.leading, 72)
@@ -222,9 +236,9 @@ struct PlaylistPicker: View {
                         }
                     }
                 }.padding(.horizontal, 22).padding(.bottom, 32)
-            }.background(Color.musicBackground).navigationTitle("Listeye ekle").navigationBarTitleDisplayMode(.inline)
+            }.background(Color.canvas).navigationTitle("Listeye ekle").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Vazgeç") { dismiss() } } }
-        }.tint(.musicAccent)
+        }.tint(.coral)
     }
     private func createAndAdd() {
         let existing = Set(library.playlists.map(\.id))
@@ -247,7 +261,7 @@ struct PlaylistDetailView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 22) {
-                    PlaylistArtwork(tracks: tracks).frame(width: 218, height: 218).frame(maxWidth: .infinity).padding(.vertical, 10)
+                    PlaylistArtwork(tracks: tracks).frame(width: 238, height: 238).shadow(color: .black.opacity(0.2), radius: 25, y: 15).frame(maxWidth: .infinity).padding(.vertical, 10)
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Çalma listesi").font(.subheadline).foregroundStyle(.secondary)
                         Text(playlist.name).font(.title.bold()).tracking(-0.8).fixedSize(horizontal: false, vertical: true)
@@ -256,7 +270,7 @@ struct PlaylistDetailView: View {
                     HStack(spacing: 16) {
                         Button { if let first = tracks.first { player.play(first, in: tracks) } } label: {
                             Label("Çal", systemImage: "play.fill").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 16)
-                                .foregroundStyle(.white).background(Color.musicAccent, in: Capsule())
+                                .foregroundStyle(.white).background(Color.coral, in: Capsule())
                         }.buttonStyle(.plain)
                         Button { tracks.forEach { downloads.enqueue($0) } } label: {
                             Image(systemName: "arrow.down").font(.system(size: 21, weight: .medium)).frame(width: 54, height: 54)
@@ -278,7 +292,7 @@ struct PlaylistDetailView: View {
                 EmptyState(symbol: "text.badge.plus", title: "İlk şarkını ekle", message: "Bir şarkının seçeneklerinden bu listeye ekleyebilirsin.")
                     .listRowSeparator(.hidden).listRowBackground(Color.clear)
             }
-        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.musicBackground).navigationBarTitleDisplayMode(.inline).tint(.musicAccent)
+        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.canvas).navigationBarTitleDisplayMode(.inline).tint(.coral)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { EditButton().disabled(tracks.isEmpty) }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -314,7 +328,7 @@ struct DownloadsView: View {
                         if !library.downloaded.isEmpty {
                             Button { if let track = library.downloaded.first { player.play(track, in: library.downloaded) } } label: {
                                 Image(systemName: "play.fill").font(.system(size: 22, weight: .semibold)).offset(x: 2)
-                                    .foregroundStyle(.white).frame(width: 58, height: 58).background(Color.musicAccent, in: Circle())
+                                    .foregroundStyle(.white).frame(width: 58, height: 58).background(Color.coral, in: Circle())
                             }.buttonStyle(.plain).accessibilityLabel("Çevrimdışı çal")
                         }
                     }.padding(.top, 12).padding(.bottom, 18)
@@ -336,7 +350,7 @@ struct DownloadsView: View {
                                 if typeSize.isAccessibilitySize {
                                     HStack { Spacer(); jobControls(id: id, track: track, canRetry: job.failed || job.paused) }
                                 }
-                                ProgressView(value: job.progress).tint(.musicAccent)
+                                ProgressView(value: job.progress).tint(.coral)
                             }.padding(.vertical, 12).listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                         }
@@ -354,7 +368,7 @@ struct DownloadsView: View {
                 } header: { Text("Bu cihazda").font(.headline).foregroundStyle(.primary).textCase(nil).padding(.vertical, 8) }
                     .listRowBackground(Color.clear)
             }
-        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.musicBackground).navigationTitle("İndirilenler")
+        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.canvas).navigationTitle("İndirilenler")
             .overlay {
                 if library.downloaded.isEmpty && downloads.jobs.isEmpty {
                     EmptyState(symbol: "arrow.down.circle", title: "Müziğin yanında olsun", message: "Şarkıları indir, internet olmadan dinle.")
@@ -381,7 +395,7 @@ struct DownloadsView: View {
             Button { downloads.cancel(id) } label: {
                 Image(systemName: "xmark").font(.subheadline).frame(width: 40, height: 44)
             }.accessibilityLabel("İptal")
-        }.buttonStyle(.borderless).foregroundStyle(Color.musicAccent)
+        }.buttonStyle(.borderless).foregroundStyle(Color.coral)
     }
 }
 
@@ -405,7 +419,7 @@ struct SavedAlbumsView: View {
                             TrackListView(title: album.title, tracks: library.saved.compactMap(\.track).filter { $0.albumID == album.id })
                         } label: {
                             VStack(alignment: .leading, spacing: 10) {
-                                Artwork(url: album.artwork, radius: 6).aspectRatio(1, contentMode: .fit)
+                                Artwork(url: album.artwork, radius: 18).aspectRatio(1, contentMode: .fit)
                                 Text(album.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                                 Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                             }.frame(maxWidth: .infinity, alignment: .leading)
@@ -413,7 +427,7 @@ struct SavedAlbumsView: View {
                     }
                 }
             }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 32)
-        }.background(Color.musicBackground).navigationTitle("Albümler")
+        }.background(Color.canvas).navigationTitle("Albümler")
             .overlay { if albums.isEmpty { EmptyState(symbol: "square.stack", title: "Albümlerin burada", message: "Kaydettiğin şarkıların albümleri burada görünecek.") } }
     }
 }
@@ -439,19 +453,19 @@ struct FollowedArtistsView: View {
                                 Artwork(url: art, radius: 32).frame(width: 64, height: 64)
                             } else {
                                 Text(String(artist.1.prefix(1))).font(.system(size: 27, weight: .medium)).frame(width: 64, height: 64)
-                                    .foregroundStyle(Color.musicAccent).overlay { Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1) }
+                                    .foregroundStyle(Color.coral).overlay { Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1) }
                             }
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(artist.1).font(.headline).foregroundStyle(.primary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                                 Text("Takip ediliyor").font(.caption).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             Image(systemName: "arrow.up.right").font(.subheadline).foregroundStyle(.secondary)
-                        }.padding(.vertical, 14).contentShape(Rectangle())
+                        }.padding(16).musicPanel().padding(.vertical, 6).contentShape(Rectangle())
                     }.buttonStyle(.plain)
                     Divider().padding(.leading, 80)
                 }
             }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 32)
-        }.background(Color.musicBackground).navigationTitle("Sanatçılar")
+        }.background(Color.canvas).navigationTitle("Sanatçılar")
             .overlay { if artists.isEmpty { EmptyState(symbol: "person.2", title: "Sevdiğin sesleri takip et", message: "Sanatçı sayfalarından takip ettiğin isimler burada görünecek.") } }
     }
 }

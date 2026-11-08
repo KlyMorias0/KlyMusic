@@ -82,6 +82,73 @@ struct NowPlayingView: View {
     private var waitingForFirstTrack: Bool { player.current == nil && player.pendingTrack != nil }
 
     var body: some View {
+        Group {
+            if showLyrics { originalLyricsLayout }
+            else { redesignedLayout }
+        }
+    }
+
+    private var redesignedLayout: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                Color.canvas.ignoresSafeArea()
+                Artwork(url: (player.pendingTrack ?? player.current)?.artwork, radius: 0)
+                    .frame(width: geometry.size.width, height: geometry.size.height * 0.65)
+                    .blur(radius: 70).opacity(0.20).allowsHitTesting(false)
+                    .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
+                VStack(spacing: 0) {
+                    header.padding(.horizontal, 20).padding(.top, 8)
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 26) {
+                            Text(L("ŞİMDİ ÇALIYOR")).font(.system(size: 9, weight: .bold)).tracking(3).foregroundStyle(Color.coral)
+                            Artwork(url: (player.pendingTrack ?? player.current)?.artwork, radius: 24)
+                                .frame(width: min(330, geometry.size.width - 64), height: min(330, geometry.size.width - 64))
+                                .shadow(color: .black.opacity(0.35), radius: 28, y: 18)
+                                .padding(.bottom, 12)
+                            editorialMetadata
+                            VStack(spacing: 16) {
+                                PlaybackTimeline()
+                                transport
+                            }
+                            volume
+                        }.padding(.horizontal, 30).padding(.top, 24).padding(.bottom, 16)
+                            .frame(maxWidth: 540).frame(maxWidth: .infinity)
+                    }.scrollBounceBehavior(.basedOnSize)
+                    tools.clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).padding(.bottom, 12)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .presentationBackground(Color.canvas)
+        .sheet(isPresented: $showQueue) { QueueView() }
+    }
+
+    private var editorialMetadata: some View {
+        let displayed = player.pendingTrack ?? player.current
+        return HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(displayed?.title ?? "KlyMusic").font(.system(size: 29, weight: .bold)).tracking(-0.8).lineLimit(2)
+                Text(displayed?.artist ?? "").font(.system(size: 16)).foregroundStyle(.secondary).lineLimit(2)
+                if player.pendingTrack != nil {
+                    HStack(spacing: 7) {
+                        ProgressView().controlSize(.mini)
+                        Text(L("Hazırlanıyor…")).font(.caption)
+                    }.foregroundStyle(Color.coral)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if let displayed {
+                Button { library.toggleFavorite(displayed) } label: {
+                    Image(systemName: library.isFavorite(displayed) ? "heart.fill" : "heart")
+                        .font(.system(size: 20)).foregroundStyle(Color.coral)
+                        .frame(width: 48, height: 48).background(Color.coral.opacity(0.12), in: Circle())
+                }.accessibilityIdentifier("player.favorite")
+                    .accessibilityLabel(library.isFavorite(displayed) ? L("Favorilerden çıkar") : L("Favorilere ekle"))
+            }
+        }
+    }
+
+    // Keep the complete existing lyrics presentation, including its layout.
+    private var originalLyricsLayout: some View {
         GeometryReader { geometry in
             let inset: CGFloat = geometry.size.width < 390 ? 28 : 32
             let compact = geometry.size.height < 720
@@ -459,7 +526,7 @@ struct QueueView: View {
                                 Text(current.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                             }
                             Spacer(minLength: 0)
-                            Image(systemName: player.isPlaying ? "waveform" : "pause.fill").font(.system(size: 17, weight: .medium)).foregroundStyle(Color.musicAccent)
+                            Image(systemName: player.isPlaying ? "waveform" : "pause.fill").font(.system(size: 17, weight: .medium)).foregroundStyle(Color.coral)
                         }
                     }
                     .padding(.vertical, 16)
@@ -481,15 +548,15 @@ struct QueueView: View {
                 }
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
-            .background(Color.musicBackground)
+            .background(Color.canvas)
             .navigationTitle("Çalma sırası").navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.musicBackground, for: .navigationBar)
+            .toolbarBackground(Color.canvas, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Kapat") { dismiss() }.foregroundStyle(.primary) }
-                ToolbarItem(placement: .topBarTrailing) { EditButton().tint(Color.musicAccent) }
+                ToolbarItem(placement: .topBarTrailing) { EditButton().tint(Color.coral) }
             }
         }
-        .presentationBackground(Color.musicBackground)
+        .presentationBackground(Color.canvas)
     }
 }
 

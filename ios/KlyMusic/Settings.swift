@@ -19,12 +19,13 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if let status {
                     HStack(alignment: .top, spacing: 9) {
-                        Image(systemName: "info.circle.fill").foregroundStyle(Color.musicAccent)
+                        Image(systemName: "info.circle.fill").foregroundStyle(Color.coral)
                         Text(status).font(.footnote).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 18)
                     .accessibilityIdentifier("settings.status")
                 }
+                EditorialIntro(eyebrow: "KLYMUSIC", title: "Tam senin ayarında.", subtitle: "Dinleme deneyimini kendine göre düzenle.").padding(.vertical, 22)
                 listening
                 appearance
                 storage
@@ -34,17 +35,17 @@ struct SettingsView: View {
             .padding(.horizontal, 22).padding(.top, 4).padding(.bottom, 32)
             .frame(maxWidth: 680).frame(maxWidth: .infinity)
         }
-        .background(Color.musicBackground.ignoresSafeArea())
+        .background(Color.canvas.ignoresSafeArea())
         .navigationTitle("Ayarlar").navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color.musicBackground, for: .navigationBar)
+        .toolbarBackground(Color.canvas, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Bitti") { dismiss() }.fontWeight(.semibold).foregroundStyle(.primary)
             }
         }
-        .tint(Color.musicAccent)
-        .presentationBackground(Color.musicBackground)
+        .tint(Color.coral)
+        .presentationBackground(Color.canvas)
         .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "KlyMusic-Backup") { result in
             switch result {
             case .failure(let error): status = error.localizedDescription
@@ -82,7 +83,7 @@ struct SettingsView: View {
             Toggle(isOn: $wifiOnly) {
                 PreferenceRow(title: "Yalnızca Wi-Fi ile indir", symbol: "wifi", showsChevron: false)
             }
-            .tint(Color.musicAccent).accessibilityIdentifier("settings.wifiOnly")
+            .tint(Color.coral).accessibilityIdentifier("settings.wifiOnly")
         }
     }
 
@@ -156,7 +157,7 @@ struct SettingsView: View {
                         .font(.footnote).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(24)
                 }
-                .background(Color.musicBackground).navigationTitle("Lisanslar")
+                .background(Color.canvas).navigationTitle("Lisanslar")
                 .navigationBarTitleDisplayMode(.inline)
             } label: {
                 PreferenceRow(title: "Açık kaynak lisansları", symbol: "doc.text")
@@ -170,13 +171,13 @@ struct SettingsView: View {
         }
     }
 
-    private func settingsSection<Content: View>(_ title: String, topSpacing: CGFloat = 28, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(L(title)).font(.headline).tracking(-0.3)
-                .foregroundStyle(.primary).padding(.top, topSpacing).padding(.bottom, 8)
-            content()
-        }
-        .buttonStyle(.plain)
+    private func settingsSection<Content: View>(_ title: String, topSpacing: CGFloat = 24, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L(title).uppercased()).font(.system(size: 10, weight: .bold)).tracking(2)
+                .foregroundStyle(.secondary).padding(.leading, 5)
+            VStack(alignment: .leading, spacing: 0) { content() }
+                .padding(.horizontal, 16).padding(.vertical, 8).musicPanel()
+        }.padding(.top, topSpacing).buttonStyle(.plain)
     }
 
     private var rowDivider: some View {
@@ -204,11 +205,11 @@ private struct PreferenceRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: symbol).font(.system(size: 18, weight: .regular))
-                .foregroundStyle(destructive ? Color.musicAccent : Color.primary.opacity(0.78))
-                .frame(width: 24)
+                .foregroundStyle(destructive ? Color.coral : Color.primary.opacity(0.78))
+                .frame(width: 36, height: 36).background(Color.coral.opacity(0.1), in: RoundedRectangle(cornerRadius: 11))
                 .accessibilityHidden(true)
             Text(L(title)).font(.subheadline)
-                .foregroundStyle(destructive ? Color.musicAccent : Color.primary)
+                .foregroundStyle(destructive ? Color.coral : Color.primary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             if let value {

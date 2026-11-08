@@ -1,5 +1,29 @@
 import Foundation
 
+enum PlaybackRace {
+    /// A failing or slow candidate must not block another validated recording.
+    static func first<Value: Sendable>(_ operations: [@Sendable () async throws -> Value]) async throws -> Value {
+        try await withThrowingTaskGroup(of: Value.self) { group in
+            for operation in operations { group.addTask(operation: operation) }
+            defer { group.cancelAll() }
+            var failure: Error = APIError.invalidResponse
+            while !group.isEmpty {
+                do {
+                    if let result = try await group.next() {
+                        try Task.checkCancellation()
+                        return result
+                    }
+                } catch {
+                    try Task.checkCancellation()
+                    failure = error
+                }
+            }
+            try Task.checkCancellation()
+            throw failure
+        }
+    }
+}
+
 enum APIError: LocalizedError {
     case configuration, server(String), invalidResponse
     var errorDescription: String? {

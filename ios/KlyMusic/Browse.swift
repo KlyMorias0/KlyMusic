@@ -1,73 +1,62 @@
 import SwiftUI
 
-// A compact, artwork-led layout keeps music within reach on small displays.
 struct HomeView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var player: MusicPlayer
     @State private var sections: [HomeSection] = []
     @State private var loading = true
     @State private var failure: String?
-    @Environment(\.dynamicTypeSize) private var typeSize
 
-    private var highlights: [Track] { Array((sections.first?.tracks ?? []).prefix(4)) }
+    private var highlights: [Track] { Array((sections.first?.tracks ?? []).prefix(5)) }
     private var artists: [Track] {
         var seen = Set<String>()
-        return Array(sections.flatMap(\.tracks).filter { $0.artistID != nil && seen.insert($0.artist).inserted }.prefix(10))
+        return Array(sections.flatMap(\.tracks).filter { $0.artistID != nil && seen.insert($0.artist).inserted }.prefix(8))
     }
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 32) {
+                EditorialIntro(eyebrow: "KLYMUSIC / GÜNLÜK SEÇKİ", title: "Bugünün ritmini bul.", subtitle: "Tanıdık sesler. Yeni keşifler. Hep seninle.")
+                    .padding(.horizontal, 22)
                 if !highlights.isEmpty {
-                    featured
-                } else if loading {
-                    MusicLoadingView().padding(.top, 24)
-                }
-                if let failure, sections.isEmpty { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 14) {
+                            ForEach(highlights) { FeaturedTrackCard(track: $0, tracks: sections.first?.tracks ?? []) }
+                        }.padding(.horizontal, 22).scrollTargetLayout()
+                    }.scrollTargetBehavior(.viewAligned)
+                } else if loading { MusicLoadingView() }
+                if let failure, sections.isEmpty { ErrorState(message: failure) { Task { await load() } } }
+                if !library.recent.isEmpty { quickListening }
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     if index == 0 { rankedShelf(section) }
                     else { BrowseTrackShelf(title: section.title, subtitle: section.subtitle, tracks: section.tracks) }
                 }
-                if !library.recent.isEmpty { quickListening }
                 if !artists.isEmpty { artistShelf }
-            }.padding(.top, 8).padding(.bottom, 32)
+            }.padding(.top, 14).padding(.bottom, 32)
+                .frame(maxWidth: 850).frame(maxWidth: .infinity)
         }
-        .background(Color.musicBackground)
-        .navigationTitle("Dinle").navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
-        }
+        .background(Color.canvas)
+        .navigationTitle("Dinle").navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
         .refreshable { await load() }
         .task(id: ListeningLocale.current.cacheKey) { await load() }
     }
-    private var featured: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            BrowseShelfHeading(title: "Senin için")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(highlights) { track in
-                        FeaturedTrackCard(track: track, tracks: sections.first?.tracks ?? [])
-                    }
-                }.padding(.horizontal, 22).scrollTargetLayout()
-            }.scrollTargetBehavior(.viewAligned)
-        }
-    }
     private var quickListening: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            BrowseShelfHeading(title: "Tekrar çal")
+        VStack(alignment: .leading, spacing: 14) {
+            BrowseShelfHeading(title: "Kaldığın yerden")
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 22) {
+                HStack(spacing: 12) {
                     ForEach(Array(library.recent.prefix(6).enumerated()), id: \.element.id) { index, track in
                         Button { player.resume(track); player.isPresented = true } label: {
                             HStack(spacing: 12) {
-                                Artwork(url: track.artwork, radius: 4).frame(width: 54, height: 54)
+                                Artwork(url: track.artwork, radius: 12).frame(width: 54, height: 54)
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1).foregroundStyle(.primary)
-                                    Text(track.artist).font(.caption).lineLimit(1).foregroundStyle(.secondary)
-                                }.frame(width: 124, alignment: .leading)
-                            }.contentShape(Rectangle())
+                                    Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                    Text(track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }.frame(width: 125, alignment: .leading)
+                                Image(systemName: "play.fill").font(.caption).foregroundStyle(Color.coral)
+                            }.foregroundStyle(.primary).padding(12).musicPanel(radius: 18)
                         }.buttonStyle(.plain)
                             .accessibilityIdentifier(index == 0 ? "home.resume" : "home.recent.\(track.id)")
-                            .accessibilityLabel("\(track.title), \(track.artist)")
                     }
                 }.padding(.horizontal, 22)
             }
@@ -75,32 +64,26 @@ struct HomeView: View {
     }
     private func rankedShelf(_ section: HomeSection) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            BrowseShelfHeading(title: section.title, caption: section.subtitle, tracks: section.tracks)
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 26) {
-                    ForEach(0..<((min(section.tracks.count, 9) + 2) / 3), id: \.self) { column in
-                        VStack(spacing: 0) {
-                            ForEach(Array(section.tracks.enumerated()).dropFirst(column * 3).prefix(3), id: \.element.id) { index, track in
-                                TrackRow(track: track, tracks: section.tracks, number: index + 1)
-                                if index % 3 != 2 { Rectangle().fill(.primary.opacity(0.08)).frame(height: 0.5).padding(.leading, 88) }
-                            }
-                        }.frame(width: typeSize.isAccessibilitySize ? 340 : 310)
-                    }
-                }.padding(.horizontal, 22).scrollTargetLayout()
-            }.scrollTargetBehavior(.viewAligned)
+            BrowseShelfHeading(title: section.title, caption: "Şu an herkesin dilinde", tracks: section.tracks)
+            VStack(spacing: 0) {
+                ForEach(Array(section.tracks.prefix(5).enumerated()), id: \.element.id) { index, track in
+                    TrackRow(track: track, tracks: section.tracks, number: index + 1)
+                    if index < min(4, section.tracks.count - 1) { Divider().opacity(0.35).padding(.leading, 90) }
+                }
+            }.padding(.horizontal, 14).padding(.vertical, 5).musicPanel().padding(.horizontal, 22)
         }
     }
     private var artistShelf: some View {
-        VStack(alignment: .leading, spacing: 19) {
-            BrowseShelfHeading(title: "Sanatçılar")
+        VStack(alignment: .leading, spacing: 18) {
+            BrowseShelfHeading(title: "Sevdiğin sesler")
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 18) {
+                LazyHStack(alignment: .top, spacing: 20) {
                     ForEach(artists) { track in
                         NavigationLink { ArtistDetailView(id: track.artistID ?? "", name: track.artist) } label: {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Artwork(url: track.artwork, radius: 60).frame(width: 112, height: 112)
-                                Text(track.artist).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
-                            }.frame(width: 112, alignment: .leading)
+                            VStack(spacing: 12) {
+                                Artwork(url: track.artwork, radius: 52).frame(width: 104, height: 104)
+                                Text(track.artist).font(.system(size: 13, weight: .semibold)).lineLimit(2).multilineTextAlignment(.center)
+                            }.foregroundStyle(.primary).frame(width: 104)
                         }.buttonStyle(.plain)
                     }
                 }.padding(.horizontal, 22)
@@ -108,7 +91,7 @@ struct HomeView: View {
         }
     }
     private func load() async {
-        loading = true; failure = nil
+        loading = sections.isEmpty; failure = nil
         defer { loading = false }
         do { sections = try await API.shared.home().sections; player.warm(sections.first?.tracks ?? []) }
         catch is CancellationError { }
@@ -120,22 +103,25 @@ private struct FeaturedTrackCard: View {
     var track: Track
     var tracks: [Track]
     @EnvironmentObject private var player: MusicPlayer
-    @ScaledMetric(relativeTo: .headline) private var titleSize: CGFloat = 18
     var body: some View {
         Button { player.play(track, in: tracks); player.isPresented = true } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                Artwork(url: track.artwork, radius: 10).frame(width: 224, height: 224)
-                    .overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "play.fill").font(.system(size: 15, weight: .semibold))
-                            .offset(x: 1).foregroundStyle(.black)
-                            .frame(width: 40, height: 40).background(.white, in: Circle()).padding(12)
+            ZStack(alignment: .bottomLeading) {
+                Artwork(url: track.artwork, radius: 0)
+                LinearGradient(colors: [.black.opacity(0.02), .black.opacity(0.18), .black.opacity(0.95)], startPoint: .top, endPoint: .bottom)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(L("SENİN İÇİN")).font(.system(size: 9, weight: .heavy)).tracking(2)
+                        .padding(.horizontal, 11).padding(.vertical, 7).background(.black.opacity(0.3), in: Capsule())
+                    Spacer()
+                    HStack(alignment: .bottom, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(track.title).font(.system(size: 27, weight: .bold)).tracking(-0.8).lineLimit(2)
+                            Text(track.artist).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "play.fill").font(.system(size: 19)).offset(x: 1)
+                            .foregroundStyle(.black).frame(width: 50, height: 50).background(.white, in: Circle())
                     }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(track.title).font(.system(size: titleSize, weight: .semibold)).tracking(-0.35)
-                        .foregroundStyle(.primary).lineLimit(1)
-                    Text(track.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }.frame(width: 224, alignment: .leading).contentShape(Rectangle())
+                }.padding(22).foregroundStyle(.white)
+            }.frame(width: 300, height: 325).clipShape(RoundedRectangle(cornerRadius: 27, style: .continuous))
         }.buttonStyle(.plain).accessibilityLabel("\(track.title), \(track.artist)").accessibilityHint(L("Çal"))
     }
 }
@@ -147,9 +133,9 @@ private struct BrowseShelfHeading: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(L(title)).font(.title3.weight(.bold)).tracking(-0.4).lineLimit(2)
+                Text(L(title)).font(.system(size: 23, weight: .bold)).tracking(-0.7).lineLimit(2)
                 if let caption, !caption.isEmpty {
-                    Text(L(caption)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Text(L(caption)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
             Spacer(minLength: 0)
@@ -171,7 +157,7 @@ private struct BrowseTrackShelf: View {
             BrowseShelfHeading(title: title, caption: subtitle, tracks: tracks)
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 14) {
-                    ForEach(tracks.prefix(14)) { TrackCard(track: $0, tracks: tracks, size: 152) }
+                    ForEach(tracks.prefix(14)) { TrackCard(track: $0, tracks: tracks, size: 164) }
                 }.padding(.horizontal, 22)
             }
         }
@@ -208,7 +194,8 @@ struct DiscoverView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 32) {
+            VStack(alignment: .leading, spacing: 30) {
+                EditorialIntro(eyebrow: "KEŞİF MODU", title: "Biraz başka bir şey.", subtitle: "Ruh halini seç, gerisini müziğe bırak.").padding(.horizontal, 22)
                 VStack(alignment: .leading, spacing: 18) {
                     BrowseShelfHeading(title: "Türler ve ruh halleri")
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 270 : 145), spacing: 12)], spacing: 12) {
@@ -222,8 +209,8 @@ struct DiscoverView: View {
                 if !tracks.isEmpty { BrowseTrackShelf(title: sectionTitle, subtitle: nil, tracks: tracks) }
                 if let failure, tracks.isEmpty { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
             }.padding(.bottom, 32)
-        }.background(Color.musicBackground)
-            .navigationTitle("Keşfet").navigationBarTitleDisplayMode(.large)
+        }.background(Color.canvas)
+            .navigationTitle("Keşfet").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
             }
@@ -250,13 +237,25 @@ struct DiscoverView: View {
 private struct MoodTile: View {
     var mood: MusicMood
     var artwork: String?
-    @Environment(\.dynamicTypeSize) private var typeSize
+    private var shade: Color {
+        switch mood.query {
+        case "chill", "lofi": return Color(red: 0.22, green: 0.36, blue: 0.43)
+        case "workout", "rock": return Color(red: 0.54, green: 0.25, blue: 0.19)
+        case "jazz": return Color(red: 0.36, green: 0.28, blue: 0.47)
+        default: return Color(red: 0.33, green: 0.28, blue: 0.36)
+        }
+    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Artwork(url: artwork, radius: 10).aspectRatio(1.35, contentMode: .fit)
-            Text(L(mood.title)).font(.headline).foregroundStyle(.primary).lineLimit(2)
-            Text(L(mood.subtitle)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-        }.padding(.bottom, 6)
+        ZStack(alignment: .bottomLeading) {
+            shade
+            Image(systemName: mood.symbol).font(.system(size: 66, weight: .light))
+                .foregroundStyle(.white.opacity(0.12)).rotationEffect(.degrees(-15)).offset(x: 42, y: -18)
+            VStack(alignment: .leading, spacing: 7) {
+                Image(systemName: mood.symbol).font(.system(size: 19)).padding(.bottom, 10)
+                Text(L(mood.title)).font(.system(size: 20, weight: .bold)).tracking(-0.4)
+                Text(L(mood.subtitle)).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
+            }.foregroundStyle(.white).padding(18)
+        }.frame(height: 164).clipShape(RoundedRectangle(cornerRadius: 22))
     }
 }
 
@@ -285,7 +284,7 @@ struct QueryView: View {
                     }.padding(.horizontal, 22)
                 }
             }.padding(.bottom, 32)
-        }.background(Color.musicBackground).navigationTitle(title).navigationBarTitleDisplayMode(.inline).task { await load() }
+        }.background(Color.canvas).navigationTitle(title).navigationBarTitleDisplayMode(.inline).task { await load() }
     }
     private func load() async {
         loading = true; failure = nil
@@ -322,8 +321,8 @@ struct SearchView: View {
                     else { results }
                 }
             }.padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 32)
-        }.background(Color.musicBackground)
-            .navigationTitle("Ara").navigationBarTitleDisplayMode(.large)
+        }.background(Color.canvas)
+            .navigationTitle("Ara").navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Şarkı, sanatçı veya albüm")
             .scrollDismissesKeyboard(.interactively)
             .task(id: ListeningLocale.current.cacheKey) { suggestions = (try? await API.shared.home().sections.first?.tracks) ?? [] }
@@ -335,6 +334,7 @@ struct SearchView: View {
     }
     private var discovery: some View {
         VStack(alignment: .leading, spacing: 30) {
+            EditorialIntro(eyebrow: "SESİNİ BUL", title: "Aklında hangi şarkı var?", subtitle: "Bir şarkı, bir sanatçı, yepyeni bir dünya.")
             if !history.isEmpty { recentSearches }
             VStack(alignment: .leading, spacing: 16) {
                 Text(L("Gündemdekiler")).font(.system(size: 21, weight: .bold)).tracking(-0.6)
@@ -351,7 +351,7 @@ struct SearchView: View {
                 ForEach(MusicMood.all.prefix(4)) { mood in
                     NavigationLink { QueryView(query: mood.query, title: L(mood.title)) } label: {
                         HStack(spacing: 15) {
-                            Image(systemName: mood.symbol).font(.system(size: 19, weight: .medium)).foregroundStyle(Color.musicAccent).frame(width: 28)
+                            Image(systemName: mood.symbol).font(.system(size: 19, weight: .medium)).foregroundStyle(Color.coral).frame(width: 28)
                             Text(L(mood.title)).font(.system(size: 18, weight: .semibold)).foregroundStyle(.primary)
                             Spacer()
                             Image(systemName: "arrow.up.right").font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
@@ -394,7 +394,7 @@ struct SearchView: View {
     }
     private func filterButton(_ title: String, value: String) -> some View {
         Button { filter = value } label: {
-            Text(L(title)).font(.system(size: 13, weight: .semibold)).foregroundStyle(filter == value ? Color.musicBackground : Color.primary)
+            Text(L(title)).font(.system(size: 13, weight: .semibold)).foregroundStyle(filter == value ? Color.canvas : Color.primary)
                 .padding(.horizontal, 16).padding(.vertical, 11)
                 .background(filter == value ? Color.primary : Color.musicElevated, in: Capsule())
         }.buttonStyle(.plain).accessibilityAddTraits(filter == value ? .isSelected : [])
@@ -462,7 +462,7 @@ private struct SearchArtistTile: View {
             Artwork(url: artwork, radius: 7).frame(width: 48, height: 48)
             Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
             Spacer(minLength: 0)
-        }.padding(.vertical, 5).contentShape(Rectangle())
+        }.padding(13).musicPanel(radius: 18).contentShape(Rectangle())
     }
 }
 
@@ -470,7 +470,7 @@ private struct AlbumCard: View {
     var collection: MusicCollection
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Artwork(url: collection.artwork, radius: 4).aspectRatio(1, contentMode: .fit)
+            Artwork(url: collection.artwork, radius: 17).aspectRatio(1, contentMode: .fit)
             Text(collection.title).font(.system(size: 14, weight: .semibold)).lineLimit(2).foregroundStyle(.primary)
             Text(collection.artist).font(.system(size: 12)).lineLimit(1).foregroundStyle(.secondary)
         }
@@ -500,7 +500,7 @@ struct AlbumDetailView: View {
                     }.buttonStyle(.plain).accessibilityLabel("Tümünü indir")
                     Button { if let first = tracks.first { player.play(first, in: tracks) } } label: {
                         Image(systemName: "play.fill").font(.system(size: 22, weight: .semibold)).offset(x: 2).foregroundStyle(.white)
-                            .frame(width: 56, height: 56).background(Color.musicAccent, in: Circle())
+                            .frame(width: 56, height: 56).background(Color.coral, in: Circle())
                     }.buttonStyle(.plain).accessibilityLabel("Çal")
                 }.padding(.horizontal, 22).disabled(tracks.isEmpty)
                 if loading { ProgressView().frame(maxWidth: .infinity).padding(30) }
@@ -509,7 +509,7 @@ struct AlbumDetailView: View {
                     ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in TrackRow(track: track, tracks: tracks, number: index + 1) }
                 }.padding(.horizontal, 22)
             }.padding(.bottom, 32)
-        }.background(Color.musicBackground).navigationTitle(collection.title).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
+        }.background(Color.canvas).navigationTitle(collection.title).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
     }
     private func load() async {
         loading = true; failure = nil
@@ -527,14 +527,19 @@ private struct CollectionCoverHeader: View {
     var subtitle: String?
     @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
-        VStack(spacing: 16) {
-            Artwork(url: artwork, radius: 10)
-                .frame(width: typeSize.isAccessibilitySize ? 190 : 224, height: typeSize.isAccessibilitySize ? 190 : 224)
-            VStack(spacing: 7) {
-                Text(title).font(.title2.weight(.bold)).tracking(-0.5).multilineTextAlignment(.center)
+        VStack(spacing: 20) {
+            ZStack {
+                Artwork(url: artwork, radius: 40).blur(radius: 35).opacity(0.3).padding(24)
+                Artwork(url: artwork, radius: 22)
+                    .frame(width: typeSize.isAccessibilitySize ? 190 : 232, height: typeSize.isAccessibilitySize ? 190 : 232)
+                    .shadow(color: .black.opacity(0.3), radius: 24, y: 16)
+            }.frame(height: 270)
+            VStack(spacing: 9) {
+                Text(L(eyebrow)).font(.system(size: 9, weight: .bold)).tracking(2.5).foregroundStyle(Color.coral)
+                Text(title).font(.system(size: 28, weight: .bold)).tracking(-0.8).multilineTextAlignment(.center)
                 if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
             }.frame(maxWidth: .infinity)
-        }.padding(.horizontal, 22).padding(.top, 16)
+        }.padding(.horizontal, 22).padding(.top, 8)
     }
 }
 
@@ -555,14 +560,14 @@ struct ArtistDetailView: View {
                     Button(action: toggleFollow) {
                         Label(isFollowing ? L("Takip ediliyor") : L("Takip et"), systemImage: isFollowing ? "checkmark" : "plus")
                             .font(.system(size: 13, weight: .semibold)).padding(.horizontal, 20).frame(height: 40)
-                            .foregroundStyle(isFollowing ? Color.musicAccent : Color.primary)
-                            .overlay(Capsule().strokeBorder(isFollowing ? Color.musicAccent.opacity(0.6) : Color.primary.opacity(0.25), lineWidth: 1))
+                            .foregroundStyle(isFollowing ? Color.coral : Color.primary)
+                            .overlay(Capsule().strokeBorder(isFollowing ? Color.coral.opacity(0.6) : Color.primary.opacity(0.25), lineWidth: 1))
                     }.buttonStyle(.plain)
                     Spacer()
                     if let tracks = details?.tracks, let first = tracks.first {
                         Button { player.play(first, in: tracks) } label: {
                             Image(systemName: "play.fill").font(.system(size: 22, weight: .semibold)).offset(x: 2).foregroundStyle(.white)
-                                .frame(width: 56, height: 56).background(Color.musicAccent, in: Circle())
+                                .frame(width: 56, height: 56).background(Color.coral, in: Circle())
                         }.buttonStyle(.plain).accessibilityLabel("Şarkıları çal")
                     }
                 }.padding(.horizontal, 22)
@@ -570,7 +575,7 @@ struct ArtistDetailView: View {
                 else if let failure { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
                 else { ProgressView().frame(maxWidth: .infinity).padding(40) }
             }.padding(.bottom, 32)
-        }.background(Color.musicBackground).navigationTitle(name).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
+        }.background(Color.canvas).navigationTitle(name).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
     }
     private func artistContent(_ details: ArtistResponse) -> some View {
         VStack(alignment: .leading, spacing: 32) {

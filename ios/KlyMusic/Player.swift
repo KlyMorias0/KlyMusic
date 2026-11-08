@@ -59,7 +59,9 @@ import OSLog
 
     init(lyricsLoader: @escaping (Track) async throws -> LyricsResponse = { try await API.shared.lyrics($0) }) {
         self.lyricsLoader = lyricsLoader
-        engine.automaticallyWaitsToMinimizeStalling = true
+        // Start when the first audio buffer is ready; do not wait for a speculative
+        // long buffer on YouTube's progressively served AAC files.
+        engine.automaticallyWaitsToMinimizeStalling = false
         observations.append(engine.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -175,7 +177,7 @@ import OSLog
             try Task.checkCancellation()
             let url = try API.mediaURL(stream!)
             item = AVPlayerItem(url: url)
-            item.preferredForwardBufferDuration = 2
+            item.preferredForwardBufferDuration = 1
             if let stream, stream.duration.isFinite, stream.duration > 0 {
                 // The resolver has checked this single recording's actual media duration.
                 item.forwardPlaybackEndTime = CMTime(seconds: stream.duration, preferredTimescale: 600)

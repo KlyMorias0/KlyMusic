@@ -5,6 +5,47 @@ import MediaPlayer
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testPlaybackRaceSkipsFailureAndCancelsSlowAlternative() async throws {
+        let canceled = expectation(description: "Losing network request is canceled")
+        let value: String = try await PlaybackRace.first([
+            { throw APIError.invalidResponse },
+            {
+                do { try await Task.sleep(for: .seconds(30)); return "slow" }
+                catch { canceled.fulfill(); throw error }
+            },
+            { try await Task.sleep(for: .milliseconds(30)); return "validated" }
+        ])
+        XCTAssertEqual(value, "validated")
+        await fulfillment(of: [canceled], timeout: 1)
+    }
+
+    func testPlaybackRacePropagatesFailureWhenNoRecordingIsValid() async {
+        do {
+            let _: String = try await PlaybackRace.first([
+                { throw APIError.invalidResponse },
+                { throw APIError.server("no valid audio") }
+            ])
+            XCTFail("Invalid candidates cannot become a playable recording")
+        } catch { XCTAssertTrue(error is APIError) }
+    }
+
+    func testCancelingPlaybackRaceCancelsAllCandidates() async throws {
+        let started = expectation(description: "Candidate started")
+        let canceled = expectation(description: "Candidate canceled")
+        let request = Task {
+            let _: String = try await PlaybackRace.first([{
+                started.fulfill()
+                do { try await Task.sleep(for: .seconds(30)); return "stale" }
+                catch { canceled.fulfill(); throw error }
+            }])
+        }
+        await fulfillment(of: [started], timeout: 1)
+        request.cancel()
+        do { try await request.value; XCTFail("Canceled selection must not return stale audio") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        await fulfillment(of: [canceled], timeout: 1)
+    }
+
     func testNativeMatchingRejectsWrongRecording() {
         let original = Track(id: "apple:123", title: "Kuzu Kuzu", artist: "Tarkan", duration: 233)
         let matching = Track(id: "youtube:abcdefghijk", title: "Kuzu Kuzu Orijinal Versiyon", artist: "Tarkan", duration: 234)

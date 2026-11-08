@@ -6,21 +6,32 @@
 //
 
 import Foundation
+import CryptoKit
 #if canImport(JavaScriptCore)
 import JavaScriptCore
 import os.log
 
+@available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
 class SignatureSolver {
 
     private static let log = OSLog(SignatureSolver.self)
+    // Cache immutable compiled player text, never a JSContext shared across threads.
+    private static let preparedPlayers: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 3
+        cache.totalCostLimit = 12 * 1024 * 1024
+        return cache
+    }()
 
     private let vm = JSVirtualMachine()
     private let ctx: JSContext
     
     private let playerJS: String
+    private let playerKey: NSString
     
     init(js: String) throws {
         self.playerJS = js
+        self.playerKey = SHA256.hash(data: Data(js.utf8)).map { String(format: "%02x", $0) }.joined() as NSString
         
         guard let context = JSContext(virtualMachine: vm) else {
             throw SignatureSolverError.contextCreationFailed
@@ -154,15 +165,19 @@ class SignatureSolver {
             Request(type: .sig, challenges: request.sigInputs)
         ]
 
+        let prepared = Self.preparedPlayers.object(forKey: playerKey).map { $0 as String }
         let input = Input(
-            type: .player,
-            player: self.playerJS,
-            preprocessed_player: nil,
+            type: prepared == nil ? .player : .preprocessedPlayer,
+            player: prepared == nil ? self.playerJS : nil,
+            preprocessed_player: prepared,
             requests: requests,
-            output_preprocessed: false
+            output_preprocessed: prepared == nil
         )
 
         let response = try solve(with: input)
+        if let prepared = response.preprocessed_player, !prepared.isEmpty {
+            Self.preparedPlayers.setObject(prepared as NSString, forKey: playerKey, cost: prepared.utf8.count)
+        }
 
         var nMap: [String: String] = [:]
         var sigMap: [String: String] = [:]

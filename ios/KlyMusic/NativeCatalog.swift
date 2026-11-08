@@ -144,15 +144,15 @@ actor NativeCatalog {
                     let rows = try await (source == "saavn" ? saavnSearch(query) : youtubeSearch(query))
                     candidates = Array(rows.filter { Self.match(track, $0) >= 0.9 }.sorted { Self.match(track, $0) > Self.match(track, $1) }.prefix(3))
                 }
-                for candidate in candidates {
-                    try Task.checkCancellation()
-                    do {
+                if !candidates.isEmpty {
+                    return try await PlaybackRace.first(candidates.map { candidate in
+                        { @Sendable [self] in
                         let id = String(candidate.id.split(separator: ":", maxSplits: 1).last ?? "")
                         let asset = try await (source == "saavn" ? saavnStream(id, quality: quality, duration: track.duration) : youtubeStream(id, quality: quality, expectedDuration: track.duration))
-                        guard Self.durationCompatible(expected: track.duration, actual: asset.duration) else { continue }
+                        guard Self.durationCompatible(expected: track.duration, actual: asset.duration) else { throw APIError.invalidResponse }
                         return asset
-                    } catch is CancellationError { throw CancellationError() }
-                    catch { try Task.checkCancellation(); continue }
+                        }
+                    })
                 }
             } catch is CancellationError { throw CancellationError() }
             catch { try Task.checkCancellation(); continue }
@@ -185,29 +185,28 @@ actor NativeCatalog {
         guard id.range(of: #"^[A-Za-z0-9_-]{11}$"#, options: .regularExpression) != nil else { throw APIError.invalidResponse }
         let video = YouTube(videoID: id, methods: [.local])
         video.audioOnly = true
-        let streams = try await video.streams
-        let audio = streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }
-        let ranked = audio.sorted { quality == "data" ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0) }
-        for stream in ranked.prefix(4) {
+        let session = self.session
+        let stream = try await video.firstPlayableAudioStream(dataSaver: quality == "data") { stream in
             try Task.checkCancellation()
             // `dur` is the actual media duration in the signed CDN URL, independent of a search label.
             // Reject unknown or combined recordings before downloading/playing any audio.
             guard Self.allowedMediaURL(stream.url), let actualDuration = Self.mediaDuration(stream.url),
-                  Self.durationCompatible(expected: expectedDuration, actual: actualDuration) else { continue }
-            var request = URLRequest(url: stream.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
+                  Self.durationCompatible(expected: expectedDuration, actual: actualDuration) else { return false }
+            var request = URLRequest(url: stream.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 4)
             request.setValue("bytes=0-4095", forHTTPHeaderField: "Range")
             do {
                 let (bytes, response) = try await session.data(for: request)
                 try Task.checkCancellation()
                 guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                       let finalURL = http.url, Self.allowedMediaURL(finalURL), bytes.count >= 12,
-                      String(data: bytes.subdata(in: 4..<8), encoding: .ascii) == "ftyp" else { continue }
-                let expires = URLComponents(url: stream.url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "expire" })?.value.flatMap(Double.init)
-                return PlaybackAsset(id: "youtube:" + id, path: stream.url.absoluteString, provider: "youtube", codec: "aac", bitrate: (stream.bitrate ?? 128000) / 1000, expiresAt: min(expires ?? Date().timeIntervalSince1970 + 1800, Date().timeIntervalSince1970 + 1800), duration: actualDuration)
+                      String(data: bytes.subdata(in: 4..<8), encoding: .ascii) == "ftyp" else { return false }
+                return true
             } catch is CancellationError { throw CancellationError() }
-            catch { try Task.checkCancellation(); continue }
+            catch { try Task.checkCancellation(); return false }
         }
-        throw APIError.invalidResponse
+        guard let actualDuration = Self.mediaDuration(stream.url) else { throw APIError.invalidResponse }
+        let expires = URLComponents(url: stream.url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "expire" })?.value.flatMap(Double.init)
+        return PlaybackAsset(id: "youtube:" + id, path: stream.url.absoluteString, provider: "youtube", codec: "aac", bitrate: (stream.bitrate ?? 128000) / 1000, expiresAt: min(expires ?? Date().timeIntervalSince1970 + 1800, Date().timeIntervalSince1970 + 1800), duration: actualDuration)
     }
 
     private func youtubeSearch(_ query: String) async throws -> [Track] {

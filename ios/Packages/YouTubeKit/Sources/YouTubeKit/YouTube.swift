@@ -305,6 +305,62 @@ public class YouTube {
         }
     }
     
+    /// Resolve and validate AAC as clients finish, rather than waiting for every
+    /// client (and every video rendition) before the caller can start playback.
+    public func firstPlayableAudioStream(dataSaver: Bool = false,
+                                         validate: @escaping @Sendable (Stream) async throws -> Bool) async throws -> Stream {
+        #if canImport(JavaScriptCore)
+        try Task.checkCancellation()
+        // These cached properties share the watch/player fetch with the full fallback.
+        let source = try await js
+        let timestamp = Extraction.extractSignatureTimestamp(fromJS: source)
+        let config = try await ytcfg
+        let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .web, .mediaConnectFrontend]
+        let winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
+            for client in clients {
+                group.addTask { [videoID, useOAuth, allowOAuthCache] in
+                    do {
+                        let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
+                                             useOAuth: useOAuth, allowCache: allowOAuthCache)
+                        let info = try await tube.player(videoID: videoID)
+                        try Task.checkCancellation()
+                        guard info.videoDetails?.videoId == videoID,
+                              info.playabilityStatus?.status == "OK", let data = info.streamingData else { return nil }
+                        var manifest = Extraction.applyDescrambler(streamData: data)
+                        manifest.removeAll { !$0.mimeType.hasPrefix("audio/mp4") }
+                        manifest = Extraction.filterOutDubbedAudio(streamManifest: manifest)
+                        guard !manifest.isEmpty else { return nil }
+                        try Extraction.applySignature(streamManifest: &manifest, videoInfo: info, js: source)
+                        try Task.checkCancellation()
+                        let streams = manifest.compactMap { try? Stream(format: $0) }.sorted {
+                            dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
+                        }
+                        for stream in streams where stream.isNativelyPlayable {
+                            try Task.checkCancellation()
+                            if try await validate(stream) { return stream }
+                        }
+                        return nil
+                    } catch is CancellationError { throw CancellationError() }
+                    catch { try Task.checkCancellation(); return nil }
+                }
+            }
+            defer { group.cancelAll() }
+            while let result = try await group.next() {
+                try Task.checkCancellation()
+                if let result { return result }
+            }
+            return nil
+        }
+        if let winner { return winner }
+        #endif
+        // Keep all existing extraction alternatives if fast clients are unavailable.
+        for stream in try await streams.filterAudioOnly() where stream.fileExtension == .m4a && stream.isNativelyPlayable {
+            try Task.checkCancellation()
+            if try await validate(stream) { return stream }
+        }
+        throw YouTubeKitError.extractError
+    }
+
     /// Returns a list of live streams - currently only HLS supported
     /// - Note: Currently doesn't respect `method` set. It always uses `.local`
     public var livestreams: [Livestream] {

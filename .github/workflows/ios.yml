@@ -1,0 +1,46 @@
+name: Build and verify KlyMusic
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build unsigned iPhone IPA
+        run: |
+          set -o pipefail
+          bash scripts/build-ipa.sh 2>&1 | tee device-build.log
+      - name: Save device build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view klymusic-2.4.0 >/dev/null 2>&1; then
+            gh release create klymusic-2.4.0 --target "$GITHUB_SHA" --title 'KlyMusic 2.4.0 — redesign and faster playback' --notes 'Unsigned iOS device build. Tab bar, mini player and lyrics presentation preserved. Redesigned browsing, library, settings and player. First-validated audio resolution and cached player transforms.'
+          fi
+          gh release upload klymusic-2.4.0 dist/KlyMusic-unsigned.ipa dist/SHA256.txt device-build.log --clobber
+      - name: Unit tests and protected UI regression tests
+        run: |
+          set -o pipefail
+          bash scripts/ci-verify.sh 2>&1 | tee verification.log
+      - name: Package regression tests
+        run: |
+          set -o pipefail
+          swift test --package-path ios/Packages/YouTubeKit --filter 'ParserTests|ExtractionTests|FastAudioTests' 2>&1 | tee package-tests.log
+      - name: Publish verification results
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for file in verification.log package-tests.log; do
+            if [ -f "$file" ]; then gh release upload klymusic-2.4.0 "$file" --clobber; fi
+          done
+          if [ -d dist/screenshots ]; then
+            ditto -c -k --sequesterRsrc --keepParent dist/screenshots dist/screenshots.zip
+            gh release upload klymusic-2.4.0 dist/screenshots.zip --clobber
+          fi
