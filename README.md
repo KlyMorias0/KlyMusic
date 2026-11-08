@@ -1,4 +1,4 @@
-# KlyMusic 2.5.0 (12)
+# KlyMusic 2.6.0 (13)
 
 KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygulamasıdır. Katalog, arama, ses bağlantısı çözümleme ve şarkı sözleri doğrudan telefonda çalışır. Kullanıcı hesabı veya müzik sunucusu adresi girmen gerekmez. Favoriler, çalma listeleri ve indirilen şarkılar cihazda saklanır.
 
@@ -8,11 +8,13 @@ KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygula
 
 Uygulamayı açınca **Dinle**, **Keşfet**, **Kütüphane** ve **Ara** sekmelerini kullanabilirsin. Bir şarkı seçildiğinde mini oynatıcı açılır. Mini oynatıcıya dokunarak tam oynatıcıya, sözlere ve çalma sırasına geçebilirsin. İndirilen şarkılar **Kütüphane → İndirilenler** içinde internet olmadan oynatılır.
 
-## Bu sürüm — 2.5.0
+## Bu sürüm — 2.6.0
 
-- Kapak ve sözler aynı oynatıcı kabuğunu paylaşır. Sözlere geçince yalnızca kapak alanı değişir; metadata, sarma çubuğu, kontroller ve arka plan yerinde kalır. Eski ayrı lyrics oynatıcı düzeni tamamen kaldırıldı.
-- Native tab bar ve mini oynatıcı korunur. LyricsView/AnimatedLyricLine kaynakları, söz takibi, otomatik kaydırma, satırdan sarma ve satır animasyonu orijinal arşivle birebir aynı kalır. Korunan alanlar `Protected-UI-Current.json` içindedir.
-- Kenarlardaki ışıklar gerçek kapak piksellerinden hesaplanır. Ana ekran, tam oynatıcı ve ayarlar bu renkleri kullanır. Yeni ayarlar iki gerçek kalite seçeneği, görünüm tercihi, çevrimdışı müzik ve yedekleme alanlarından oluşur.
+- Üç nokta menüsü sistem menüsüyle, ilişkili işlemler ayrı gruplarda gösterilir. Çalan parçanın etkisiz sıra işlemleri gizlenir; sanatçı/albüm bağlantıları alt menüde toplanır.
+- Çalma sırasında şu an çalan kayıt ayrı, yalnızca gelecek parçalar sürüklenebilir listede görünür. Geçmiş ve çalan parça tekrarlanmaz. Bir sıradaki parçayı seçmek mevcut sırayı yeniden oluşturmaz. Satıra basılı tutarak kaldırabilir, seçeneklerden sırayı temizleyebilir veya uyku zamanlayıcısı açabilirsin.
+- Ana ekran, keşfet, arama, kütüphane, ayarlar ve detay sayfaları düz zemin kullanır. Sayfa ve gezinme çubuğu aynı renktir; kaydırmada ayrı siyah bant ile renkli sayfa arasındaki geçiş kaldırılır.
+- Onaylanan oynatıcı yerleşimi, kapağa bağlı kenar ışıkları, söz tasarımı/akışı/animasyonu, mini oynatıcı ve native tab bar aynen korunur. Korunan alanlar `Protected-UI-Current.json` içindedir.
+- Apple Music/iOS 27 araştırmasının kaynakları ve bu projeye uygulanan kararlar `Design-Research-2.6.0.md` içinde bulunur. Derleme Xcode 26.3, arayüz testi iOS 26 simülatöründedir.
 - Varsayılan **Az veri** modu düşük bit hızlı, cihazda oynatılabilen AAC kopyasını tercih eder. Dengeli adı altında aynı yüksek kaliteyi seçen ayrı bir seçenek sunulmaz. Yüksek kalite isteğe bağlıdır.
 - Az veri modunda ekran taraması sırasında ses ön hazırlığı yapılmaz. Yalnızca sıradaki parça hazırlanır; ikinci sonraki parçanın ön hazırlığı kaldırılır. Diğer modda da tarama ön hazırlığı kısıtlı/pahalı bağlantıda çalışmaz.
 - Daha önce doğrulanan kayıt eşleşmeleri 7 gün saklanır. Tekrar dinlemede başlık/sanatçı eşleştirmesi tekrar aranmaz; süresi dolan CDN bağlantıları kalıcı olarak saklanmaz. Kimlik ve süre değişmişse eşleşme yeniden doğrulanır.
@@ -21,7 +23,7 @@ Uygulamayı açınca **Dinle**, **Keşfet**, **Kütüphane** ve **Ara** sekmeler
 
 Ses tüketimi kaynak bit hızına bağlıdır. Örneğin 48 kbps AAC yaklaşık 21,6 MB/saat, 128 kbps yaklaşık 57,6 MB/saat ses verisidir; bunlar ölçülmüş toplam uygulama trafiği veya üst sınır değildir. Kapak, arama ve protokol trafiği ayrıca oluşur. Veri tercihi indirmelerde ve yedek/geri yüklemede de korunur.
 
-Güncel doğrulama `VALIDATION-2.5.0.md` içinde kaydedilir. Önceki doğrulama belgeleri önceki sürümlere aittir.
+Güncel doğrulama `VALIDATION-2.6.0.md` içinde kaydedilir. Önceki doğrulama belgeleri önceki sürümlere aittir.
 
 ## Xcode ile çalıştırma
 
@@ -37,7 +39,7 @@ XcodeGen yalnızca `ios/project.yml` değiştikten sonra projeyi yeniden oluştu
 
 ## Geliştirme ve testler
 
-Xcode'da **Product → Test** ile birim ve arayüz testlerini çalıştır. Otomatik testler kaynak eşleştirme, söz zamanları, kuyruk, yedekleme, hızlı parça seçimi ve gezinme gibi akışları kapsar. Çevrimiçi testler sağlayıcıların erişilebilir olmasına bağlıdır. Bu teslimatta gerçekten tamamlanan kontroller `VALIDATION.md` içinde kayıtlıdır.
+Xcode'da **Product → Test** ile birim ve arayüz testlerini çalıştır. Otomatik testler kaynak eşleştirme, söz zamanları, kuyruk, yedekleme, hızlı parça seçimi ve gezinme gibi akışları kapsar. Çevrimiçi testler sağlayıcıların erişilebilir olmasına bağlıdır. Bu teslimatta gerçekten tamamlanan kontroller `VALIDATION-2.6.0.md` içinde kayıtlıdır.
 
 `server/`, `compose.yaml` ve `scripts/run-server.sh` eski sunucu mimarisinin geliştirme araçlarıdır. Release IPA bunları kullanmaz. Yalnızca Debug derlemesinde `-serverURL http://127.0.0.1:8787` başlatma argümanı verilirse geliştirme sunucusu devreye girer.
 
@@ -47,4 +49,4 @@ Görsel söz takibi ve satırdan sarma akışını sağlayıcı bağlantısında
 
 Katalog ve kapaklar Apple'ın herkese açık uç noktalarından; oynatılabilir ses öncelikle YouTube Music eşleştirmesinden (elle kaynak seçilirse JioSaavn bağlayıcısından); sözler LRCLIB'den alınır. Aynı kaydın sanatçı, başlık ve süre eşleşmesi kontrol edilir. Uygun tam kayıt bulunamazsa açık bir hata gösterilir; kısa önizleme tam şarkı gibi sunulmaz. Kaynak erişimi bölgeye ve sağlayıcı değişikliklerine göre farklılık gösterebilir.
 
-Cihazdaki veriler ve ağ istekleri için `PRIVACY.md`; doğrulanan ve cihazda henüz denenmeyen davranışlar için `VALIDATION.md` dosyasına bak.
+Cihazdaki veriler ve ağ istekleri için `PRIVACY.md`; doğrulanan ve cihazda henüz denenmeyen davranışlar için `VALIDATION-2.6.0.md` dosyasına bak.

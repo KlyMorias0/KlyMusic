@@ -1,17 +1,15 @@
-# KlyMusic — 2.5.0 (12), güncel kullanıcı düzeltmesi
+# KlyMusic — 2.6.0 (13), son kullanıcı kapsamı
 
-Kullanıcı 2.4.1'de sözlere girince eski oynatıcıya dönülmesini reddetti. Korumak istediği TAM ESKİ LYRICS EKRANI DEĞİL, yalnızca söz satırlarının hareket/takip tasarımıdır. Tab bar da korunacaktır. Bu son açıklama önceki geniş koruma notlarının yerine geçer.
+Kullanıcı 2.5.0 oynatıcı ve söz tasarımını onayladı. Bu tur yalnızca üç nokta menüsü, çalma sırası ve diğer sayfaların görünümü içindir. Onaylanan oynatıcı yerleşimine, sözler/animasyona, native tab bar ve mini oynatıcıya dokunma. Protected-UI-Current.json bu alanları kaydeder.
 
-2.5.0'da tek oynatıcı kabuğu vardır: kapak/söz alanı değişir; metadata, sarma çubuğu, transport, ses seviyesi, footer ve kapak rengine bağlı ışıklar iki modda aynıdır. originalLyricsLayout ve eski oynatıcı yardımcıları kaldırıldı. LyricsView/AnimatedLyricLine kaynakları ve native tab bar/root değişmedi.
+Üç nokta menüsünde ilişkili işlemler gruplandı; çalan parçanın etkisiz sıra işlemleri kaldırıldı; sanatçı/albüm alt menüye alındı. Çalma sırası geçmiş/çalan kaydı tekrar göstermez; yalnızca gelecek parçalar sıralanır. Satır seçimi mevcut sırayı korur. Sürükleme eski bir liste görüntüsünden gelirse kimlik üzerinden çözülür; bu sırada çalmaya başlayan kayıt yerinden oynatılmaz. Temizleme mevcut çalan AVPlayerItem'ı kesmez.
 
-Kullanıcı saf siyah bir duvar istemiyor; kapak renginde yumuşak kenar ışıkları istiyor. Ana ekran daha kompakt bir dinleme alanı olarak, ayarlar da eski gri tablodan farklı kalite/görünüm/çevrimdışı/yedekleme alanlarıyla yeniden kuruldu. Yeni sloganlar eklenmez.
+Kapak renkleri ve kenar ışıkları YALNIZCA oynatıcıda kalır. Diğer sayfalar düz, nötr zemin kullanır. Zemini Color.musicBackground ile aynı tut; farklı renkli gezinme çubuğu/scroll dikişini geri getirme. Sayfa art alanına AlbumBackdrop ekleme.
 
-Varsayılan Az veri: düşük bit hızlı AAC tercihi, taramada ses ön yükleme yok, yalnızca sıradaki parça hazırlanır. Pahalı/kısıtlı bağlantıda tarama ön hazırlığı yapılmaz. Küçük kapaklar 160/320 piksel istenir; büyük kapak/rengin kaynağı aynı önbellekten paylaşılır. Sabitlenmiş eski kapaklar için disk alternatifi korunur.
+Apple Music/iOS 27 araştırması Design-Research-2.6.0.md içindedir. Derleme Xcode 26.3; UI testi iOS 26 simülatöründe yapılır. iOS 27 cihaz testi yapılmış gibi yazılmaz.
 
-Başarılı kayıt eşleşmeleri (CDN URL'si olmadan) 7 gün saklanır. Hazır AVPlayerItem sonraki geçişte yeniden kullanılabilir. Kullanıcı 1 ms istedi fakat 1 ms duyulabilir ses ya da internetten açılış garantisi fiziksel olarak verilmez. Kontrol yolu ölçümüyle gerçek ses gecikmesi karıştırılmaz.
-
-Az veri tercihi indirmelere ve yedek/geri yüklemeye uygulanır. Eski yedeklerde kalite ayarıyla tutarlı mod geri yüklenir. SwiftData modeli ve mevcut kütüphane korunur.
+Önceki ses/veri iyileştirmeleri korunur: varsayılan Az veri, taramada ses ön yükleme yok, sonraki hazır AVPlayerItem yeniden kullanılır, doğrulanmış kayıt eşleşmeleri 7 gün saklanır. 1 ms duyulabilir ses garantisi verilmez. Kontrol yolu ölçümü gerçek ses gecikmesi değildir. SwiftData ve cihazdaki kütüphane korunur.
 
 Repo: https://github.com/KlyMorias0/KlyMusic (özel).
-Araç: Xcode 26.3. Derleme: bash scripts/build-ipa.sh.
-Doğrulama: VALIDATION-2.5.0.md ve Protected-UI-Current.json.
+Derleme: bash scripts/build-ipa.sh, doğrulama: bash scripts/ci-verify.sh.
+Güncel sonuç: VALIDATION-2.6.0.md; eski sürüm belgeleri tarihsel kayıttır.

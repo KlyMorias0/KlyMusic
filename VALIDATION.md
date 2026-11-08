@@ -1,3 +1,5 @@
+Güncel sürüm: [KlyMusic 2.6.0 doğrulaması](VALIDATION-2.6.0.md). Aşağıdaki kayıt 2.3.0 sürümüne aittir.
+
 # KlyMusic 2.3.0 (8) doğrulama — 6 Kasım 2026
 
 ARM64 iPhone/iPad Release derlemesi ve son kaynaklarla simülatör test derlemesi geçti. IPA iOS 17+ içindir. ZIP bütünlüğü, sürüm, cihaz platformu, gerekli kaynaklar ve Release ikilisiyle birebir eşleşme doğrulandı.

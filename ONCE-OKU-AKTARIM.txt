@@ -1,17 +1,18 @@
-KlyMusic — 2.5.0 (12)
+KlyMusic — 2.6.0 (13)
 
-Önce DEVAM.md ve VALIDATION-2.5.0.md dosyalarını oku.
+Önce DEVAM.md ve VALIDATION-2.6.0.md dosyalarını oku.
 
-SON KULLANICI AÇIKLAMASI:
-Tab bar ve söz satırlarının hareket/takip/animasyon tasarımı korunur.
-Söz ekranının ESKİ TAM OYNATICI DÜZENİ korunmaz. Kapak ve sözler aynı yeni
-oynatıcı kabuğunda bulunur. Saf siyah duvar yerine kapak rengine göre kenar
-ışıkları kullanılır. Eski gri ayarlar tablosu kaldırılmıştır.
+SON KULLANICI KAPSAMI:
+2.5.0 oynatıcı, şarkı sözleri/akışı/animasyonu ve native tab bar onaylandı.
+Bu alanların tasarımına dokunma. Üç nokta menüsü ve çalma sırası düzeltildi.
+Kapak renkleri yalnızca oynatıcıda kalır; diğer sayfalar düz zemin kullanır.
+Apple Music/iOS 27 araştırması Design-Research-2.6.0.md içindedir.
 
-Varsayılan Az veri modu aktiftir. Hazır sıradaki öğe yeniden çözülmez.
-1 ms duyulabilir geçiş garantisi yoktur; kontrol yolu ölçümü ses ölçümü değildir.
+Varsayılan Az veri ve hazır sonraki AVPlayerItem kullanımı korunur.
+1 ms duyulabilir geçiş garantisi yoktur.
 
 Kaynak: ios/KlyMusic.xcodeproj
 IPA: dist/KlyMusic-unsigned.ipa (imzasız; sideload ile imzala)
 Derleme: Xcode 26.3, bash scripts/build-ipa.sh
+UI testi: iOS 26 simülatörü. iOS 27 cihaz testi yapılmadı.
 Önceki sürümlerin doğrulama kayıtları tarihseldir.
