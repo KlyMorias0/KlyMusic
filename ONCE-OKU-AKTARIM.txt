@@ -1,18 +1,17 @@
-KlyMusic — 8 Kasım 2026, 2.4.1 (11)
+KlyMusic — 2.5.0 (12)
 
-Bu kaynaklar kullanıcının 7 Kasım arşivi üzerine düzenlenmiştir.
-Güncel tercih: saf siyah, Apple Music benzeri sade tasarım. Büyük sloganlar,
-mavi/gri zemin ve renkli gösterge kartları kullanılmaz. Oynatıcı referansı
-Apple Music'in büyük kapak, sade metadata ve çerçevesiz kontroller düzenidir.
+Önce DEVAM.md ve VALIDATION-2.5.0.md dosyalarını oku.
 
-TAB BAR, MİNİ OYNATICI VE LYRICS TASARIMINA DOKUNMA.
-Kaynak karşılaştırması Protected-UI-Current.json içindedir. Lyrics açıkken
-kullanılan orijinal oynatıcı düzeni de korunmuştur.
+SON KULLANICI AÇIKLAMASI:
+Tab bar ve söz satırlarının hareket/takip/animasyon tasarımı korunur.
+Söz ekranının ESKİ TAM OYNATICI DÜZENİ korunmaz. Kapak ve sözler aynı yeni
+oynatıcı kabuğunda bulunur. Saf siyah duvar yerine kapak rengine göre kenar
+ışıkları kullanılır. Eski gri ayarlar tablosu kaldırılmıştır.
 
-Güncel kaynaklar: ios/KlyMusic.xcodeproj
-Derleme: Xcode 26.3; bash scripts/build-ipa.sh
-Son doğrulama: VALIDATION-2026-11-08.md
-IPA: dist/KlyMusic-unsigned.ipa (imzasız; sideload aracıyla imzalanmalı)
+Varsayılan Az veri modu aktiftir. Hazır sıradaki öğe yeniden çözülmez.
+1 ms duyulabilir geçiş garantisi yoktur; kontrol yolu ölçümü ses ölçümü değildir.
 
-Eski tarihli doğrulama dosyaları tarihsel kayıttır. Güncel doğrulama belgesini
-esas al. Gerçek iPhone'da şarkı açılış süresi ölçülmedi.
+Kaynak: ios/KlyMusic.xcodeproj
+IPA: dist/KlyMusic-unsigned.ipa (imzasız; sideload ile imzala)
+Derleme: Xcode 26.3, bash scripts/build-ipa.sh
+Önceki sürümlerin doğrulama kayıtları tarihseldir.

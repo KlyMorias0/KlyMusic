@@ -1,0 +1,64 @@
+{
+  "version": "2.5.0",
+  "build_number": "12",
+  "code_commit": "6e2e59ba28b91ec2f7dfc0c2a41cfd830335c86a",
+  "ci_run": "https://github.com/KlyMorias0/KlyMusic/actions/runs/42456215094",
+  "device_build": {
+    "result": "passed",
+    "configuration": "Release",
+    "architecture": "arm64",
+    "minimum_iOS": "17.0",
+    "sdk": "iphoneos26.2",
+    "unsigned": true,
+    "sha256": "2bae92d2f4f612909186791f8c38f845109372287f391315fbf194c1e4ff0b21"
+  },
+  "tests": {
+    "core": {
+      "passed": 45,
+      "skipped": 1,
+      "failed": 0
+    },
+    "ui": {
+      "passed": 3,
+      "failed": 0
+    },
+    "YouTubeKit": {
+      "passed": 12,
+      "failed": 0
+    },
+    "total_passed": 60
+  },
+  "preservation": {
+    "tabBarAndRoot": {
+      "unchanged": true,
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "miniPlayer": {
+      "unchanged": true,
+      "sha256": "7e72982a248b924880831d6de3cb7a249e27a1a65c274e9aa772f415daf2f962"
+    },
+    "lyricsFlowAndAnimation": {
+      "unchanged": true,
+      "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
+    },
+    "scope": "Latest user clarification: preserve native tabs and lyric flow/animation; replace the surrounding player layout in both modes."
+  },
+  "latency": {
+    "prepared_item_control_switch_ms": 1.7319917678833008,
+    "is_audible_latency": false,
+    "live_provider_timing": "unavailable; skipped",
+    "physical_iPhone_test": false,
+    "one_millisecond_guarantee": false
+  },
+  "artwork_sample": {
+    "160": 15020,
+    "600": 123760,
+    "640": 133119,
+    "sample": "Same Apple catalog artwork, response bytes; this is not an audio-data measurement."
+  },
+  "audio_data_estimates": {
+    "48_kbps_MB_per_hour": 21.6,
+    "128_kbps_MB_per_hour": 57.6,
+    "scope": "Audio payload only; excludes protocol, catalogue, player script and artwork transfers."
+  }
+}

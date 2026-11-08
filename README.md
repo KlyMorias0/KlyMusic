@@ -1,4 +1,4 @@
-# KlyMusic 2.4.1 (11)
+# KlyMusic 2.5.0 (12)
 
 KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygulamasıdır. Katalog, arama, ses bağlantısı çözümleme ve şarkı sözleri doğrudan telefonda çalışır. Kullanıcı hesabı veya müzik sunucusu adresi girmen gerekmez. Favoriler, çalma listeleri ve indirilen şarkılar cihazda saklanır.
 
@@ -8,16 +8,20 @@ KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygula
 
 Uygulamayı açınca **Dinle**, **Keşfet**, **Kütüphane** ve **Ara** sekmelerini kullanabilirsin. Bir şarkı seçildiğinde mini oynatıcı açılır. Mini oynatıcıya dokunarak tam oynatıcıya, sözlere ve çalma sırasına geçebilirsin. İndirilen şarkılar **Kütüphane → İndirilenler** içinde internet olmadan oynatılır.
 
-## Bu sürüm — 8 Kasım 2026
+## Bu sürüm — 2.5.0
 
-- Saf siyah zemin, standart başlıklar ve kapakların öne çıktığı Apple Music benzeri düzen. Önceki taslakta kullanılan mavi/gri zemin, sloganlar ve renkli gösterge kartları kaldırıldı.
-- Tam oynatıcıda büyük kare kapak, altında şarkı/sanatçı bilgisi, ince sarma çubuğu, çerçevesiz geri/oynat/ileri kontrolleri, sistem ses seviyesi ve altta sözler/AirPlay/çalma sırası.
-- Tab bar, mini oynatıcı, lyrics bileşenleri ve lyrics açıkken kullanılan tam düzen orijinal arşivle birebir korunur. Kontrol kaydı: `Protected-UI-Current.json`.
-- Ses çözümleme artık bütün istemcilerin tamamlanmasını beklemek yerine doğrulanan ilk AAC bağlantısını kullanır. Başlık, sanatçı, süre ve medya başlığı doğrulamaları korunur.
-- Büyük YouTube player JavaScript'inin işlenmiş hali paylaşılır; eşzamanlı isteklerin aynı dosyayı tekrar tekrar işlemesi önlenir. Player betiği önbelleği eşzamanlı erişime güvenlidir.
-- Şarkı, aday kayıt ve istemci istekleri iptali destekler. Paylaşılan çalma önbelleği, görünür şarkıların ön hazırlığı, sonraki parça hazırlığı ve çevrimdışı indirmeler korunur.
+- Kapak ve sözler aynı oynatıcı kabuğunu paylaşır. Sözlere geçince yalnızca kapak alanı değişir; metadata, sarma çubuğu, kontroller ve arka plan yerinde kalır. Eski ayrı lyrics oynatıcı düzeni tamamen kaldırıldı.
+- Native tab bar ve mini oynatıcı korunur. LyricsView/AnimatedLyricLine kaynakları, söz takibi, otomatik kaydırma, satırdan sarma ve satır animasyonu orijinal arşivle birebir aynı kalır. Korunan alanlar `Protected-UI-Current.json` içindedir.
+- Kenarlardaki ışıklar gerçek kapak piksellerinden hesaplanır. Ana ekran, tam oynatıcı ve ayarlar bu renkleri kullanır. Yeni ayarlar iki gerçek kalite seçeneği, görünüm tercihi, çevrimdışı müzik ve yedekleme alanlarından oluşur.
+- Varsayılan **Az veri** modu düşük bit hızlı, cihazda oynatılabilen AAC kopyasını tercih eder. Dengeli adı altında aynı yüksek kaliteyi seçen ayrı bir seçenek sunulmaz. Yüksek kalite isteğe bağlıdır.
+- Az veri modunda ekran taraması sırasında ses ön hazırlığı yapılmaz. Yalnızca sıradaki parça hazırlanır; ikinci sonraki parçanın ön hazırlığı kaldırılır. Diğer modda da tarama ön hazırlığı kısıtlı/pahalı bağlantıda çalışmaz.
+- Daha önce doğrulanan kayıt eşleşmeleri 7 gün saklanır. Tekrar dinlemede başlık/sanatçı eşleştirmesi tekrar aranmaz; süresi dolan CDN bağlantıları kalıcı olarak saklanmaz. Kimlik ve süre değişmişse eşleşme yeniden doğrulanır.
+- Küçük Apple kapakları artık görünüm boyutuna uygun istenir. Renk çıkarımı ek bir bağımsız indirme yapmak yerine aynı kapak önbelleğini paylaşır; çevrimdışı sabitlenmiş eski kapaklar da kullanılabilir.
+- Hazır kuyruk öğesi yeniden oluşturulmadan sonraki şarkıya geçirilir. **1 ms duyulabilir ses geçişi veya internetten ilk açılış garantisi verilmez.** Kontrol yolunun süresi sesin duyulma süresi değildir.
 
-Gerçek iPhone'da açılış süresi ölçülmedi. CI'daki canlı kaynak denemesi kullanılabilir bir kayıt bulamadığından 20 saniyeden belirli bir süreye düşüş iddiası yoktur. Güncel test ve derleme durumu `VALIDATION-2026-11-08.md` içinde kaydedilir. Önceki tarihli doğrulama dosyaları önceki sürümlerin kayıtlarıdır.
+Ses tüketimi kaynak bit hızına bağlıdır. Örneğin 48 kbps AAC yaklaşık 21,6 MB/saat, 128 kbps yaklaşık 57,6 MB/saat ses verisidir; bunlar ölçülmüş toplam uygulama trafiği veya üst sınır değildir. Kapak, arama ve protokol trafiği ayrıca oluşur. Veri tercihi indirmelerde ve yedek/geri yüklemede de korunur.
+
+Güncel doğrulama `VALIDATION-2.5.0.md` içinde kaydedilir. Önceki doğrulama belgeleri önceki sürümlere aittir.
 
 ## Xcode ile çalıştırma
 

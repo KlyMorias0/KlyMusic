@@ -1,15 +1,15 @@
-# KlyMusic 2.4.1 (11)
+# KlyMusic 2.5.0 (12)
 
-`dist/KlyMusic-unsigned.ipa` gerçek iPhone/iPad için ARM64 pakettir. iOS 17 ve üzeri gerektirir.
+`dist/KlyMusic-unsigned.ipa` ARM64 iPhone/iPad paketidir. iOS 17 ve üzeri gerekir.
 
 1. IPA dosyasını indir.
-2. Kullandığın sideload aracında IPA'yı seçip kendi hesabın veya sertifikanla imzala ve yükle.
-3. Gerekirse iPhone'un Ayarlar uygulamasında yükleme aracının istediği geliştirici güvenini tamamla.
+2. Kullandığın sideload aracıyla imzala ve yükle.
+3. Gerekirse iPhone Ayarlar'da yükleme aracının istediği geliştirici güvenini tamamla.
 
-Bu paket imzasızdır; doğrudan dosyaya dokunmak kurulumu tamamlamaz.
+Tab bar korunur. Kapak/sözler aynı yeni oynatıcı düzenini kullanır; söz satırlarının animasyonu ve takibi korunur. Kenar ışıkları kapaktan alınır.
 
-Ana sayfa, keşfet, arama, kütüphane, albüm/çalma listesi ekranları, ayarlar ve tam ekran oynatıcı yenilendi. Mevcut tab bar, kaydırınca küçülme davranışı ve animasyonlu sözler korundu.
+Az veri varsayılandır. Yalnızca sıradaki parça hazırlanır; taramadaki toplu ses ön hazırlığı ekonomik modda kapalıdır. Bu tercih indirmelere ve yedeklere de uygulanır. Zaten indirilmiş dosyalar değiştirilmez.
 
-Görünen ilk iki parça için sınırlı ön hazırlık, paylaşılan bağlantı önbelleği ve sıradaki parçanın önceden hazırlanması eklendi. Gereksiz video akışı çözümlemesi kaldırıldı. Katalog ve kapaklar Apple'dan, otomatik ses eşleştirmesi YouTube Music kataloğu/YouTube akışlarından gelir. Release sürümü ayrı bir KlyMusic sunucusu gerektirmez.
+Hazır kuyruk öğesi yeniden oluşturulmadan kullanılır. İnternetten ilk açılış veya duyulabilir ses geçişi için 1 ms garantisi yoktur.
 
-Fiziksel iPhone'daki gerçek şarkı geçiş süresi henüz ölçülmedi. Ayrıntılı doğrulama sonucu VALIDATION-2026-11-08.md dosyasındadır.
+Doğrulama: VALIDATION-2.5.0.md. Fiziksel iPhone gecikmesi ölçülmedi.

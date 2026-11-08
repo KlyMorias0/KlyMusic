@@ -1,15 +1,17 @@
-# KlyMusic — güncel devam kaydı
+# KlyMusic — 2.5.0 (12), güncel kullanıcı düzeltmesi
 
-8 Kasım 2026: 2.4.1 (11), siyah Apple Music stili.
+Kullanıcı 2.4.1'de sözlere girince eski oynatıcıya dönülmesini reddetti. Korumak istediği TAM ESKİ LYRICS EKRANI DEĞİL, yalnızca söz satırlarının hareket/takip tasarımıdır. Tab bar da korunacaktır. Bu son açıklama önceki geniş koruma notlarının yerine geçer.
 
-Kullanıcının kabul edilen yönlendirmesi: saf siyah arka plan, Apple Music'e benzeyen sade düzen. Büyük sloganlar, mavi/gri zemin ve renkli gösterge kartları kaldırıldı. Oynatıcıda büyük kare kapak, altında metadata, ince sarma çubuğu ve çerçevesiz geri/oynat/ileri kontrolleri kullanılır.
+2.5.0'da tek oynatıcı kabuğu vardır: kapak/söz alanı değişir; metadata, sarma çubuğu, transport, ses seviyesi, footer ve kapak rengine bağlı ışıklar iki modda aynıdır. originalLyricsLayout ve eski oynatıcı yardımcıları kaldırıldı. LyricsView/AnimatedLyricLine kaynakları ve native tab bar/root değişmedi.
 
-Tab bar, mini oynatıcı, lyrics bileşenleri ve lyrics açıkken kullanılan eski tam düzen KESİNLİKLE korunacak. Protected-UI-Current.json kaynak karşılaştırmasını içerir.
+Kullanıcı saf siyah bir duvar istemiyor; kapak renginde yumuşak kenar ışıkları istiyor. Ana ekran daha kompakt bir dinleme alanı olarak, ayarlar da eski gri tablodan farklı kalite/görünüm/çevrimdışı/yedekleme alanlarıyla yeniden kuruldu. Yeni sloganlar eklenmez.
 
-Ses çözümlemesinde ilk doğrulanan AAC sonucu kullanılır; şarkı/sanatçı/süre ve medya başlığı kontrolleri korunur. Player JavaScript hazırlığı önbelleğe alınır ve eşzamanlı erişim güvenlidir. Gerçek iPhone'da gecikme ölçülmedi; CI canlı sağlayıcı denemesi uygun kayıt bulamadı. Kesin hız süresi iddia edilmez.
+Varsayılan Az veri: düşük bit hızlı AAC tercihi, taramada ses ön yükleme yok, yalnızca sıradaki parça hazırlanır. Pahalı/kısıtlı bağlantıda tarama ön hazırlığı yapılmaz. Küçük kapaklar 160/320 piksel istenir; büyük kapak/rengin kaynağı aynı önbellekten paylaşılır. Sabitlenmiş eski kapaklar için disk alternatifi korunur.
 
-Güncel testler: 54 geçti, 1 canlı tanılama testi atlandı, 0 hata. VALIDATION-2026-11-08.md esas alınmalı. Önceki tarihli belgeler tarihsel kayıttır.
+Başarılı kayıt eşleşmeleri (CDN URL'si olmadan) 7 gün saklanır. Hazır AVPlayerItem sonraki geçişte yeniden kullanılabilir. Kullanıcı 1 ms istedi fakat 1 ms duyulabilir ses ya da internetten açılış garantisi fiziksel olarak verilmez. Kontrol yolu ölçümüyle gerçek ses gecikmesi karıştırılmaz.
+
+Az veri tercihi indirmelere ve yedek/geri yüklemeye uygulanır. Eski yedeklerde kalite ayarıyla tutarlı mod geri yüklenir. SwiftData modeli ve mevcut kütüphane korunur.
 
 Repo: https://github.com/KlyMorias0/KlyMusic (özel).
-Derleme: Xcode 26.3, bash scripts/build-ipa.sh.
-Güncel IPA: dist/KlyMusic-unsigned.ipa, 2.4.1 (11), imzasız.
+Araç: Xcode 26.3. Derleme: bash scripts/build-ipa.sh.
+Doğrulama: VALIDATION-2.5.0.md ve Protected-UI-Current.json.
