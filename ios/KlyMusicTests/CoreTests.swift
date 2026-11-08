@@ -712,6 +712,51 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(AppLanguage.resolve(selection: "invalid", preferredLanguages: ["tr-TR"]), "tr")
     }
 
+    @MainActor func testUpcomingQueueExcludesHistoryAndProtectsCurrent() {
+        let tracks = (0..<5).map { Track(id: "queue-\($0)", title: "Song \($0)", artist: "Test") }
+        let player = MusicPlayer()
+        player.queue = tracks; player.current = tracks[1]; player.index = 1
+        XCTAssertEqual(player.upcomingTracks.map(\.id), tracks.dropFirst(2).map(\.id))
+        player.removeUpcoming(id: tracks[0].id)
+        player.removeUpcoming(id: tracks[1].id)
+        XCTAssertEqual(player.queue.map(\.id), tracks.map(\.id))
+        player.removeUpcoming(id: tracks[3].id)
+        XCTAssertEqual(player.queue.map(\.id), [tracks[0], tracks[1], tracks[2], tracks[4]].map(\.id))
+        XCTAssertEqual(player.index, 1)
+        XCTAssertEqual(player.current?.id, tracks[1].id)
+    }
+
+    @MainActor func testQueueReorderUsesStableIdentityWhenPlaybackAdvances() {
+        let tracks = (0..<6).map { Track(id: "queue-\($0)", title: "Song \($0)", artist: "Test") }
+        let player = MusicPlayer()
+        player.queue = tracks; player.current = tracks[1]; player.index = 1
+        let snapshot = player.upcomingTracks
+        player.moveUpcoming(from: IndexSet(integer: 3), to: 0, snapshot: snapshot)
+        XCTAssertEqual(player.queue.map(\.id), [0, 1, 5, 2, 3, 4].map { tracks[$0].id })
+        XCTAssertEqual(player.index, 1)
+        // A drag started on song 2, but song 2 became current before the drop.
+        player.queue = tracks; player.current = tracks[2]; player.index = 2
+        player.moveUpcoming(from: IndexSet(integer: 0), to: 4, snapshot: snapshot)
+        XCTAssertEqual(player.queue.map(\.id), tracks.map(\.id))
+        player.moveUpcoming(from: IndexSet(integer: 3), to: 0, snapshot: snapshot)
+        XCTAssertEqual(player.queue.map(\.id), [0, 1, 2, 5, 3, 4].map { tracks[$0].id })
+        XCTAssertEqual(player.index, 2)
+    }
+
+    @MainActor func testClearingUpcomingLeavesHistoryCurrentAndPlayerItemUntouched() {
+        let tracks = (0..<4).map { Track(id: "queue-\($0)", title: "Song \($0)", artist: "Test") }
+        let player = MusicPlayer()
+        player.queue = tracks; player.current = tracks[1]; player.index = 1; player.repeatMode = .all
+        let playingItem = AVPlayerItem(url: URL(fileURLWithPath: "/unloaded-current.m4a"))
+        player.engine.insert(playingItem, after: nil)
+        player.clearUpcoming()
+        XCTAssertEqual(player.queue.map(\.id), tracks.prefix(2).map(\.id))
+        XCTAssertTrue(player.upcomingTracks.isEmpty)
+        XCTAssertEqual(player.current?.id, tracks[1].id)
+        XCTAssertTrue(player.engine.currentItem === playingItem)
+        XCTAssertEqual(player.repeatMode, .off)
+    }
+
     @MainActor func testQueueItemTransitionKeepsMetadataClockAndIndexTogether() async throws {
         let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let store = LibraryStore(context: ModelContext(container))
@@ -735,7 +780,8 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(player.engine.items().count, 2)
         let prepared = try XCTUnwrap(player.engine.items().last)
         let started = Date()
-        player.next()
+        player.playUpcoming(id: tracks[1].id)
+        XCTAssertEqual(player.queue.map(\.id), tracks.map(\.id))
         let controlMS = Date().timeIntervalSince(started) * 1000
         XCTAssertTrue(player.engine.currentItem === prepared, "Next must reuse the already prepared player item")
         print("PREPARED_ITEM_SWITCH_CONTROL_MS=\(controlMS) (control path, not audible latency)")

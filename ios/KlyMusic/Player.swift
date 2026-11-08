@@ -322,7 +322,7 @@ import Network
 
     func prepareNext() {
         nextTask?.cancel()
-        guard !queue.isEmpty else { return }
+        guard !queue.isEmpty, engine.currentItem != nil else { return }
         let nextIndex: Int
         if repeatMode == .one { nextIndex = index }
         else if index + 1 < queue.count { nextIndex = index + 1 }
@@ -395,15 +395,54 @@ import Network
         repeatMode = repeatMode == .off ? .all : repeatMode == .all ? .one : .off
         resetUpcoming()
     }
-    func moveQueue(from offsets: IndexSet, to destination: Int) {
-        queue.move(fromOffsets: offsets, toOffset: destination)
-        index = queue.firstIndex { $0.id == current?.id } ?? 0
-        originalQueue = queue; resetUpcoming()
+    private var activeQueueIndex: Int? {
+        guard let id = (pendingTrack ?? current)?.id else { return nil }
+        return queue.firstIndex { $0.id == id }
     }
-    func removeFromQueue(at offsets: IndexSet) {
-        let protected = IndexSet(offsets.filter { queue[$0].id != current?.id })
-        queue.remove(atOffsets: protected); originalQueue = queue
-        index = queue.firstIndex { $0.id == current?.id } ?? 0; resetUpcoming()
+
+    /// The queue retains history for Previous; the sheet shows only future songs.
+    var upcomingTracks: [Track] {
+        Array(queue.dropFirst(activeQueueIndex.map { $0 + 1 } ?? 0))
+    }
+
+    func playUpcoming(id: String) {
+        guard let track = upcomingTracks.first(where: { $0.id == id }) else { return }
+        play(track) // Keep the existing queue and shuffle order.
+    }
+
+    func removeUpcoming(id: String) {
+        guard upcomingTracks.contains(where: { $0.id == id }) else { return }
+        queue.removeAll { $0.id == id }
+        finishQueueEdit()
+    }
+
+    func moveUpcoming(from offsets: IndexSet, to destination: Int, snapshot: [Track]) {
+        guard (0...snapshot.count).contains(destination) else { return }
+        let liveIDs = Set(upcomingTracks.map(\.id))
+        let moving = offsets.sorted().compactMap { snapshot.indices.contains($0) ? snapshot[$0] : nil }
+            .filter { liveIDs.contains($0.id) }
+        guard !moving.isEmpty else { return }
+        let movedIDs = Set(moving.map(\.id))
+        // Resolve by identity, not a stale list offset if playback advances during a drag.
+        let anchor = snapshot.dropFirst(destination).first { liveIDs.contains($0.id) && !movedIDs.contains($0.id) }
+        queue.removeAll { movedIDs.contains($0.id) }
+        let insertion = anchor.flatMap { next in queue.firstIndex { $0.id == next.id } } ?? queue.endIndex
+        queue.insert(contentsOf: moving, at: insertion)
+        finishQueueEdit()
+    }
+
+    func clearUpcoming() {
+        guard !upcomingTracks.isEmpty else { return }
+        if let activeQueueIndex { queue = Array(queue.prefix(activeQueueIndex + 1)) }
+        else { queue = [] }
+        if repeatMode == .all { repeatMode = .off }
+        finishQueueEdit()
+    }
+
+    private func finishQueueEdit() {
+        index = activeQueueIndex ?? 0
+        originalQueue = queue
+        resetUpcoming()
     }
     private func resetUpcoming() {
         nextTask?.cancel()

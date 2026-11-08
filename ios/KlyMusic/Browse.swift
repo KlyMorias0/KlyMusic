@@ -33,7 +33,7 @@ struct HomeView: View {
                 if !artists.isEmpty { artistShelf }
             }.padding(.top, 12).padding(.bottom, 32).frame(maxWidth: 850).frame(maxWidth: .infinity)
         }
-        .background { AlbumBackdrop(artwork: hero?.artwork) }
+        .background(Color.pageBackground)
         .navigationTitle("Dinle").navigationBarTitleDisplayMode(.large)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
         .refreshable { await load() }
@@ -227,7 +227,7 @@ struct DiscoverView: View {
                 if !tracks.isEmpty { BrowseTrackShelf(title: sectionTitle, subtitle: nil, tracks: tracks) }
                 if let failure, tracks.isEmpty { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
             }.padding(.bottom, 32)
-        }.background { AlbumBackdrop(artwork: tracks.first?.artwork) }
+        }.background(Color.pageBackground)
             .navigationTitle("Keşfet").navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
@@ -289,7 +289,7 @@ struct QueryView: View {
                     }.padding(.horizontal, 22)
                 }
             }.padding(.bottom, 32)
-        }.background(Color.canvas).navigationTitle(title).navigationBarTitleDisplayMode(.inline).task { await load() }
+        }.background(Color.pageBackground).navigationTitle(title).navigationBarTitleDisplayMode(.inline).task { await load() }
     }
     private func load() async {
         loading = true; failure = nil
@@ -326,7 +326,7 @@ struct SearchView: View {
                     else { results }
                 }
             }.padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 32)
-        }.background { AlbumBackdrop(artwork: (player.current ?? player.pendingTrack)?.artwork ?? suggestions.first?.artwork) }
+        }.background(Color.pageBackground)
             .navigationTitle("Ara").navigationBarTitleDisplayMode(.large)
             .searchable(text: $query, prompt: "Şarkı, sanatçı veya albüm")
             .scrollDismissesKeyboard(.interactively)
@@ -513,7 +513,7 @@ struct AlbumDetailView: View {
                     ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in TrackRow(track: track, tracks: tracks, number: index + 1) }
                 }.padding(.horizontal, 22)
             }.padding(.bottom, 32)
-        }.background { AlbumBackdrop(artwork: collection.artwork) }.navigationTitle(collection.title).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
+        }.background(Color.pageBackground).navigationTitle(collection.title).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
     }
     private func load() async {
         loading = true; failure = nil
@@ -575,7 +575,7 @@ struct ArtistDetailView: View {
                 else if let failure { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
                 else { ProgressView().frame(maxWidth: .infinity).padding(40) }
             }.padding(.bottom, 32)
-        }.background { AlbumBackdrop(artwork: artwork) }.navigationTitle(name).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
+        }.background(Color.pageBackground).navigationTitle(name).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
     }
     private func artistContent(_ details: ArtistResponse) -> some View {
         VStack(alignment: .leading, spacing: 32) {

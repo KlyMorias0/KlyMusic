@@ -332,66 +332,117 @@ private struct AnimatedLyricLine: View {
 struct QueueView: View {
     @EnvironmentObject private var player: MusicPlayer
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmClear = false
+
     var body: some View {
+        let upcoming = player.upcomingTracks
         NavigationStack {
             List {
-                if let current = player.current {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Şimdi çalıyor").font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        HStack(spacing: 15) {
-                            Artwork(url: current.artwork, radius: 8).frame(width: 64, height: 64)
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(current.title).font(.system(.headline).weight(.semibold)).lineLimit(2)
-                                Text(current.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                if let current = player.pendingTrack ?? player.current {
+                    Section {
+                        HStack(spacing: 13) {
+                            queueArtwork(current)
+                            queueMetadata(current)
+                            Spacer(minLength: 8)
+                            if player.pendingTrack != nil { ProgressView().controlSize(.small) }
+                            else {
+                                Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
+                                    .font(.system(size: 16)).foregroundStyle(.secondary)
                             }
-                            Spacer(minLength: 0)
-                            Image(systemName: player.isPlaying ? "waveform" : "pause.fill").font(.system(size: 17, weight: .medium)).foregroundStyle(Color.coral)
-                        }
+                        }.padding(.vertical, 7).accessibilityIdentifier("queue.current")
+                    } header: {
+                        Text("Şimdi çalıyor").font(.subheadline.weight(.medium)).textCase(nil)
                     }
-                    .padding(.vertical, 16)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 18, trailing: 24))
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
                 }
                 Section {
-                    ForEach(player.queue) { track in
-                        TrackRow(track: track, tracks: player.queue)
-                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 16))
-                    }.onMove(perform: player.moveQueue).onDelete(perform: player.removeFromQueue)
+                    if upcoming.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Sıra boş").font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                            Text("Şarkı menüsünden sıraya ekleyebilirsin.").font(.footnote).foregroundStyle(.secondary)
+                        }.padding(.vertical, 14).accessibilityIdentifier("queue.empty")
+                    } else {
+                        ForEach(upcoming) { track in
+                            Button { player.playUpcoming(id: track.id) } label: {
+                                HStack(spacing: 13) {
+                                    queueArtwork(track)
+                                    queueMetadata(track)
+                                }.padding(.vertical, 7).contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                                .accessibilityLabel("\(track.title), \(track.artist)")
+                                .accessibilityHint(L("Çal")).accessibilityIdentifier("queue.track.\(track.id)")
+                                .contextMenu {
+                                    Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
+                                    Button(role: .destructive) { player.removeUpcoming(id: track.id) } label: { Label("Sıradan kaldır", systemImage: "minus.circle") }
+                                }
+                        }.onMove { offsets, destination in
+                            player.moveUpcoming(from: offsets, to: destination, snapshot: upcoming)
+                        }
+                    }
                 } header: {
-                    HStack {
-                        Text(L("Sıradaki şarkılar")).font(.system(size: 18, weight: .semibold)).foregroundStyle(.primary)
-                        Spacer()
+                    HStack(spacing: 6) {
+                        Text("Sıradaki").font(.headline).foregroundStyle(.primary)
+                        if !upcoming.isEmpty { Text("\(upcoming.count)").font(.subheadline).foregroundStyle(.secondary) }
+                        Spacer(minLength: 0)
                         Button { player.toggleShuffle() } label: {
-                            Image(systemName: "shuffle").foregroundStyle(player.shuffle ? Color.coral : Color.secondary).frame(width: 40, height: 44)
-                        }.accessibilityLabel("Karıştır")
+                            Image(systemName: "shuffle").frame(width: 36, height: 40)
+                                .foregroundStyle(player.shuffle ? Color.coral : Color.secondary)
+                        }.accessibilityLabel("Karıştır").accessibilityValue(player.shuffle ? "Açık" : "Kapalı")
                         Button { player.cycleRepeat() } label: {
-                            Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
-                                .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.coral).frame(width: 40, height: 44)
-                        }.accessibilityLabel("Tekrarlama")
-                    }.textCase(nil).padding(.bottom, 7)
+                            Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat").frame(width: 36, height: 40)
+                                .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.coral)
+                        }.accessibilityLabel("Tekrarlama").accessibilityValue(player.repeatMode.rawValue)
+                    }.textCase(nil)
                 }
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 18))
             }
-            .listStyle(.plain).scrollContentBackground(.hidden)
-            .background(Color.canvas)
+            .listStyle(.plain).listSectionSpacing(20).scrollContentBackground(.hidden)
+            .environment(\.editMode, .constant(.active))
+            .background(Color.pageBackground)
             .navigationTitle("Çalma sırası").navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.canvas, for: .navigationBar)
+            .toolbarBackground(Color.pageBackground, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Kapat") { dismiss() }.foregroundStyle(.primary) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Kapat")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button("Kapalı") { player.setSleep(minutes: nil) }
-                        Button("Şarkı bitince") { player.setSleepAtEnd() }
-                        ForEach([15, 30, 60], id: \.self) { minutes in
-                            Button("\(minutes) dakika") { player.setSleep(minutes: minutes) }
+                        Menu {
+                            Button("Kapalı") { player.setSleep(minutes: nil) }
+                            Button("Şarkı bitince") { player.setSleepAtEnd() }
+                            ForEach([15, 30, 60], id: \.self) { minutes in
+                                Button("\(minutes) dakika") { player.setSleep(minutes: minutes) }
+                            }
+                        } label: { Label("Uyku zamanlayıcısı", systemImage: "moon") }
+                        if !upcoming.isEmpty {
+                            Section {
+                                Button(role: .destructive) { confirmClear = true } label: { Label("Sırayı temizle", systemImage: "trash") }
+                                    .accessibilityIdentifier("queue.clear")
+                            }
                         }
-                    } label: { Image(systemName: "moon") }.accessibilityLabel("Uyku zamanlayıcısı")
+                    } label: { Image(systemName: "ellipsis") }
+                        .accessibilityLabel("Sıra seçenekleri").accessibilityIdentifier("queue.options")
                 }
-                ToolbarItem(placement: .topBarTrailing) { EditButton().tint(Color.coral) }
-            }
+            }.tint(.primary)
+            .confirmationDialog("Sıradaki şarkılar kaldırılsın mı?", isPresented: $confirmClear, titleVisibility: .visible) {
+                Button("Sırayı temizle", role: .destructive) { player.clearUpcoming() }
+                Button("Vazgeç", role: .cancel) { }
+            } message: { Text("Çalan şarkı devam eder.") }
         }
-        .presentationBackground(Color.canvas)
+        .presentationBackground(Color.pageBackground).presentationDragIndicator(.visible)
+    }
+
+    private func queueArtwork(_ track: Track) -> some View {
+        Artwork(url: track.artwork, radius: 6).frame(width: 48, height: 48)
+    }
+    private func queueMetadata(_ track: Track) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(track.title).font(.system(size: 16, weight: .medium)).foregroundStyle(.primary).lineLimit(1)
+            Text(track.artist).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

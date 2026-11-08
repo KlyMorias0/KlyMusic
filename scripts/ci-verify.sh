@@ -35,4 +35,5 @@ xcodebuild -project ios/KlyMusic.xcodeproj -scheme KlyMusic \
     -only-testing:KlyMusicTests \
     -only-testing:KlyMusicUITests/NavigationTests/testNativeTabBarNavigationOffline \
     -only-testing:KlyMusicUITests/NavigationTests/testLyricsFollowAndLineSeeking \
-    -only-testing:KlyMusicUITests/NavigationTests/testRedesignedScreensWithFixtures test
+    -only-testing:KlyMusicUITests/NavigationTests/testRedesignedScreensWithFixtures \
+    -only-testing:KlyMusicUITests/NavigationTests/testPlayerMenuAndUpcomingQueue test

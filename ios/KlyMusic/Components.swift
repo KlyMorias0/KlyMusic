@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension Color {
+    static let pageBackground = Color.musicBackground
     static let canvas = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.045, alpha: 1) : UIColor(white: 0.98, alpha: 1) })
     static let panel = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.075, alpha: 1) : UIColor(white: 0.96, alpha: 1) })
 }
@@ -105,27 +106,55 @@ struct TrackMenu: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var downloads: DownloadManager
     @State private var chooseList = false
+    private var isCurrent: Bool { player.current?.id == track.id || player.pendingTrack?.id == track.id }
+    private var hasArtist: Bool { !(track.artistID ?? "").isEmpty }
+    private var hasAlbum: Bool { !(track.albumID ?? "").isEmpty }
     var body: some View {
         Menu {
-            Button { library.toggleFavorite(track) } label: {
-                Label(library.isFavorite(track) ? L("Favorilerden çıkar") : L("Favorilere ekle"), systemImage: library.isFavorite(track) ? "heart.slash" : "heart")
+            Section {
+                Button { library.toggleFavorite(track) } label: {
+                    Label(library.isFavorite(track) ? L("Favorilerden çıkar") : L("Favorilere ekle"),
+                          systemImage: library.isFavorite(track) ? "star.slash" : "star")
+                }.accessibilityIdentifier("track.options.favorite")
+                Button { chooseList = true } label: { Label("Listeye ekle", systemImage: "text.badge.plus") }
+                    .accessibilityIdentifier("track.options.playlist")
+                if library.localURL(track.id) != nil {
+                    Button(role: .destructive) { library.removeDownload(track) } label: { Label("İndirmeyi sil", systemImage: "trash") }
+                } else {
+                    Button { downloads.enqueue(track) } label: { Label("İndir", systemImage: "arrow.down.circle") }
+                        .accessibilityIdentifier("track.options.download")
+                }
             }
-            Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
-            Button { player.addToQueue(track) } label: { Label("Sıraya ekle", systemImage: "text.line.last.and.arrowtriangle.forward") }
-            Button { chooseList = true } label: { Label("Listeye ekle", systemImage: "text.badge.plus") }
-            if library.localURL(track.id) != nil {
-                Button(role: .destructive) { library.removeDownload(track) } label: { Label("İndirmeyi sil", systemImage: "trash") }
-            } else { Button { downloads.enqueue(track) } label: { Label("İndir", systemImage: "arrow.down.circle") } }
-            if let artistID = track.artistID, !artistID.isEmpty {
-                NavigationLink { ArtistDetailView(id: artistID, name: track.artist) } label: { Label("Sanatçıya git", systemImage: "person") }
+            if !isCurrent {
+                Section {
+                    Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
+                        .accessibilityIdentifier("track.options.next")
+                    if !player.queue.contains(where: { $0.id == track.id }) {
+                        Button { player.addToQueue(track) } label: { Label("Sıraya ekle", systemImage: "text.line.last.and.arrowtriangle.forward") }
+                            .accessibilityIdentifier("track.options.append")
+                    }
+                }
             }
-            if let albumID = track.albumID, !albumID.isEmpty {
-                NavigationLink { AlbumDetailView(collection: .init(id: albumID, title: track.album, artist: track.artist, artwork: track.artwork)) } label: { Label("Albüme git", systemImage: "square.stack") }
+            if hasArtist || hasAlbum {
+                Section {
+                    Menu {
+                        if let albumID = track.albumID, !albumID.isEmpty {
+                            NavigationLink { AlbumDetailView(collection: .init(id: albumID, title: track.album, artist: track.artist, artwork: track.artwork)) } label: {
+                                Label("Albüme git", systemImage: "square.stack")
+                            }
+                        }
+                        if let artistID = track.artistID, !artistID.isEmpty {
+                            NavigationLink { ArtistDetailView(id: artistID, name: track.artist) } label: { Label("Sanatçıya git", systemImage: "person") }
+                        }
+                    } label: { Label(L("Sanatçı ve albüm"), systemImage: "arrow.up.right") }
+                }
             }
         } label: {
             Image(systemName: "ellipsis").font(.system(size: 18, weight: .medium)).foregroundStyle(.secondary)
                 .frame(width: 36, height: 48).contentShape(Rectangle())
-        }.accessibilityLabel(L("Şarkı seçenekleri")).accessibilityValue(track.title)
+        }.tint(.primary)
+            .accessibilityLabel(L("Şarkı seçenekleri")).accessibilityValue(track.title)
+            .accessibilityIdentifier("track.options.\(track.id)")
             .sheet(isPresented: $chooseList) { PlaylistPicker(track: track) }
     }
 }
@@ -143,7 +172,7 @@ struct TrackListView: View {
                     ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in TrackRow(track: track, tracks: tracks, number: index + 1) }
                 } else { EmptyState(symbol: "music.note.list", title: "Henüz şarkı yok", message: "Kaydettiğin şarkılar burada görünecek.") }
             }.padding(.horizontal, 22).padding(.top, 16).padding(.bottom, 28).frame(maxWidth: 760).frame(maxWidth: .infinity)
-        }.background(Color.canvas).navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+        }.background(Color.pageBackground).navigationTitle(title).navigationBarTitleDisplayMode(.inline)
     }
     private func collectionHeader(_ first: Track) -> some View {
         VStack(alignment: .leading, spacing: 22) {

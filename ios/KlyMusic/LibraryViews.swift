@@ -20,7 +20,7 @@ struct LibraryView: View {
             .padding(.horizontal, 22).padding(.top, 4).padding(.bottom, 32)
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
-        .background { AlbumBackdrop(artwork: playerBackdrop.current?.artwork ?? library.recent.first?.artwork) }.navigationTitle("Kütüphane")
+        .background(Color.pageBackground).navigationTitle("Kütüphane")
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $destination) { destination in
             switch destination {
@@ -223,7 +223,7 @@ struct PlaylistPicker: View {
                         }
                     }
                 }.padding(.horizontal, 22).padding(.bottom, 32)
-            }.background(Color.canvas).navigationTitle("Listeye ekle").navigationBarTitleDisplayMode(.inline)
+            }.background(Color.pageBackground).navigationTitle("Listeye ekle").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Vazgeç") { dismiss() } } }
         }.tint(.coral)
     }
@@ -279,7 +279,7 @@ struct PlaylistDetailView: View {
                 EmptyState(symbol: "text.badge.plus", title: "İlk şarkını ekle", message: "Bir şarkının seçeneklerinden bu listeye ekleyebilirsin.")
                     .listRowSeparator(.hidden).listRowBackground(Color.clear)
             }
-        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.canvas).navigationBarTitleDisplayMode(.inline).tint(.coral)
+        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground).navigationBarTitleDisplayMode(.inline).tint(.coral)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { EditButton().disabled(tracks.isEmpty) }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -355,7 +355,7 @@ struct DownloadsView: View {
                 } header: { Text("Bu cihazda").font(.headline).foregroundStyle(.primary).textCase(nil).padding(.vertical, 8) }
                     .listRowBackground(Color.clear)
             }
-        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.canvas).navigationTitle("İndirilenler")
+        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle("İndirilenler")
             .overlay {
                 if library.downloaded.isEmpty && downloads.jobs.isEmpty {
                     EmptyState(symbol: "arrow.down.circle", title: "Müziğin yanında olsun", message: "Şarkıları indir, internet olmadan dinle.")
@@ -414,7 +414,7 @@ struct SavedAlbumsView: View {
                     }
                 }
             }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 32)
-        }.background(Color.canvas).navigationTitle("Albümler")
+        }.background(Color.pageBackground).navigationTitle("Albümler")
             .overlay { if albums.isEmpty { EmptyState(symbol: "square.stack", title: "Albümlerin burada", message: "Kaydettiğin şarkıların albümleri burada görünecek.") } }
     }
 }
@@ -452,7 +452,7 @@ struct FollowedArtistsView: View {
                     Divider().padding(.leading, 80)
                 }
             }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 32)
-        }.background(Color.canvas).navigationTitle("Sanatçılar")
+        }.background(Color.pageBackground).navigationTitle("Sanatçılar")
             .overlay { if artists.isEmpty { EmptyState(symbol: "person.2", title: "Sevdiğin sesleri takip et", message: "Sanatçı sayfalarından takip ettiğin isimler burada görünecek.") } }
     }
 }

@@ -38,6 +38,61 @@ final class NavigationTests: XCTestCase {
         app.terminate()
     }
 
+    func testPlayerMenuAndUpcomingQueue() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-theme", "dark", "-language", "tr", "-serverURL", "http://127.0.0.1:8879"]
+        app.launch()
+        tapTab("nav.search", label: "Ara", in: app)
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap(); field.typeText("Gece Yolu\n")
+        let row = app.buttons["track.row.fixture:lyrics"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15)); row.tap()
+        XCTAssertTrue(app.buttons["player.open"].waitForExistence(timeout: 15))
+        app.buttons["player.open"].tap()
+        let play = app.buttons["player.playPause"]
+        XCTAssertTrue(play.waitForExistence(timeout: 10))
+        expectation(for: NSPredicate(format: "value == 'playing'"), evaluatedWith: play)
+        waitForExpectations(timeout: 15); play.tap()
+        app.buttons["track.options.fixture:lyrics"].tap()
+        XCTAssertTrue(app.buttons["track.options.playlist"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["track.options.next"].exists, "Current-song queue actions must not be shown")
+        XCTAssertFalse(app.buttons["track.options.append"].exists)
+        shot(app, "26-Player-Menu")
+        app.buttons["track.options.playlist"].tap()
+        XCTAssertTrue(app.navigationBars["Listeye ekle"].waitForExistence(timeout: 5))
+        app.navigationBars["Listeye ekle"].buttons["Vazgeç"].tap()
+        app.buttons["player.queue"].tap()
+        XCTAssertTrue(app.navigationBars["Çalma sırası"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["queue.current"].exists)
+        XCTAssertFalse(app.buttons["queue.track.fixture:lyrics"].exists)
+        let next = app.buttons["queue.track.fixture:next"]
+        XCTAssertTrue(next.exists)
+        XCTAssertTrue(app.buttons["queue.track.fixture:third"].exists)
+        XCTAssertTrue(app.buttons["queue.track.fixture:last"].exists)
+        shot(app, "27-Upcoming-Queue")
+        next.tap()
+        XCTAssertTrue(app.buttons["queue.track.fixture:next"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["queue.track.fixture:third"].exists, "Selecting a queued song must preserve the following songs")
+        XCTAssertFalse(app.buttons["queue.track.fixture:lyrics"].exists)
+        app.buttons["queue.options"].tap()
+        app.buttons["queue.clear"].tap()
+        let clear = app.buttons["Sırayı temizle"].firstMatch
+        XCTAssertTrue(clear.waitForExistence(timeout: 5)); clear.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["queue.empty"].waitForExistence(timeout: 5))
+        shot(app, "28-Queue-Empty")
+        app.navigationBars["Çalma sırası"].buttons["Kapat"].tap()
+        XCTAssertTrue(app.staticTexts["Sabah Işığı"].exists)
+        app.buttons["player.close"].tap()
+        tapTab("nav.home", label: "Dinle", in: app)
+        let scroll = app.scrollViews.firstMatch
+        scroll.swipeUp()
+        shot(app, "29-Home-Scrolled-Flat")
+        scroll.swipeDown(); scroll.swipeDown()
+        shot(app, "30-Home-Top-Flat")
+        app.terminate()
+    }
+
     private func launch(theme: String = "light", offline: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-theme", theme, "-language", "tr"]

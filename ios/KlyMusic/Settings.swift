@@ -52,7 +52,7 @@ struct SettingsView: View {
                 Text("KlyMusic \(version)").font(.caption2).foregroundStyle(.tertiary).frame(maxWidth: .infinity)
             }.padding(.horizontal, 24).padding(.bottom, 30).frame(maxWidth: 680).frame(maxWidth: .infinity)
         }
-        .background { AlbumBackdrop(artwork: (player.current ?? player.pendingTrack)?.artwork) }
+        .background(Color.pageBackground)
         .navigationTitle("Ayarlar").navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { dismiss() } } }
         .tint(.coral)
