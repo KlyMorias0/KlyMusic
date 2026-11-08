@@ -1,0 +1,113 @@
+{
+  "version": "2.7.0",
+  "build_number": "14",
+  "code_commit": "6809d7ffbe1e67f3c0905c33d59843452b14cca1",
+  "ci_run": "https://github.com/KlyMorias0/KlyMusic/actions/runs/42474525071",
+  "device_build": {
+    "result": "passed",
+    "version": "2.7.0",
+    "build_number": "14",
+    "minimum_iOS": "17.0",
+    "sdk": "iphoneos26.2",
+    "configuration": "Release",
+    "architecture": "arm64",
+    "unsigned": true,
+    "sha256": "59dee32bdd6946ab90c68e06ad95b516386483be87115a5e7ad89e69e2c94a51",
+    "bytes": 1580951
+  },
+  "tests": {
+    "core": {
+      "passed": 53,
+      "skipped": 3,
+      "failed": 0
+    },
+    "ui": {
+      "passed": 5,
+      "failed": 0
+    },
+    "YouTubeKit": {
+      "passed": 15,
+      "failed": 0
+    },
+    "total_passed": 73
+  },
+  "preservation": {
+    "tabBarAndRoot": {
+      "unchanged": true,
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "miniPlayer": {
+      "unchanged": true,
+      "sha256": "7e72982a248b924880831d6de3cb7a249e27a1a65c274e9aa772f415daf2f962"
+    },
+    "lyricsFlowAndAnimation": {
+      "unchanged": true,
+      "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
+    },
+    "scope": "2.7.0: preserve the entire approved NowPlaying.swift (player, queue, lyric flow/animation and mini player), the native tab/root and the player song menu. Rebuild all surrounding pages; improve playback resolution without changing protected UI.",
+    "approvedPlayerAndLyrics": {
+      "unchanged": true,
+      "baselineCommit": "8e6ae9c2481d8b27c6075135d6a03ca6d63bc145",
+      "scope": "NowPlaying.swift before QueueView plus AirPlayControl and VolumeControl. TrackMenu implementation and QueueView are explicitly authorized exceptions.",
+      "sha256BeforeQueue": "7e885b4bbac75797e3aafbe653e3971aad6bbc4fa3f5984b699965d80ff04eba"
+    },
+    "artworkAndPlayerBackdrop": {
+      "unchanged": true,
+      "sha256": "6671ceb380e681a0cbe85aa04d0b8e3f1bafae158e63e4a713c200128b098e3e"
+    },
+    "approvedFullPlayer": {
+      "unchanged": true,
+      "baselineCommit": "d49d1e968ae31dbb3bb799cc9a6b91a1252c9426",
+      "sha256": "3a41971e3f77f729225161f4ec94c7aa3631533cc68b48d3f1fc23cee744dfdf"
+    },
+    "nativeTabsAndRoot": {
+      "unchanged": true,
+      "baselineCommit": "d49d1e968ae31dbb3bb799cc9a6b91a1252c9426",
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    }
+  },
+  "runtime_validation": {
+    "simulator": "iPhone 17 Pro / iOS 26",
+    "iOS_27_tested": false,
+    "physical_iPhone_tested": false
+  },
+  "playback": {
+    "one_second_start_verified": false,
+    "all_catalog_playback_verified": false,
+    "audible_start_latency_ms": null,
+    "source_matching_regressions": "Mashups, explicit collaboration credits, featured artist metadata and missing/conflicting audio-format duration passed.",
+    "live_audio_checks": "Three diagnostics skipped: no playable stream obtained from the CI connection.",
+    "youtube_bot_confirmation_observed": true,
+    "trace": [
+      "YOUTUBE_AUDIO client=visionOS id=_CgHTNuEUHc status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=tvSamsung id=_CgHTNuEUHc status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=mediaConnectFrontend id=_CgHTNuEUHc status=unknown reason=",
+      "YOUTUBE_AUDIO client=web id=_CgHTNuEUHc status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "CATALOG_DIAGNOSTIC source=youtube requested=Azeri Mashup 2 candidates=",
+      "CATALOG_DIAGNOSTIC source=youtube requested=Azeri Mashup 2 candidates=youtube:W2Jb87VmINk:Sevil Sevinc & Dj Roshka - Azeri Mashup 2",
+      "YOUTUBE_AUDIO client=tvSamsung id=W2Jb87VmINk status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=visionOS id=W2Jb87VmINk status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=web id=W2Jb87VmINk status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=mediaConnectFrontend id=W2Jb87VmINk status=unknown reason=",
+      "REPORTED_PLAYBACK id=apple:1617467916 unavailable=This version of the recording cannot be played. Try another result.",
+      "YOUTUBE_AUDIO client=tvSamsung id=7JFtfM9rVvQ status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=visionOS id=7JFtfM9rVvQ status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=web id=7JFtfM9rVvQ status=LOGIN_REQUIRED reason=Sign in to confirm you’re not a bot",
+      "YOUTUBE_AUDIO client=mediaConnectFrontend id=7JFtfM9rVvQ status=unknown reason=",
+      "REPORTED_PLAYBACK id=apple:1445855879 unavailable=This version of the recording cannot be played. Try another result."
+    ]
+  },
+  "visual_review": [
+    "Apple-Search-Categories",
+    "Apple-Search-Results",
+    "Apple-Library",
+    "Apple-New-Playlist",
+    "Apple-Playlist-Detail",
+    "Redesign-Settings-Dark",
+    "Apple-Quality-Settings",
+    "Apple-Album-Detail",
+    "Apple-Artist-Detail",
+    "Redesign-Home-Dark"
+  ],
+  "fixture_note": "UI screenshots use local test audio/metadata and catalog artwork. They do not establish live YouTube playback or actual phone latency."
+}

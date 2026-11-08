@@ -1,18 +1,17 @@
-KlyMusic — 2.6.0 (13)
+KlyMusic — 2.7.0 (14)
 
-Önce DEVAM.md ve VALIDATION-2.6.0.md dosyalarını oku.
+Önce DEVAM.md ve VALIDATION-2.7.0.md dosyalarını oku.
 
-SON KULLANICI KAPSAMI:
-2.5.0 oynatıcı, şarkı sözleri/akışı/animasyonu ve native tab bar onaylandı.
-Bu alanların tasarımına dokunma. Üç nokta menüsü ve çalma sırası düzeltildi.
-Kapak renkleri yalnızca oynatıcıda kalır; diğer sayfalar düz zemin kullanır.
-Apple Music/iOS 27 araştırması Design-Research-2.6.0.md içindedir.
+OYNATICI, TAB BAR VE ŞARKI SÖZLERİ ONAYLANDI; DEĞİŞTİRME.
+NowPlaying.swift ve KlyMusicApp.swift 2.6.0 ile birebir aynı tutulur.
+Diğer sayfalar Apple Music düzenleriyle yeniden kuruldu; ayarlar sistem Form'udur.
+Mashup/medley engeli kaldırıldı; gerçek kayıt kimliği ve ses süresi doğrulanır.
+Eşleştirme/oynatıcı kodu ses indirmeden önceden hazırlanabilir.
 
-Varsayılan Az veri ve hazır sonraki AVPlayerItem kullanımı korunur.
-1 ms duyulabilir geçiş garantisi yoktur.
+Bir saniyelik duyulabilir başlangıç veya tüm katalog kayıtları için garanti yoktur.
+Canlı sağlayıcı durumu ve gerçek ölçümler güncel doğrulama belgesindedir.
 
-Kaynak: ios/KlyMusic.xcodeproj
+Proje: ios/KlyMusic.xcodeproj
 IPA: dist/KlyMusic-unsigned.ipa (imzasız; sideload ile imzala)
-Derleme: Xcode 26.3, bash scripts/build-ipa.sh
-UI testi: iOS 26 simülatörü. iOS 27 cihaz testi yapılmadı.
-Önceki sürümlerin doğrulama kayıtları tarihseldir.
+Araç: Xcode 26.3, bash scripts/build-ipa.sh
+UI testleri: iOS 26 simülatörü. iOS 27 runtime testi yapılmadı.

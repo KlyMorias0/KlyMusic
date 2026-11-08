@@ -1,4 +1,4 @@
-Güncel sürüm: [KlyMusic 2.6.0 doğrulaması](VALIDATION-2.6.0.md). Aşağıdaki kayıt 2.3.0 sürümüne aittir.
+Güncel sürüm: [KlyMusic 2.7.0 doğrulaması](VALIDATION-2.7.0.md). Aşağıdaki kayıt 2.3.0 sürümüne aittir.
 
 # KlyMusic 2.3.0 (8) doğrulama — 6 Kasım 2026
 
