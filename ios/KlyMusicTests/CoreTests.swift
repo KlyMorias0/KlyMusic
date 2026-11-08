@@ -97,7 +97,7 @@ final class CoreTests: XCTestCase {
     }
 
     func testReportedSigmaBoyResolutionDiagnostic() async throws {
-        try await reportedPlaybackDiagnostic(Track(id: "apple:sigma-diagnostic", title: "Sigma Boy (Сигма Бой)", artist: "Betsy & Maria Iankovskaia", duration: 161))
+        try await reportedPlaybackDiagnostic(Track(id: "apple:1833553551", title: "Sigma Boy (Сигма Бой)", artist: "Betsy & Maria Iankovskaia", duration: 134.4))
     }
 
     func testLocalLibrarySearchMatchesWordsInAnyOrderAndSeparatesAlbumsByArtist() throws {
