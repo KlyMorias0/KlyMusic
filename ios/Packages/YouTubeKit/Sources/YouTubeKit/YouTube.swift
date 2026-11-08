@@ -16,13 +16,14 @@ public class YouTube {
     private var _js: String?
     private var _jsURL: URL?
     
-#if swift(>=5.10)
-    nonisolated(unsafe) private static var __js: String? // caches js between calls
-    nonisolated(unsafe) private static var __jsURL: URL?
-#else
-    private static var __js: String? // caches js between calls
-    private static var __jsURL: URL?
-#endif
+    // NSCache is thread-safe. A mutable global URL/string pair can mix two
+    // player versions when different songs resolve concurrently.
+    private static let scriptCache: NSCache<NSURL, NSString> = {
+        let cache = NSCache<NSURL, NSString>()
+        cache.countLimit = 3
+        cache.totalCostLimit = 12 * 1024 * 1024
+        return cache
+    }()
     
     private var _videoInfos: [InnerTube.VideoInfo]?
     
@@ -192,13 +193,15 @@ public class YouTube {
             
             let jsURL = try await jsURL
             
-            if YouTube.__jsURL != jsURL {
-                let (data, _) = try await URLSession.shared.data(from: jsURL)
-                _js = String(data: data, encoding: .utf8) ?? ""
-                YouTube.__js = _js
-                YouTube.__jsURL = jsURL
+            if let cached = Self.scriptCache.object(forKey: jsURL as NSURL) {
+                _js = cached as String
             } else {
-                _js = YouTube.__js
+                let (data, response) = try await URLSession.shared.data(from: jsURL)
+                try Task.checkCancellation()
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                      let text = String(data: data, encoding: .utf8), !text.isEmpty else { throw YouTubeKitError.extractError }
+                _js = text
+                Self.scriptCache.setObject(text as NSString, forKey: jsURL as NSURL, cost: data.count)
             }
             return _js!
         }
@@ -260,8 +263,7 @@ public class YouTube {
                             // to force an update to the js file, we clear the cache and retry
                             _js = nil
                             _jsURL = nil
-                            YouTube.__js = nil
-                            YouTube.__jsURL = nil
+                            YouTube.scriptCache.removeAllObjects()
                             try await Extraction.applySignature(streamManifest: &streamManifest, videoInfo: videoInfo, js: js)
                         }
                         
