@@ -25,7 +25,6 @@ struct SettingsView: View {
                     .padding(.vertical, 18)
                     .accessibilityIdentifier("settings.status")
                 }
-                EditorialIntro(eyebrow: "KLYMUSIC", title: "Tam senin ayarında.", subtitle: "Dinleme deneyimini kendine göre düzenle.").padding(.vertical, 22)
                 listening
                 appearance
                 storage
@@ -173,7 +172,7 @@ struct SettingsView: View {
 
     private func settingsSection<Content: View>(_ title: String, topSpacing: CGFloat = 24, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L(title).uppercased()).font(.system(size: 10, weight: .bold)).tracking(2)
+            Text(L(title)).font(.system(size: 13, weight: .regular))
                 .foregroundStyle(.secondary).padding(.leading, 5)
             VStack(alignment: .leading, spacing: 0) { content() }
                 .padding(.horizontal, 16).padding(.vertical, 8).musicPanel()
@@ -206,7 +205,7 @@ private struct PreferenceRow: View {
         HStack(spacing: 14) {
             Image(systemName: symbol).font(.system(size: 18, weight: .regular))
                 .foregroundStyle(destructive ? Color.coral : Color.primary.opacity(0.78))
-                .frame(width: 36, height: 36).background(Color.coral.opacity(0.1), in: RoundedRectangle(cornerRadius: 11))
+                .frame(width: 28, height: 36)
                 .accessibilityHidden(true)
             Text(L(title)).font(.subheadline)
                 .foregroundStyle(destructive ? Color.coral : Color.primary)

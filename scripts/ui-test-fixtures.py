@@ -1,16 +1,22 @@
 import http.server, json, io, wave, math, struct
+from pathlib import Path
+cover=(Path(__file__).parent/'fixtures'/'cover.jpg').read_bytes()
 buf=io.BytesIO()
 with wave.open(buf,'wb') as out:
     out.setnchannels(1); out.setsampwidth(2); out.setframerate(8000)
     out.writeframes(b''.join(struct.pack('<h',int(900*math.sin(2*math.pi*220*i/8000))) for i in range(8000*90)))
 audio=buf.getvalue()
-track={'id':'fixture:lyrics','title':'Gece Yolu','artist':'KlyMusic Test','album':'Arayüz Kontrolü','duration':90,'artwork':None,'explicit':False,'source':'test'}
+track={'id':'fixture:lyrics','title':'Gece Yolu','artist':'KlyMusic Test','album':'Arayüz Kontrolü','duration':90,'artwork':'http://127.0.0.1:8879/fixture-cover.jpg','explicit':False,'source':'test'}
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args): pass
     def do_POST(self): self.handle_api()
     def do_GET(self): self.handle_api()
     def do_HEAD(self): self.handle_api()
     def handle_api(self):
+        if self.path=='/fixture-cover.jpg':
+            self.send_response(200); self.send_header('Content-Type','image/jpeg'); self.send_header('Content-Length',len(cover)); self.end_headers()
+            if self.command!='HEAD': self.wfile.write(cover)
+            return
         if self.command=='POST': self.rfile.read(int(self.headers.get('Content-Length',0)))
         if self.path.startswith('/v1/media/'):
             data=audio; status=200; start=0; end=len(data)-1

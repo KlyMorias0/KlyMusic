@@ -13,7 +13,6 @@ struct LibraryView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 30) {
-                EditorialIntro(eyebrow: "SANA AİT", title: "Müziğin, bir arada.", subtitle: "Tekrar tekrar dönmek istediğin her şey.")
                 destinations
                 playlists
             }
@@ -21,7 +20,7 @@ struct LibraryView: View {
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
         .background(Color.canvas).navigationTitle("Kütüphane")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $destination) { destination in
             switch destination {
             case .favorites: TrackListView(title: L("Favoriler"), tracks: library.favorites)
@@ -41,40 +40,27 @@ struct LibraryView: View {
     }
 
     private var destinations: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 14) {
-                Button { destination = .favorites } label: {
-                    collectionTile(title: "Favoriler", symbol: "heart.fill", count: library.favorites.count, shade: .coral)
-                }.accessibilityIdentifier("library.favorites")
-                Button { destination = .downloads } label: {
-                    collectionTile(title: "İndirilenler", symbol: "arrow.down.circle.fill", count: library.downloaded.count, shade: Color(red: 0.43, green: 0.66, blue: 0.65))
-                }.accessibilityIdentifier("library.downloads")
-            }
-            VStack(spacing: 0) {
-                Button { destination = .recent } label: {
-                    LibraryLink(title: L("Son dinlenenler"), symbol: "clock", count: library.recent.count, color: .coral)
-                }.accessibilityIdentifier("library.recent")
-                rowDivider
-                Button { destination = .albums } label: {
-                    LibraryLink(title: L("Albümler"), symbol: "square.stack", count: nil, color: .coral)
-                }.accessibilityIdentifier("library.albums")
-                rowDivider
-                Button { destination = .artists } label: {
-                    LibraryLink(title: L("Sanatçılar"), symbol: "person.2", count: nil, color: .coral)
-                }.accessibilityIdentifier("library.artists")
-            }.padding(.horizontal, 15).padding(.vertical, 5).musicPanel()
+        VStack(spacing: 0) {
+            Button { destination = .favorites } label: {
+                LibraryLink(title: L("Favoriler"), symbol: "heart", count: library.favorites.count, color: .coral)
+            }.accessibilityIdentifier("library.favorites")
+            rowDivider
+            Button { destination = .downloads } label: {
+                LibraryLink(title: L("İndirilenler"), symbol: "arrow.down.circle", count: library.downloaded.count, color: .coral)
+            }.accessibilityIdentifier("library.downloads")
+            rowDivider
+            Button { destination = .recent } label: {
+                LibraryLink(title: L("Son dinlenenler"), symbol: "clock", count: library.recent.count, color: .coral)
+            }.accessibilityIdentifier("library.recent")
+            rowDivider
+            Button { destination = .albums } label: {
+                LibraryLink(title: L("Albümler"), symbol: "square.stack", count: nil, color: .coral)
+            }.accessibilityIdentifier("library.albums")
+            rowDivider
+            Button { destination = .artists } label: {
+                LibraryLink(title: L("Sanatçılar"), symbol: "person.2", count: nil, color: .coral)
+            }.accessibilityIdentifier("library.artists")
         }.buttonStyle(.plain)
-    }
-
-    private func collectionTile(title: String, symbol: String, count: Int, shade: Color) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Image(systemName: symbol).font(.system(size: 25)).foregroundStyle(shade)
-                Spacer()
-                Text(String(count)).font(.system(size: 30, weight: .light, design: .rounded)).foregroundStyle(.primary)
-            }
-            Text(L(title)).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary)
-        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).musicPanel()
     }
 
     private var playlists: some View {
@@ -100,7 +86,7 @@ struct LibraryView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(22).musicPanel()
+                .padding(.vertical, 16)
             } else {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 24) {
                     ForEach(library.playlists) { playlist in
@@ -138,8 +124,8 @@ struct LibraryLink: View {
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: symbol).font(.system(size: 18, weight: .medium))
-                .foregroundStyle(color).frame(width: 40, height: 40).background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13)).accessibilityHidden(true)
-            Text(title).font(.body).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(color).frame(width: 30, height: 40).accessibilityHidden(true)
+            Text(title).font(.system(size: 20)).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             if let count, count > 0 {
                 Text("\(count)").font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
@@ -179,7 +165,7 @@ struct PlaylistArtwork: View {
                     }
                 }
             }.frame(width: geometry.size.width, height: geometry.size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }.accessibilityHidden(true)
     }
 }
@@ -460,7 +446,7 @@ struct FollowedArtistsView: View {
                                 Text("Takip ediliyor").font(.caption).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             Image(systemName: "arrow.up.right").font(.subheadline).foregroundStyle(.secondary)
-                        }.padding(16).musicPanel().padding(.vertical, 6).contentShape(Rectangle())
+                        }.padding(.vertical, 14).contentShape(Rectangle())
                     }.buttonStyle(.plain)
                     Divider().padding(.leading, 80)
                 }

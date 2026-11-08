@@ -1,27 +1,13 @@
 import SwiftUI
 
 extension Color {
-    static let canvas = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.045, green: 0.052, blue: 0.065, alpha: 1) : UIColor(red: 0.965, green: 0.958, blue: 0.945, alpha: 1) })
-    static let panel = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.085, green: 0.095, blue: 0.115, alpha: 1) : .white })
-}
-
-struct EditorialIntro: View {
-    var eyebrow: String
-    var title: String
-    var subtitle: String
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(L(eyebrow).uppercased()).font(.system(size: 10, weight: .bold)).tracking(2.5).foregroundStyle(Color.coral)
-            Text(L(title)).font(.system(size: 34, weight: .bold)).tracking(-1.2).fixedSize(horizontal: false, vertical: true)
-            Text(L(subtitle)).font(.system(size: 14)).foregroundStyle(.secondary).lineSpacing(3)
-        }.frame(maxWidth: .infinity, alignment: .leading)
-    }
+    static let canvas = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
+    static let panel = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.075, alpha: 1) : UIColor(white: 0.96, alpha: 1) })
 }
 
 extension View {
-    func musicPanel(radius: CGFloat = 22) -> some View {
+    func musicPanel(radius: CGFloat = 12) -> some View {
         self.background(Color.panel, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.primary.opacity(0.055), lineWidth: 1) }
     }
 }
 
@@ -55,8 +41,7 @@ struct TrackCard: View {
     var body: some View {
         Button { player.play(track, in: tracks) } label: {
             VStack(alignment: .leading, spacing: 10) {
-                Artwork(url: track.artwork, radius: 18).frame(width: size, height: size)
-                    .shadow(color: .black.opacity(0.18), radius: 12, y: 7)
+                Artwork(url: track.artwork, radius: 7).frame(width: size, height: size)
                     .overlay(alignment: .bottomTrailing) {
                         if player.current?.id == track.id || player.pendingTrack?.id == track.id {
                             ZStack {
@@ -93,7 +78,7 @@ struct TrackRow: View {
                         Text(String(number)).font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundStyle(current ? Color.coral : Color.secondary).frame(width: 18, alignment: .leading)
                     }
-                    Artwork(url: track.artwork, radius: 13).frame(width: 54, height: 54)
+                    Artwork(url: track.artwork, radius: 6).frame(width: 54, height: 54)
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 5) {
                             Text(track.title).font(.system(size: 15, weight: .medium)).lineLimit(1)
@@ -106,7 +91,7 @@ struct TrackRow: View {
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if player.pendingTrack?.id == track.id { ProgressView().controlSize(.small).tint(Color.coral) }
                     else if current && player.isPlaying { Image(systemName: "waveform").font(.system(size: 14)).foregroundStyle(Color.coral) }
-                }.padding(.vertical, 10).contentShape(Rectangle())
+                }.padding(.vertical, 7).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("\(track.title), \(track.artist)")
                 .accessibilityHint(L("Çal")).accessibilityIdentifier("track.row.\(track.id)")
             TrackMenu(track: track)
@@ -195,7 +180,7 @@ struct EmptyState: View {
                 .background(Color.coral.opacity(0.12), in: RoundedRectangle(cornerRadius: 25))
             Text(L(title)).font(.title3.weight(.semibold)).tracking(-0.4)
             Text(L(message)).font(.system(size: 14)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 285)
-        }.frame(maxWidth: .infinity).padding(.horizontal, 22).padding(.vertical, 42).musicPanel()
+        }.frame(maxWidth: .infinity).padding(.horizontal, 22).padding(.vertical, 42)
     }
 }
 

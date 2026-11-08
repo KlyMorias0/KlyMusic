@@ -5,11 +5,11 @@ final class NavigationTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-theme", "dark", "-language", "tr", "-serverURL", "http://127.0.0.1:8879"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Bugünün ritmini bul."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Dinle"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Türkiye’de şimdi"].waitForExistence(timeout: 15))
         shot(app, "Redesign-Home-Dark")
         tapTab("nav.discover", label: "Keşfet", in: app)
-        XCTAssertTrue(app.staticTexts["Biraz başka bir şey."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Türler ve ruh halleri"].waitForExistence(timeout: 5))
         shot(app, "Redesign-Discover-Dark")
         tapTab("nav.library", label: "Kütüphane", in: app)
         XCTAssertTrue(app.buttons["library.favorites"].waitForExistence(timeout: 5))
