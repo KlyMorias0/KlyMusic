@@ -1,21 +1,18 @@
-KlyMusic — 7 Kasım 2026 kaynak aktarımı
+KlyMusic — 8 Kasım 2026, 2.4.1 (11)
 
-Bu arşiv, “Tasarımı modern ve sadeleştir” sohbetinde düzenlenen çalışma
-klasörünün mevcut halini içerir. Kaynak kodu, Xcode projesi, yerel YouTubeKit
-paketi, varlıklar, testler, geliştirme betikleri ve mevcut belgeler dahildir.
+Bu kaynaklar kullanıcının 7 Kasım arşivi üzerine düzenlenmiştir.
+Güncel tercih: saf siyah, Apple Music benzeri sade tasarım. Büyük sloganlar,
+mavi/gri zemin ve renkli gösterge kartları kullanılmaz. Oynatıcı referansı
+Apple Music'in büyük kapak, sade metadata ve çerçevesiz kontroller düzenidir.
 
-Başlamak için ios/KlyMusic.xcodeproj dosyasını Xcode ile aç.
-Derleme ve çalışma ayrıntıları README.md içindedir.
+TAB BAR, MİNİ OYNATICI VE LYRICS TASARIMINA DOKUNMA.
+Kaynak karşılaştırması Protected-UI-Current.json içindedir. Lyrics açıkken
+kullanılan orijinal oynatıcı düzeni de korunmuştur.
 
-DİKKAT: dist/KlyMusic-unsigned.ipa önceki (6 Kasım) derlemedir;
-son tasarım değişikliklerini içermez. Güncel kaynaklardan yeniden üretmek için:
-  bash scripts/build-ipa.sh
+Güncel kaynaklar: ios/KlyMusic.xcodeproj
+Derleme: Xcode 26.3; bash scripts/build-ipa.sh
+Son doğrulama: VALIDATION-2026-11-08.md
+IPA: dist/KlyMusic-unsigned.ipa (imzasız; sideload aracıyla imzalanmalı)
 
-Son tasarım sohbeti tamamlanmadan kesilmiştir. O sohbette simülatör için
-build-for-testing başarıyla tamamlanmış, ancak son tasarımın tüm testleri ve
-cihaz derlemesi tamamlanmamıştır. Mevcut doğrulama belgeleri önceki sürümün
-kayıtlarıdır. Bu aktarımda kod değiştirilmedi veya yeni uygulama testi yapılmadı.
-ZIP bütünlüğü ve kaynak dosyalarının arşivde birebir bulunması kontrol edildi.
-
-Derleme önbellekleri, geçici dosyalar ve makineye özel Xcode kullanıcı
-ayarları arşive alınmadı.
+Eski tarihli doğrulama dosyaları tarihsel kayıttır. Güncel doğrulama belgesini
+esas al. Gerçek iPhone'da şarkı açılış süresi ölçülmedi.

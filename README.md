@@ -1,4 +1,4 @@
-# KlyMusic 2.3.0 (8)
+# KlyMusic 2.4.1 (11)
 
 KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygulamasıdır. Katalog, arama, ses bağlantısı çözümleme ve şarkı sözleri doğrudan telefonda çalışır. Kullanıcı hesabı veya müzik sunucusu adresi girmen gerekmez. Favoriler, çalma listeleri ve indirilen şarkılar cihazda saklanır.
 
@@ -8,22 +8,16 @@ KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygula
 
 Uygulamayı açınca **Dinle**, **Keşfet**, **Kütüphane** ve **Ara** sekmelerini kullanabilirsin. Bir şarkı seçildiğinde mini oynatıcı açılır. Mini oynatıcıya dokunarak tam oynatıcıya, sözlere ve çalma sırasına geçebilirsin. İndirilen şarkılar **Kütüphane → İndirilenler** içinde internet olmadan oynatılır.
 
-## Bu sürüm
+## Bu sürüm — 8 Kasım 2026
 
-- YouTube Music ana ses kaynağı; Apple başlık, sanatçı, kapak ve süre bilgileri korunur. Birleşik, remix veya süresi farklı kayıtlar reddedilir.
-- Ana sayfa, keşfet, arama, kütüphane, koleksiyonlar, ayarlar ve tam ekran oynatıcı yenilendi. Mevcut tab bar ve animasyonlu söz bileşenleri korundu.
-- Paylaşılan ses bağlantısı önbelleği, sınırlı görünür parça ön hazırlığı ve sıradaki parçanın önceden hazırlanması eklendi. Alternatif YouTube ses kaynakları korunuyor.
-- Telefon dili Türkçeyse Türkiye listeleri ve Türkçe keşif seçkileri öne çıkar.
-- YouTube dosyalarında yanlış raporlanan kapsayıcı süresi, sesin tamamı doğrulandıktan sonra yeniden kodlamadan düzeltilir; gerçekten farklı uzunluktaki dosyalar kesilerek kabul edilmez.
+- Saf siyah zemin, standart başlıklar ve kapakların öne çıktığı Apple Music benzeri düzen. Önceki taslakta kullanılan mavi/gri zemin, sloganlar ve renkli gösterge kartları kaldırıldı.
+- Tam oynatıcıda büyük kare kapak, altında şarkı/sanatçı bilgisi, ince sarma çubuğu, çerçevesiz geri/oynat/ileri kontrolleri, sistem ses seviyesi ve altta sözler/AirPlay/çalma sırası.
+- Tab bar, mini oynatıcı, lyrics bileşenleri ve lyrics açıkken kullanılan tam düzen orijinal arşivle birebir korunur. Kontrol kaydı: `Protected-UI-Current.json`.
+- Ses çözümleme artık bütün istemcilerin tamamlanmasını beklemek yerine doğrulanan ilk AAC bağlantısını kullanır. Başlık, sanatçı, süre ve medya başlığı doğrulamaları korunur.
+- Büyük YouTube player JavaScript'inin işlenmiş hali paylaşılır; eşzamanlı isteklerin aynı dosyayı tekrar tekrar işlemesi önlenir. Player betiği önbelleği eşzamanlı erişime güvenlidir.
+- Şarkı, aday kayıt ve istemci istekleri iptali destekler. Paylaşılan çalma önbelleği, görünür şarkıların ön hazırlığı, sonraki parça hazırlığı ve çevrimdışı indirmeler korunur.
 
-- Koyu temayla başlayan, açık ve sistem temasını da destekleyen yenilenmiş ana ekran, keşif ve kütüphane.
-- iOS 26'da sistemin Liquid Glass sekme çubuğu, ayrı arama sekmesi ve sekme aksesuarında mini oynatıcı; eski sürümlerde standart iOS sekmeleri.
-- Tam oynatıcı, konum çubuğu, karıştırma, tekrar, sıradaki çal ve düzenlenebilir çalma sırası.
-- Zamanlı sözler varsa otomatik satır takibi ve satıra dokunarak sarma; düz söz alternatifi.
-- Favoriler, çalma listeleri, sanatçı takibi, son aramalar ve kaldığın yerden devam.
-- Şarkı indirme, duraklatma/devam, yeniden deneme, Wi-Fi tercihi ve çevrimdışı dinleme. Arka plan tamamlama bildirimi ses doğrulaması ve kütüphane kaydını bekler; yeniden açılan oturumun tamamlanmış indirmesi de kurtarılır.
-- Arka plan sesi, kilit ekranı kontrolleri, AirPlay ve uyku zamanlayıcısı.
-- Kütüphaneyi JSON olarak yedekleme ve birleştirerek geri yükleme. Ses dosyaları yedeğe dahil edilmez.
+Gerçek iPhone'da açılış süresi ölçülmedi. CI'daki canlı kaynak denemesi kullanılabilir bir kayıt bulamadığından 20 saniyeden belirli bir süreye düşüş iddiası yoktur. Güncel test ve derleme durumu `VALIDATION-2026-11-08.md` içinde kaydedilir. Önceki tarihli doğrulama dosyaları önceki sürümlerin kayıtlarıdır.
 
 ## Xcode ile çalıştırma
 

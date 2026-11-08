@@ -9,3 +9,5 @@ DerivedData/
 xcuserdata/
 build/
 dist/
+build-tests/
+*.log

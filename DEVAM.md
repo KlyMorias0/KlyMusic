@@ -1,13 +1,15 @@
-# KlyMusic — devam kaydı
+# KlyMusic — güncel devam kaydı
 
-6 Kasım 2026: Önceki sohbetlerden kalan çalışma tamamlandı. Sürüm 2.3.0 (8).
+8 Kasım 2026: 2.4.1 (11), siyah Apple Music stili.
 
-Kullanıcı talebi: tab bar ve şarkı sözleri korunacak; diğer ekranlar Apple Music/Spotify benzeri kapak ağırlıklı bir düzenle yenilenecek; şarkı geçişleri hızlandırılacak; sideload için IPA teslim edilecek.
+Kullanıcının kabul edilen yönlendirmesi: saf siyah arka plan, Apple Music'e benzeyen sade düzen. Büyük sloganlar, mavi/gri zemin ve renkli gösterge kartları kaldırıldı. Oynatıcıda büyük kare kapak, altında metadata, ince sarma çubuğu ve çerçevesiz geri/oynat/ileri kontrolleri kullanılır.
 
-Bu değişiklikler kaynaklarda mevcut. Önceki sohbet kesildiğinde kalan tek gezinme kontrolü tamamlandı. 36 birim, 2 ayrı arayüz ve 6 YouTubeKit testi geçti. Tab bar/mini oynatıcı/söz kodu eski sürümle aynı. Canlı ses kontrolü geçti. Fiziksel iPhone testi ve gerçek cihaz gecikme ölçümü yapılmadı.
+Tab bar, mini oynatıcı, lyrics bileşenleri ve lyrics açıkken kullanılan eski tam düzen KESİNLİKLE korunacak. Protected-UI-Current.json kaynak karşılaştırmasını içerir.
 
-Çalışma kaynağı: /Users/klymorias/Documents/Codex/2026-11-06/en-son-sohbet-deki-x20-2/work/KlyMusic
-Güncel teslimatlar: /Users/klymorias/Documents/Codex/2026-11-06/oncek/outputs
-IPA SHA256: 0d82226b493eede9ab3a6855ba33d99cee4065b25788fdf1c14846fca3db9d56
+Ses çözümlemesinde ilk doğrulanan AAC sonucu kullanılır; şarkı/sanatçı/süre ve medya başlığı kontrolleri korunur. Player JavaScript hazırlığı önbelleğe alınır ve eşzamanlı erişim güvenlidir. Gerçek iPhone'da gecikme ölçülmedi; CI canlı sağlayıcı denemesi uygun kayıt bulamadı. Kesin hız süresi iddia edilmez.
 
-Kaynak ZIP'i tüm güncel kaynakları, IPA'yı ve doğrulama kayıtlarını içerir. Sonraki sohbette önce bu dosya ve Dogrulama.md okunmalı; tasarım işi baştan başlatılmamalı. Yeni kullanıcı geri bildirimi varsa bu sürüm üzerine uygulanmalı.
+Güncel testler: 54 geçti, 1 canlı tanılama testi atlandı, 0 hata. VALIDATION-2026-11-08.md esas alınmalı. Önceki tarihli belgeler tarihsel kayıttır.
+
+Repo: https://github.com/KlyMorias0/KlyMusic (özel).
+Derleme: Xcode 26.3, bash scripts/build-ipa.sh.
+Güncel IPA: dist/KlyMusic-unsigned.ipa, 2.4.1 (11), imzasız.

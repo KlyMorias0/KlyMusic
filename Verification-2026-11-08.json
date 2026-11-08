@@ -1,0 +1,54 @@
+{
+  "version": "2.4.1",
+  "build": {
+    "result": "passed",
+    "configuration": "Release",
+    "platform": "iPhoneOS",
+    "architecture": "arm64",
+    "signed": false,
+    "minimum_iOS": "17.0",
+    "sha256": "54852dde6d38015df3bce7defa2e7e775a92d7459466d81805dfa9896fac9552"
+  },
+  "date": "2026-11-08",
+  "code_commit": "e0e7c82aa7386a9d80997ebd51b2378de4d7e8e5",
+  "ci_run": "https://github.com/KlyMorias0/KlyMusic/actions/runs/42453648513",
+  "checks": {
+    "core": {
+      "passed": 39,
+      "skipped": 1,
+      "failed": 0
+    },
+    "ui": {
+      "passed": 3,
+      "failed": 0
+    },
+    "YouTubeKit": {
+      "passed": 12,
+      "failed": 0
+    },
+    "total_passed": 54
+  },
+  "protected_ui": {
+    "tabBarAndRoot": {
+      "unchanged": true,
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "miniPlayer": {
+      "unchanged": true,
+      "sha256": "7e72982a248b924880831d6de3cb7a249e27a1a65c274e9aa772f415daf2f962"
+    },
+    "lyrics": {
+      "unchanged": true,
+      "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
+    },
+    "lyricsLayout": {
+      "unchanged": true,
+      "sha256": "5022e3a1adabf28f358202359a19e663f1d5b8d0e95d0019c3a92232d5b18dc4"
+    }
+  },
+  "limits": [
+    "No physical iPhone test or song-start latency measurement.",
+    "Live provider timing from CI could not obtain a playable recording; the diagnostic was skipped.",
+    "UI screenshots use local fixture metadata, test audio and Apple catalog sample artwork; they do not establish live YouTube playback."
+  ]
+}
