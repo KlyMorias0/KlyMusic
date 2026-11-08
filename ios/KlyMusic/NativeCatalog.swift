@@ -11,6 +11,7 @@ actor NativeCatalog {
     private var searches: [String: (Date, SearchResponse)] = [:]
     private var youtubeSearches: [String: (Date, [Track])] = [:]
     private var details: [String: (Date, Track)] = [:]
+    private let recordingMatches = RecordingMatchStore.shared
 
     init() {
         let config = URLSessionConfiguration.default
@@ -132,6 +133,15 @@ actor NativeCatalog {
     func resolve(_ original: Track, provider: String = "auto", quality: String = "auto") async throws -> PlaybackAsset {
         try Task.checkCancellation()
         let track = try await recordingDetails(original)
+        let locale = ListeningLocale.current.cacheKey
+        if let cached = await recordingMatches.candidate(for: track, locale: locale),
+           provider == "auto" || cached.source == provider {
+            do {
+                let id = String(cached.id.split(separator: ":", maxSplits: 1).last ?? "")
+                return try await (cached.source == "saavn" ? saavnStream(id, quality: quality, duration: track.duration) : youtubeStream(id, quality: quality, expectedDuration: track.duration))
+            } catch is CancellationError { throw CancellationError() }
+            catch { try Task.checkCancellation(); await recordingMatches.remove(track, locale: locale) }
+        }
         // YouTube Music's song catalogue is primary; Apple identity/artwork stay on the requested Track.
         let order = provider == "auto" ? ["youtube"] : [provider]
         for source in order where ["youtube", "saavn"].contains(source) {
@@ -145,14 +155,18 @@ actor NativeCatalog {
                     candidates = Array(rows.filter { Self.match(track, $0) >= 0.9 }.sorted { Self.match(track, $0) > Self.match(track, $1) }.prefix(3))
                 }
                 if !candidates.isEmpty {
-                    return try await PlaybackRace.first(candidates.map { candidate in
+                    let asset = try await PlaybackRace.first(candidates.map { candidate in
                         { @Sendable [self] in
                         let id = String(candidate.id.split(separator: ":", maxSplits: 1).last ?? "")
                         let asset = try await (source == "saavn" ? saavnStream(id, quality: quality, duration: track.duration) : youtubeStream(id, quality: quality, expectedDuration: track.duration))
                         guard Self.durationCompatible(expected: track.duration, actual: asset.duration) else { throw APIError.invalidResponse }
                         return asset
                         }
-                    })
+                    }, limit: quality == "data" ? 1 : 2)
+                    if let candidate = candidates.first(where: { $0.id == asset.id }) {
+                        await recordingMatches.save(candidate, for: track, locale: locale)
+                    }
+                    return asset
                 }
             } catch is CancellationError { throw CancellationError() }
             catch { try Task.checkCancellation(); continue }
@@ -162,6 +176,7 @@ actor NativeCatalog {
 
     private func recordingDetails(_ original: Track) async throws -> Track {
         var track = original
+        if let saved = await recordingMatches.details(for: original, locale: ListeningLocale.current.cacheKey) { track = saved }
         if track.id.hasPrefix("apple:"), !track.duration.isFinite || track.duration <= 0 {
             let key = ListeningLocale.current.cacheKey + "|" + track.id
             if let (date, cached) = details[key], Date().timeIntervalSince(date) < 3600 { track = cached }

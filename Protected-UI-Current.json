@@ -7,12 +7,9 @@
     "unchanged": true,
     "sha256": "7e72982a248b924880831d6de3cb7a249e27a1a65c274e9aa772f415daf2f962"
   },
-  "lyrics": {
+  "lyricsFlowAndAnimation": {
     "unchanged": true,
     "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
   },
-  "lyricsLayout": {
-    "unchanged": true,
-    "sha256": "5022e3a1adabf28f358202359a19e663f1d5b8d0e95d0019c3a92232d5b18dc4"
-  }
+  "scope": "Latest user clarification: preserve native tabs and lyric flow/animation; replace the surrounding player layout in both modes."
 }

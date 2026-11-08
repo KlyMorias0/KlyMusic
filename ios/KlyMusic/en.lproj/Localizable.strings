@@ -265,3 +265,20 @@
 "Tekrar tekrar dönmek istediğin her şey." = "Everything you keep coming back to.";
 "Tam senin ayarında." = "Make it yours.";
 "Dinleme deneyimini kendine göre düzenle." = "Tune your listening experience to you.";
+
+"Dinleme tercihlerin" = "Listening preferences";
+"Az veri" = "Economical";
+"Dengeli" = "Balanced";
+"Yüksek" = "High";
+"Ses için yaklaşık 22–58 MB/saat" = "About 22–58 MB/hour of audio";
+"Ses için yaklaşık 58–115 MB/saat" = "About 58–115 MB/hour of audio";
+"Ses için yaklaşık 58 MB/saat" = "About 58 MB/hour of audio";
+"Kaynağa göre değişir. Yeni tercih sonraki parçada uygulanır." = "Varies by source. The new setting applies to the next track.";
+"Çevrimdışı müzik" = "Offline music";
+"Yedekle" = "Back up";
+"Geri yükle" = "Restore";
+"Favorilerini ve listelerini yanında tut. Ses dosyaları yedeğe dahil edilmez." = "Keep your favorites and playlists. Audio files are not included in backups.";
+"Geçmiş" = "History";
+"Son dinlediğin" = "Last played";
+"Öne çıkan" = "Featured";
+"şarkı" = "tracks";

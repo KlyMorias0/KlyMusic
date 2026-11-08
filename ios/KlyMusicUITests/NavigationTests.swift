@@ -16,6 +16,9 @@ final class NavigationTests: XCTestCase {
         shot(app, "Redesign-Library-Dark")
         app.buttons["settings.open"].tap()
         XCTAssertTrue(app.staticTexts["Ses kalitesi"].waitForExistence(timeout: 5))
+        app.buttons["settings.quality.high"].tap()
+        app.buttons["settings.quality.data"].tap()
+        XCTAssertTrue(app.buttons["settings.quality.data"].isSelected)
         shot(app, "Redesign-Settings-Dark")
         app.navigationBars["Ayarlar"].buttons["Bitti"].tap()
         tapTab("nav.search", label: "Ara", in: app)
@@ -85,9 +88,13 @@ final class NavigationTests: XCTestCase {
         expectation(for: paused, evaluatedWith: app.buttons["player.playPause"])
         waitForExpectations(timeout: 5)
         shot(app, "10-Player-Dark")
+        let controlsBeforeLyrics = app.buttons["player.playPause"].frame
         app.buttons["lyrics.toggle"].tap()
         let first = app.buttons["lyrics.line.0"]
         XCTAssertTrue(first.waitForExistence(timeout: 10))
+        let controlsWithLyrics = app.buttons["player.playPause"].frame
+        XCTAssertEqual(controlsBeforeLyrics.midY, controlsWithLyrics.midY, accuracy: 3, "Lyrics must keep the same player layout")
+        XCTAssertEqual(controlsBeforeLyrics.width, controlsWithLyrics.width, accuracy: 3)
         // SwiftUI exposes the unchanged LyricsView's outer identifier on its scroll view.
         let specificScroll = app.scrollViews["lyrics.scroll"]
         let lyricsScroll = specificScroll.exists ? specificScroll : app.scrollViews["lyrics.content"]

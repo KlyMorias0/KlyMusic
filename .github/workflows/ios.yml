@@ -20,10 +20,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view klymusic-2.4.1 >/dev/null 2>&1; then
-            gh release create klymusic-2.4.1 --target "$GITHUB_SHA" --title 'KlyMusic 2.4.1 — Black Apple Music style and faster playback' --notes 'Unsigned iOS device build. Tab bar, mini player and lyrics presentation preserved. Redesigned browsing, library, settings and player. First-validated audio resolution and cached player transforms.'
+          if ! gh release view klymusic-2.5.0 >/dev/null 2>&1; then
+            gh release create klymusic-2.5.0 --target "$GITHUB_SHA" --title 'KlyMusic 2.5.0 — Unified artwork-tinted player and economical streaming' --notes 'Unsigned iOS device build. Native tabs and lyric animation preserved; a single player shell serves artwork and lyrics. Artwork-tinted browsing, rebuilt settings and default economical streaming. First-validated audio resolution and cached player transforms.'
           fi
-          gh release upload klymusic-2.4.1 dist/KlyMusic-unsigned.ipa dist/SHA256.txt device-build.log --clobber
+          gh release upload klymusic-2.5.0 dist/KlyMusic-unsigned.ipa dist/SHA256.txt device-build.log --clobber
       - name: Unit tests and protected UI regression tests
         env:
           TEST_RUNNER_KLYMUSIC_LIVE_TIMING: '1'
@@ -39,13 +39,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view klymusic-2.4.1 >/dev/null 2>&1; then
-            gh release create klymusic-2.4.1 --target "$GITHUB_SHA" --title 'KlyMusic 2.4.1 — verification' --notes 'Build and verification diagnostics.'
+          if ! gh release view klymusic-2.5.0 >/dev/null 2>&1; then
+            gh release create klymusic-2.5.0 --target "$GITHUB_SHA" --title 'KlyMusic 2.5.0 — verification' --notes 'Build and verification diagnostics.'
           fi
           for file in device-build.log verification.log package-tests.log; do
-            if [ -f "$file" ]; then gh release upload klymusic-2.4.1 "$file" --clobber; fi
+            if [ -f "$file" ]; then gh release upload klymusic-2.5.0 "$file" --clobber; fi
           done
           if [ -d dist/screenshots ]; then
             ditto -c -k --sequesterRsrc --keepParent dist/screenshots dist/screenshots.zip
-            gh release upload klymusic-2.4.1 dist/screenshots.zip --clobber
+            gh release upload klymusic-2.5.0 dist/screenshots.zip --clobber
           fi

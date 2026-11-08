@@ -106,6 +106,7 @@ public class YouTube {
                 return cached
             }
             var request = URLRequest(url: extendedWatchURL)
+            request.timeoutInterval = 10
             request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
             request.setValue("en-US,en", forHTTPHeaderField: "accept-language")
             request.httpShouldHandleCookies = false
@@ -121,6 +122,7 @@ public class YouTube {
                 return cached
             }
             var request = URLRequest(url: embedURL)
+            request.timeoutInterval = 10
             request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
             request.setValue("en-US,en", forHTTPHeaderField: "accept-language")
             request.setValue("https://www.reddit.com/", forHTTPHeaderField: "Referer")
@@ -324,7 +326,8 @@ public class YouTube {
                     do {
                         // Give the primary audio clients a short head start;
                         // healthy playback need not fan out to every fallback.
-                        if index >= 2 { try await Task.sleep(nanoseconds: 500_000_000) }
+                        if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 650_000_000) }
+                        else if index >= 2 { try await Task.sleep(nanoseconds: 500_000_000) }
                         let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
                                              useOAuth: useOAuth, allowCache: allowOAuthCache)
                         let info = try await tube.player(videoID: videoID)
@@ -359,7 +362,10 @@ public class YouTube {
         if let winner { return winner }
         #endif
         // Keep all existing extraction alternatives if fast clients are unavailable.
-        for stream in try await streams.filterAudioOnly() where stream.fileExtension == .m4a && stream.isNativelyPlayable {
+        let fallback = try await streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }.sorted {
+            dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
+        }
+        for stream in fallback {
             try Task.checkCancellation()
             if try await validate(stream) { return stream }
         }

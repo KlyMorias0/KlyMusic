@@ -44,79 +44,62 @@ struct MiniProgress: View {
     }
 }
 
-struct PlaybackTimeline: View {
-    @EnvironmentObject private var clock: PlaybackClock
-    @EnvironmentObject private var player: MusicPlayer
-    @State private var scrubbing = false
-    @State private var scrub = 0.0
-    var body: some View {
-        VStack(spacing: 1) {
-            Slider(value: $scrub, in: 0...max(1, clock.duration), onEditingChanged: { editing in
-                scrubbing = editing
-                if !editing { player.seek(scrub) }
-            }).tint(Color.playerPrimary.opacity(0.8)).accessibilityLabel("Oynatma konumu")
-            HStack {
-                Text(Track.time(scrubbing ? scrub : clock.position)).accessibilityIdentifier("player.elapsed").accessibilityValue(String(Int(clock.position)))
-                Spacer()
-                Text("−" + Track.time(max(0, clock.duration - (scrubbing ? scrub : clock.position))))
-            }.font(.system(.caption2, design: .monospaced)).monospacedDigit().foregroundStyle(Color.playerSecondary)
-        }.onAppear { scrub = min(max(0, clock.position), max(1, clock.duration)) }
-            .onChange(of: clock.position) { _, value in if !scrubbing { scrub = min(max(0, value), max(1, clock.duration)) } }
-            .onChange(of: clock.duration) { _, value in if !scrubbing { scrub = min(max(0, clock.position), max(1, value)) } }
-            .accessibilityElement(children: .contain).accessibilityIdentifier("player.timeline").accessibilityValue(String(Int(clock.position)))
-    }
-}
-
 struct NowPlayingView: View {
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var downloads: DownloadManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var typeSize
-    @ScaledMetric(relativeTo: .title2) private var titleSize = 25.0
     @State private var showLyrics = false
     @State private var showQueue = false
-    @State private var layoutHeights: [PlayerLayoutPart: CGFloat] = [:]
-    private var track: Track? { player.current ?? player.pendingTrack }
+    private var displayed: Track? { player.pendingTrack ?? player.current }
     private var waitingForFirstTrack: Bool { player.current == nil && player.pendingTrack != nil }
 
     var body: some View {
-        Group {
-            if showLyrics { originalLyricsLayout }
-            else { redesignedLayout }
+        GeometryReader { geometry in
+            let side = min(360, min(geometry.size.width - 56, max(190, geometry.size.height - 410)))
+            ZStack {
+                AlbumBackdrop(artwork: displayed?.artwork)
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        Button { dismiss() } label: {
+                            Capsule().fill(Color.primary.opacity(0.3)).frame(width: 38, height: 5)
+                                .frame(maxWidth: .infinity).frame(height: 28).contentShape(Rectangle())
+                        }.accessibilityLabel("Kapat").accessibilityIdentifier("player.close")
+                        ZStack {
+                            if showLyrics {
+                                LyricsView().padding(.horizontal, 4).transition(.opacity)
+                            } else {
+                                Artwork(url: displayed?.artwork, radius: 15)
+                                    .frame(width: side, height: side)
+                                    .shadow(color: .black.opacity(0.2), radius: 22, y: 12)
+                                    .accessibilityIdentifier("player.cover").transition(.opacity)
+                            }
+                        }.frame(height: side).frame(maxWidth: .infinity)
+                            .padding(.top, 10).padding(.bottom, 25)
+                        appleMetadata.padding(.bottom, 15)
+                        ApplePlaybackTimeline().padding(.bottom, 10)
+                        appleTransport.padding(.bottom, 20)
+                        volume.padding(.bottom, 12)
+                        Spacer(minLength: 8)
+                        appleTools.padding(.bottom, 14)
+                    }
+                    .padding(.horizontal, 28).frame(maxWidth: 560)
+                    .frame(minHeight: geometry.size.height).frame(maxWidth: .infinity)
+                }.scrollBounceBehavior(.basedOnSize)
+            }
+            .accessibilityElement(children: .contain).accessibilityIdentifier("player.surface")
         }
+        .buttonStyle(.plain).presentationBackground(Color.canvas)
+        .sheet(isPresented: $showQueue) { QueueView() }
     }
 
-    private var redesignedLayout: some View {
-        GeometryReader { geometry in
-            let side = min(360, min(geometry.size.width - 64, max(160, geometry.size.height - 430)))
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    Button { dismiss() } label: {
-                        Capsule().fill(Color.primary.opacity(0.3)).frame(width: 38, height: 5)
-                            .frame(maxWidth: .infinity).frame(height: 28).contentShape(Rectangle())
-                    }.accessibilityLabel("Kapat").accessibilityIdentifier("player.close")
-                    Artwork(url: (player.pendingTrack ?? player.current)?.artwork, radius: 8)
-                        .frame(width: side, height: side)
-                        .padding(.top, 10).padding(.bottom, 28)
-                    appleMetadata.padding(.bottom, 18)
-                    ApplePlaybackTimeline().padding(.bottom, 12)
-                    appleTransport.padding(.bottom, 26)
-                    volume.padding(.bottom, 14)
-                    Spacer(minLength: 8)
-                    appleTools.padding(.bottom, 14)
-                }
-                .padding(.horizontal, 32)
-                .frame(maxWidth: 560)
-                .frame(minHeight: geometry.size.height)
-                .frame(maxWidth: .infinity)
-            }.scrollBounceBehavior(.basedOnSize)
-                .background(Color.canvas.ignoresSafeArea())
-        }
-        .buttonStyle(.plain)
-        .presentationBackground(Color.canvas)
-        .sheet(isPresented: $showQueue) { QueueView() }
+    private var volume: some View {
+        HStack(spacing: 13) {
+            Image(systemName: "speaker.fill").font(.system(size: 10))
+            VolumeControl().frame(height: 26)
+            Image(systemName: "speaker.wave.3.fill").font(.system(size: 12))
+        }.foregroundStyle(.secondary)
     }
 
     private var appleMetadata: some View {
@@ -162,11 +145,12 @@ struct NowPlayingView: View {
     private var appleTools: some View {
         HStack {
             Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { showLyrics = true }
-                player.loadLyrics()
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { showLyrics.toggle() }
+                if showLyrics { player.loadLyrics() }
             } label: {
-                Image(systemName: "quote.bubble").font(.system(size: 20)).frame(maxWidth: .infinity, minHeight: 46)
-            }.accessibilityLabel("Şarkı sözleri").accessibilityIdentifier("lyrics.toggle").accessibilityValue("hidden")
+                Image(systemName: showLyrics ? "quote.bubble.fill" : "quote.bubble").font(.system(size: 20)).frame(maxWidth: .infinity, minHeight: 46)
+                    .foregroundStyle(showLyrics ? Color.primary : Color.secondary)
+            }.accessibilityLabel("Şarkı sözleri").accessibilityIdentifier("lyrics.toggle").accessibilityValue(showLyrics ? "visible" : "hidden")
             AirPlayControl().frame(maxWidth: .infinity).frame(height: 46).accessibilityLabel("AirPlay")
             Button { showQueue = true } label: {
                 Image(systemName: "list.bullet").font(.system(size: 20)).frame(maxWidth: .infinity, minHeight: 46)
@@ -174,236 +158,6 @@ struct NowPlayingView: View {
         }.foregroundStyle(.secondary)
     }
 
-    // Keep the complete existing lyrics presentation, including its layout.
-    private var originalLyricsLayout: some View {
-        GeometryReader { geometry in
-            let inset: CGFloat = geometry.size.width < 390 ? 28 : 32
-            let compact = geometry.size.height < 720
-            let headerHeight = layoutHeights[.header] ?? (compact ? 57 : 67)
-            let controlsHeight = layoutHeights[.controls] ?? (compact ? 235 : 270)
-            let toolsHeight = layoutHeights[.tools] ?? (compact ? 58 : 66)
-            let coverSpacing: CGFloat = compact ? 26 : 42
-            let coverSide = min(geometry.size.width - inset * 2,
-                                min(400, max(128, geometry.size.height - headerHeight - controlsHeight - toolsHeight - coverSpacing - 2)))
-            VStack(spacing: 0) {
-                header
-                    .padding(.horizontal, inset - 8)
-                    .padding(.top, 7)
-                    .padding(.bottom, compact ? 6 : 16)
-                    .background { measureLayout(.header) }
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        cover(side: coverSide)
-                            .padding(.top, compact ? 4 : 8)
-                            .padding(.bottom, compact ? 22 : 34)
-                        VStack(spacing: 0) {
-                            metadata.padding(.bottom, compact ? 12 : 22)
-                            PlaybackTimeline().padding(.bottom, compact ? 8 : 16)
-                            transport.padding(.bottom, compact ? 15 : 24)
-                            volume.padding(.bottom, compact ? 8 : 12)
-                        }
-                        .background { measureLayout(.controls) }
-                    }
-                    .padding(.horizontal, inset)
-                    .frame(maxWidth: 550)
-                    .frame(maxWidth: .infinity)
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                tools.padding(.horizontal, inset - 6)
-                    .padding(.bottom, compact ? 3 : 11)
-                    .background { measureLayout(.tools) }
-            }
-            .foregroundStyle(.primary)
-            .background(Color.musicBackground.ignoresSafeArea())
-            .buttonStyle(.plain)
-            .onPreferenceChange(PlayerLayoutHeightKey.self) { heights in
-                if heights != layoutHeights { layoutHeights = heights }
-            }
-        }
-        .presentationBackground(Color.musicBackground)
-        .sheet(isPresented: $showQueue) { QueueView() }
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 17, weight: .medium))
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("Kapat").accessibilityIdentifier("player.close")
-            VStack(spacing: 4) {
-                Text("Şimdi çalıyor")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text(player.pendingTrack.map { L("Hazırlanıyor…") + " " + $0.title }
-                     ?? (track?.album.isEmpty == false ? track?.album ?? "KlyMusic" : "KlyMusic"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            if let track {
-                TrackMenu(track: track).frame(width: 44, height: 44)
-                    .accessibilityIdentifier("player.options")
-            } else {
-                Color.clear.frame(width: 44, height: 44)
-            }
-        }
-    }
-
-    @ViewBuilder private func cover(side: CGFloat) -> some View {
-        if showLyrics {
-            LyricsView().frame(height: side).transition(.opacity)
-        } else {
-            Artwork(url: track?.artwork, radius: 10)
-                .frame(width: side, height: side)
-                .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(0.08), lineWidth: 0.5) }
-                .scaleEffect(!reduceMotion && !player.isPlaying && !waitingForFirstTrack ? 0.98 : 1)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: player.isPlaying)
-                .frame(maxWidth: .infinity)
-                .transition(.opacity)
-        }
-    }
-
-    private var metadata: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(track?.title ?? "KlyMusic")
-                    .font(.system(size: titleSize, weight: .semibold))
-                    .tracking(-0.5).lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                Text(track?.artist ?? "")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary).lineLimit(2)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            if let track {
-                Button { library.toggleFavorite(track) } label: {
-                    Image(systemName: library.isFavorite(track) ? "heart.fill" : "heart")
-                        .font(.system(size: 21, weight: .regular))
-                        .foregroundStyle(library.isFavorite(track) ? Color.musicAccent : Color.secondary)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel(library.isFavorite(track) ? L("Favorilerden çıkar") : L("Favorilere ekle"))
-                .accessibilityIdentifier("player.favorite")
-            }
-        }
-    }
-
-    private var transport: some View {
-        HStack(spacing: 0) {
-            Button { player.toggleShuffle() } label: {
-                transportSymbol("shuffle", active: player.shuffle)
-            }
-            .accessibilityLabel("Karıştır")
-            .accessibilityValue(player.shuffle ? L("Karıştırma açık") : L("Kapalı"))
-            Button { player.previous() } label: {
-                Image(systemName: "backward.fill").font(.system(size: 25, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 64)
-            }.accessibilityLabel("Önceki şarkı")
-            Button { player.toggle() } label: {
-                Group {
-                    if player.isBuffering || waitingForFirstTrack {
-                        ProgressView().tint(Color.musicBackground).scaleEffect(1.1)
-                    } else {
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 26, weight: .semibold))
-                            .offset(x: player.isPlaying ? 0 : 2)
-                    }
-                }.foregroundStyle(Color.musicBackground)
-                    .frame(width: 64, height: 64)
-                    .background(Color.primary, in: Circle())
-                    .frame(width: 82, height: 72)
-                    .contentShape(Rectangle())
-            }
-            .accessibilityLabel(player.isPlaying ? L("Duraklat") : L("Çal"))
-            .accessibilityIdentifier("player.playPause")
-            .accessibilityValue(player.isPlaying ? "playing" : "paused")
-            Button { player.next() } label: {
-                Image(systemName: "forward.fill").font(.system(size: 25, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 64)
-            }.accessibilityLabel("Sonraki şarkı")
-            Button { player.cycleRepeat() } label: {
-                transportSymbol(player.repeatMode == .one ? "repeat.1" : "repeat", active: player.repeatMode != .off)
-            }
-            .accessibilityLabel("Tekrarlama")
-            .accessibilityValue(player.repeatMode == .off ? L("Kapalı") : player.repeatMode == .one ? L("Tek şarkı") : L("Tümü"))
-        }
-    }
-
-    private func transportSymbol(_ name: String, active: Bool) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: name).font(.system(size: 16, weight: .medium))
-            Circle().fill(active ? Color.musicAccent : .clear).frame(width: 3, height: 3)
-        }
-        .foregroundStyle(active ? Color.musicAccent : Color.secondary)
-        .frame(maxWidth: .infinity, minHeight: 64)
-        .offset(y: 4)
-    }
-
-    private var volume: some View {
-        HStack(spacing: 13) {
-            Image(systemName: "speaker.fill").font(.system(size: 10))
-            VolumeControl().frame(height: 26)
-            Image(systemName: "speaker.wave.3.fill").font(.system(size: 12))
-        }.foregroundStyle(.secondary)
-    }
-
-    private var tools: some View {
-        HStack(spacing: 0) {
-            Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { showLyrics.toggle() }
-                if showLyrics { player.loadLyrics() }
-            } label: {
-                toolSymbol(showLyrics ? "quote.bubble.fill" : "quote.bubble", active: showLyrics)
-            }
-            .accessibilityLabel("Şarkı sözleri")
-            .accessibilityIdentifier("lyrics.toggle").accessibilityValue(showLyrics ? "visible" : "hidden")
-            AirPlayControl().frame(maxWidth: .infinity).frame(height: 48).accessibilityLabel("AirPlay")
-            if let track {
-                Button { downloads.enqueue(track) } label: {
-                    toolSymbol(library.localURL(track.id) != nil ? "checkmark.circle.fill" : downloads.jobs[track.id] != nil ? "arrow.down.circle.dotted" : "arrow.down.circle", active: library.localURL(track.id) != nil)
-                }
-                .accessibilityLabel("İndir").accessibilityIdentifier("player.download")
-                .disabled(library.localURL(track.id) != nil)
-            }
-            Menu {
-                Button("Kapalı") { player.setSleep(minutes: nil) }
-                Button("Şarkı bitince") { player.setSleepAtEnd() }
-                ForEach([15, 30, 60], id: \.self) { minutes in
-                    Button("\(minutes) dakika") { player.setSleep(minutes: minutes) }
-                }
-            } label: {
-                toolSymbol(player.sleepUntil == nil && !player.sleepAtEnd ? "moon" : "moon.fill", active: player.sleepUntil != nil || player.sleepAtEnd)
-            }.accessibilityLabel("Uyku zamanlayıcısı")
-            Button { showQueue = true } label: { toolSymbol("text.line.first.and.arrowtriangle.forward") }
-                .accessibilityLabel("Çalma sırası").accessibilityIdentifier("player.queue")
-        }
-        .padding(.top, 7)
-        .background(Color.musicBackground)
-        .overlay(alignment: .top) { Rectangle().fill(.primary.opacity(0.08)).frame(height: 0.5) }
-    }
-
-    private func toolSymbol(_ name: String, active: Bool = false) -> some View {
-        Image(systemName: name).font(.system(size: 18, weight: .regular))
-            .foregroundStyle(active ? Color.musicAccent : Color.secondary)
-            .frame(maxWidth: .infinity, minHeight: 48)
-    }
-
-    private func measureLayout(_ part: PlayerLayoutPart) -> some View {
-        GeometryReader { geometry in
-            Color.clear.preference(key: PlayerLayoutHeightKey.self,
-                                   value: [part: geometry.size.height.rounded(.up)])
-        }
-    }
-}
-
-private enum PlayerLayoutPart: Hashable {
-    case header, controls, tools
-}
-
-private struct PlayerLayoutHeightKey: PreferenceKey {
-    static let defaultValue: [PlayerLayoutPart: CGFloat] = [:]
-    static func reduce(value: inout [PlayerLayoutPart: CGFloat], nextValue: () -> [PlayerLayoutPart: CGFloat]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
-    }
 }
 
 private struct ApplePlaybackTimeline: View {
@@ -429,7 +183,7 @@ private struct ApplePlaybackTimeline: View {
                     }.onEnded { _ in player.seek(scrub); scrubbing = false })
             }.frame(height: 28)
                 .accessibilityElement().accessibilityLabel("Oynatma konumu")
-                .accessibilityValue(Track.time(value))
+                .accessibilityValue(Track.time(value)).accessibilityIdentifier("player.scrubber")
                 .accessibilityAdjustableAction { direction in
                     switch direction {
                     case .increment: player.seek(clock.position + 5)

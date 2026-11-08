@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryView: View {
     @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var playerBackdrop: MusicPlayer
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var newList = false
     @State private var listName = ""
@@ -19,7 +20,7 @@ struct LibraryView: View {
             .padding(.horizontal, 22).padding(.top, 4).padding(.bottom, 32)
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
-        .background(Color.canvas).navigationTitle("Kütüphane")
+        .background { AlbumBackdrop(artwork: playerBackdrop.current?.artwork ?? library.recent.first?.artwork) }.navigationTitle("Kütüphane")
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $destination) { destination in
             switch destination {

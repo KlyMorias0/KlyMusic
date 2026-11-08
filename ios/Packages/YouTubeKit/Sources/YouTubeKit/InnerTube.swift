@@ -163,6 +163,7 @@ class InnerTube {
         urlComponents.queryItems = query
         
         var request = URLRequest(url: urlComponents.url!)
+        request.timeoutInterval = 6
         request.httpMethod = "post"
         request.httpBody = data
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")

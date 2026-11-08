@@ -2,6 +2,20 @@ import AVFoundation
 import MediaPlayer
 import SwiftUI
 import OSLog
+import Network
+
+@MainActor final class PlaybackConnection {
+    static let shared = PlaybackConnection()
+    private let monitor = NWPathMonitor()
+    private(set) var isUnmetered = false
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            let allowed = path.status == .satisfied && !path.isExpensive && !path.isConstrained
+            Task { @MainActor in self?.isUnmetered = allowed }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.klymusic.connection"))
+    }
+}
 
 @MainActor final class PlaybackClock: ObservableObject {
     @Published var position: Double = 0
@@ -149,7 +163,7 @@ import OSLog
     }
     private func asset(_ track: Track, source: String = "auto") async throws -> PlaybackAsset {
         try Task.checkCancellation()
-        let quality = UserDefaults.standard.string(forKey: "quality") ?? "auto"
+        let quality = PlaybackPreferences.quality()
         let asset = try await API.shared.resolve(track, provider: source, quality: quality)
         try Task.checkCancellation()
         return asset
@@ -177,7 +191,7 @@ import OSLog
             try Task.checkCancellation()
             let url = try API.mediaURL(stream!)
             item = AVPlayerItem(url: url)
-            item.preferredForwardBufferDuration = 1
+            item.preferredForwardBufferDuration = PlaybackPreferences.savesData() ? 0.75 : 2
             if let stream, stream.duration.isFinite, stream.duration > 0 {
                 // The resolver has checked this single recording's actual media duration.
                 item.forwardPlaybackEndTime = CMTime(seconds: stream.duration, preferredTimescale: 600)
@@ -199,10 +213,14 @@ import OSLog
 
     /// Warm only a small visible set; canceled screens release their own requests.
     func warm(_ tracks: [Track]) {
+        guard PlaybackPreferences.browseWarmupAllowed(savesData: PlaybackPreferences.savesData(), unmetered: PlaybackConnection.shared.isUnmetered) else {
+            warmupGeneration = UUID(); warmupTask?.cancel(); warmupTask = nil; warmupIDs = []
+            return
+        }
         var seen = Set<String>()
         let candidates = Array(tracks.filter {
             library?.localURL($0.id) == nil && $0.id != current?.id && $0.id != pendingTrack?.id && seen.insert($0.id).inserted
-        }.prefix(2))
+        }.prefix(1))
         let ids = candidates.map(\.id)
         guard ids != warmupIDs || warmupTask == nil else { return }
         warmupIDs = ids
@@ -237,7 +255,7 @@ import OSLog
            itemTracks[ObjectIdentifier(next)]?.0.id == track.id {
             pendingTrack = nil; engine.advanceToNextItem(); itemChanged(engine.currentItem); engine.play(); return
         }
-        selectionTask = Task {
+        selectionTask = Task(priority: .userInitiated) {
             do {
                 try Task.checkCancellation()
                 let item = try await prepare(track, source: source)
@@ -293,7 +311,7 @@ import OSLog
         if trackChanged { resetLyrics() }
         updateNowPlaying()
         Task {
-            if let image = await ArtworkCache.shared.image(track.artworkURL), current?.id == track.id {
+            if let image = await ArtworkCache.shared.image(ArtworkRequest.sized(track.artworkURL, pixels: 640), fallback: track.artworkURL), current?.id == track.id {
                 var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
                 info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = info
@@ -313,7 +331,7 @@ import OSLog
         let next = queue[nextIndex]
         let token = generation
         if engine.items().count > 1 { return }
-        nextTask = Task {
+        nextTask = Task(priority: .userInitiated) {
             do {
                 try Task.checkCancellation()
                 let item = try await prepare(next)
@@ -321,11 +339,22 @@ import OSLog
                 guard generation == token, engine.currentItem != nil, engine.items().count == 1 else { return }
                 engine.insert(item, after: engine.currentItem)
                 let second = nextIndex + 1
-                if second < queue.count, library?.localURL(queue[second].id) == nil {
+                if !PlaybackPreferences.savesData(), PlaybackConnection.shared.isUnmetered,
+                   second < queue.count, library?.localURL(queue[second].id) == nil {
                     _ = try? await asset(queue[second])
                 }
             } catch { /* Current playback continues; selecting Next exposes a useful error. */ }
         }
+    }
+
+    func refreshPreparation() {
+        warmupGeneration = UUID(); warmupTask?.cancel(); warmupTask = nil; warmupIDs = []
+        nextTask?.cancel()
+        for item in engine.items().dropFirst() {
+            engine.remove(item)
+            itemTracks[ObjectIdentifier(item)] = nil
+        }
+        prepareNext()
     }
 
     func toggle() {

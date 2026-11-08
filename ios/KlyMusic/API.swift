@@ -2,9 +2,11 @@ import Foundation
 
 enum PlaybackRace {
     /// A failing or slow candidate must not block another validated recording.
-    static func first<Value: Sendable>(_ operations: [@Sendable () async throws -> Value]) async throws -> Value {
+    static func first<Value: Sendable>(_ operations: [@Sendable () async throws -> Value], limit: Int = .max) async throws -> Value {
         try await withThrowingTaskGroup(of: Value.self) { group in
-            for operation in operations { group.addTask(operation: operation) }
+            var next = 0
+            let width = min(operations.count, max(1, limit))
+            for _ in 0..<width { group.addTask(operation: operations[next]); next += 1 }
             defer { group.cancelAll() }
             var failure: Error = APIError.invalidResponse
             while !group.isEmpty {
@@ -16,11 +18,66 @@ enum PlaybackRace {
                 } catch {
                     try Task.checkCancellation()
                     failure = error
+                    if next < operations.count { group.addTask(operation: operations[next]); next += 1 }
                 }
             }
             try Task.checkCancellation()
             throw failure
         }
+    }
+}
+
+enum PlaybackPreferences {
+    static func savesData(_ defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: "lowDataMode") == nil || defaults.bool(forKey: "lowDataMode")
+    }
+    static func quality(_ defaults: UserDefaults = .standard) -> String {
+        savesData(defaults) ? "data" : defaults.string(forKey: "quality") ?? "auto"
+    }
+    static func browseWarmupAllowed(savesData: Bool, unmetered: Bool) -> Bool { !savesData && unmetered }
+    static func audioMegabytesPerHour(kilobits: Int) -> Double { Double(kilobits) * 0.45 }
+}
+
+/// Saves the identity of a successfully validated recording, never expiring CDN
+/// credentials. Replays can skip catalogue matching while obtaining fresh URLs.
+actor RecordingMatchStore {
+    static let shared = RecordingMatchStore()
+    private struct Entry: Codable {
+        var requested: Track
+        var candidate: Track
+        var saved: Date
+    }
+    private let file: URL
+    private var entries: [String: Entry]
+    init(file: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("verified-recordings-v1.json")) {
+        self.file = file
+        entries = (try? JSONDecoder().decode([String: Entry].self, from: Data(contentsOf: file))) ?? [:]
+    }
+    private func key(_ track: Track, locale: String) -> String { locale + "|" + track.id }
+    func candidate(for track: Track, locale: String) -> Track? {
+        guard let entry = entries[key(track, locale: locale)], Date().timeIntervalSince(entry.saved) < 7 * 86400,
+              NativeCatalog.match(track, entry.candidate) >= 0.9 else { return nil }
+        return entry.candidate
+    }
+    func details(for track: Track, locale: String) -> Track? {
+        guard let entry = entries[key(track, locale: locale)], Date().timeIntervalSince(entry.saved) < 7 * 86400,
+              NativeCatalog.canonical(entry.requested.title) == NativeCatalog.canonical(track.title),
+              NativeCatalog.normalized(entry.requested.artist) == NativeCatalog.normalized(track.artist) else { return nil }
+        var result = track
+        if !result.duration.isFinite || result.duration <= 0 { result.duration = entry.requested.duration }
+        if result.album.isEmpty { result.album = entry.requested.album }
+        return result
+    }
+    func save(_ candidate: Track, for track: Track, locale: String) {
+        guard NativeCatalog.match(track, candidate) >= 0.9 else { return }
+        entries[key(track, locale: locale)] = Entry(requested: track, candidate: candidate, saved: .now)
+        if entries.count > 160, let oldest = entries.min(by: { $0.value.saved < $1.value.saved })?.key { entries[oldest] = nil }
+        persist()
+    }
+    func remove(_ track: Track, locale: String) { entries[key(track, locale: locale)] = nil; persist() }
+    private func persist() {
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? JSONEncoder().encode(entries) { try? data.write(to: file, options: .atomic) }
     }
 }
 

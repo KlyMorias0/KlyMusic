@@ -12,35 +12,46 @@ struct HomeView: View {
         var seen = Set<String>()
         return Array(sections.flatMap(\.tracks).filter { $0.artistID != nil && seen.insert($0.artist).inserted }.prefix(8))
     }
+    private var hero: Track? { player.current ?? library.recent.first ?? highlights.first }
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 32) {
-                if !highlights.isEmpty {
-                    VStack(alignment: .leading, spacing: 14) {
-                        BrowseShelfHeading(title: "Senin için")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(highlights) { FeaturedTrackCard(track: $0, tracks: sections.first?.tracks ?? []) }
-                            }.padding(.horizontal, 22).scrollTargetLayout()
-                        }.scrollTargetBehavior(.viewAligned)
-                    }
+            VStack(alignment: .leading, spacing: 28) {
+                if let hero {
+                    ListenHeroCard(track: hero, tracks: sections.first?.tracks ?? [], recent: library.recent.contains(where: { $0.id == hero.id }))
+                        .padding(.horizontal, 22)
                 } else if loading { MusicLoadingView() }
+                quickActions.padding(.horizontal, 22)
                 if let failure, sections.isEmpty { ErrorState(message: failure) { Task { await load() } } }
-                if !library.recent.isEmpty { quickListening }
+                if !highlights.isEmpty {
+                    BrowseTrackShelf(title: "Senin için", tracks: sections.first?.tracks ?? [])
+                }
+                if library.recent.count > 1 { quickListening }
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     if index == 0 { rankedShelf(section) }
                     else { BrowseTrackShelf(title: section.title, subtitle: section.subtitle, tracks: section.tracks) }
                 }
                 if !artists.isEmpty { artistShelf }
-            }.padding(.top, 14).padding(.bottom, 32)
-                .frame(maxWidth: 850).frame(maxWidth: .infinity)
+            }.padding(.top, 12).padding(.bottom, 32).frame(maxWidth: 850).frame(maxWidth: .infinity)
         }
-        .background(Color.canvas)
+        .background { AlbumBackdrop(artwork: hero?.artwork) }
         .navigationTitle("Dinle").navigationBarTitleDisplayMode(.large)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
         .refreshable { await load() }
         .task(id: ListeningLocale.current.cacheKey) { await load() }
     }
+
+    private var quickActions: some View {
+        HStack(spacing: 9) {
+            NavigationLink { TrackListView(title: L("Favoriler"), tracks: library.favorites) } label: { quickLink("Favoriler", icon: "heart") }
+            NavigationLink { DownloadsView() } label: { quickLink("İndirilenler", icon: "arrow.down") }
+            NavigationLink { TrackListView(title: L("Son dinlenenler"), tracks: library.recent) } label: { quickLink("Geçmiş", icon: "clock") }
+        }.buttonStyle(.plain)
+    }
+    private func quickLink(_ title: String, icon: String) -> some View {
+        Label(L(title), systemImage: icon).font(.system(size: 12, weight: .medium))
+            .frame(maxWidth: .infinity).padding(.vertical, 13).background(.ultraThinMaterial, in: Capsule())
+    }
+
     private var quickListening: some View {
         VStack(alignment: .leading, spacing: 14) {
             BrowseShelfHeading(title: "Son dinlenenler")
@@ -64,14 +75,20 @@ struct HomeView: View {
         }
     }
     private func rankedShelf(_ section: HomeSection) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             BrowseShelfHeading(title: section.title, tracks: section.tracks)
-            VStack(spacing: 0) {
-                ForEach(Array(section.tracks.prefix(5).enumerated()), id: \.element.id) { index, track in
-                    TrackRow(track: track, tracks: section.tracks, number: index + 1)
-                    if index < min(4, section.tracks.count - 1) { Divider().opacity(0.35).padding(.leading, 90) }
-                }
-            }.padding(.horizontal, 22)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 24) {
+                    ForEach(0..<((min(section.tracks.count, 9) + 2) / 3), id: \.self) { column in
+                        VStack(spacing: 0) {
+                            ForEach(Array(section.tracks.enumerated()).dropFirst(column * 3).prefix(3), id: \.element.id) { index, track in
+                                TrackRow(track: track, tracks: section.tracks, number: index + 1)
+                                if index % 3 != 2 { Divider().opacity(0.3).padding(.leading, 88) }
+                            }
+                        }.frame(width: 315)
+                    }
+                }.padding(.horizontal, 22)
+            }
         }
     }
     private var artistShelf: some View {
@@ -100,20 +117,31 @@ struct HomeView: View {
     }
 }
 
-private struct FeaturedTrackCard: View {
+private struct ListenHeroCard: View {
     var track: Track
     var tracks: [Track]
+    var recent: Bool
     @EnvironmentObject private var player: MusicPlayer
     var body: some View {
-        Button { player.play(track, in: tracks); player.isPresented = true } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                Artwork(url: track.artwork, radius: 9).frame(width: 274, height: 274)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(track.title).font(.system(size: 20, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                    Text(track.artist).font(.system(size: 15)).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }.frame(width: 274, alignment: .leading)
-        }.buttonStyle(.plain).accessibilityLabel("\(track.title), \(track.artist)").accessibilityHint(L("Çal"))
+        Button {
+            if player.current?.id == track.id || player.pendingTrack?.id == track.id { player.isPresented = true }
+            else { if recent { player.resume(track) } else { player.play(track, in: tracks) }; player.isPresented = true }
+        } label: {
+            HStack(spacing: 18) {
+                Artwork(url: track.artwork, radius: 17).frame(width: 125, height: 125)
+                    .shadow(color: .black.opacity(0.18), radius: 12, y: 7)
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(L(recent ? "Son dinlediğin" : "Öne çıkan")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                    Text(track.title).font(.system(size: 22, weight: .bold)).tracking(-0.5).lineLimit(2)
+                    Text(track.artist).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                    Image(systemName: player.current?.id == track.id && player.isPlaying ? "waveform" : "play.fill")
+                        .font(.system(size: 14)).padding(.top, 3)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.padding(17).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 27))
+                .overlay { RoundedRectangle(cornerRadius: 27).strokeBorder(.primary.opacity(0.07), lineWidth: 0.5) }
+                .foregroundStyle(.primary)
+        }.buttonStyle(.plain).accessibilityLabel("\(track.title), \(track.artist)")
+            .accessibilityIdentifier(recent ? "home.resume" : "home.featured")
     }
 }
 
@@ -199,7 +227,7 @@ struct DiscoverView: View {
                 if !tracks.isEmpty { BrowseTrackShelf(title: sectionTitle, subtitle: nil, tracks: tracks) }
                 if let failure, tracks.isEmpty { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
             }.padding(.bottom, 32)
-        }.background(Color.canvas)
+        }.background { AlbumBackdrop(artwork: tracks.first?.artwork) }
             .navigationTitle("Keşfet").navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
@@ -298,7 +326,7 @@ struct SearchView: View {
                     else { results }
                 }
             }.padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 32)
-        }.background(Color.canvas)
+        }.background { AlbumBackdrop(artwork: (player.current ?? player.pendingTrack)?.artwork ?? suggestions.first?.artwork) }
             .navigationTitle("Ara").navigationBarTitleDisplayMode(.large)
             .searchable(text: $query, prompt: "Şarkı, sanatçı veya albüm")
             .scrollDismissesKeyboard(.interactively)
@@ -485,7 +513,7 @@ struct AlbumDetailView: View {
                     ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in TrackRow(track: track, tracks: tracks, number: index + 1) }
                 }.padding(.horizontal, 22)
             }.padding(.bottom, 32)
-        }.background(Color.canvas).navigationTitle(collection.title).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
+        }.background { AlbumBackdrop(artwork: collection.artwork) }.navigationTitle(collection.title).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
     }
     private func load() async {
         loading = true; failure = nil
@@ -547,7 +575,7 @@ struct ArtistDetailView: View {
                 else if let failure { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
                 else { ProgressView().frame(maxWidth: .infinity).padding(40) }
             }.padding(.bottom, 32)
-        }.background(Color.canvas).navigationTitle(name).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
+        }.background { AlbumBackdrop(artwork: artwork) }.navigationTitle(name).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
     }
     private func artistContent(_ details: ArtistResponse) -> some View {
         VStack(alignment: .leading, spacing: 32) {

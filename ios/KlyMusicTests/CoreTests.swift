@@ -2,9 +2,78 @@ import XCTest
 import SwiftData
 import AVFoundation
 import MediaPlayer
+import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testEconomicalPreferenceOverridesPreviousHighQualityWithoutLosingChoice() throws {
+        let name = "PlaybackPreferences-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set("high", forKey: "quality")
+        XCTAssertEqual(PlaybackPreferences.quality(defaults), "data")
+        defaults.set(false, forKey: "lowDataMode")
+        XCTAssertEqual(PlaybackPreferences.quality(defaults), "high")
+        XCTAssertFalse(PlaybackPreferences.browseWarmupAllowed(savesData: true, unmetered: true))
+        XCTAssertFalse(PlaybackPreferences.browseWarmupAllowed(savesData: false, unmetered: false))
+        XCTAssertTrue(PlaybackPreferences.browseWarmupAllowed(savesData: false, unmetered: true))
+        XCTAssertEqual(PlaybackPreferences.audioMegabytesPerHour(kilobits: 48), 21.6, accuracy: 0.001)
+    }
+
+    func testSequentialResolutionDoesNotStartUnusedThirdCandidate() async throws {
+        let calls = PlaybackCallRecorder()
+        let result: String = try await PlaybackRace.first([
+            { await calls.record("bad"); throw APIError.invalidResponse },
+            { await calls.record("valid"); return "audio" },
+            { await calls.record("unused"); return "unnecessary" }
+        ], limit: 1)
+        XCTAssertEqual(result, "audio")
+        let recorded = await calls.values
+        XCTAssertEqual(recorded, ["bad", "valid"])
+    }
+
+    func testVerifiedRecordingSurvivesRelaunchAndRejectsChangedIdentity() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let track = Track(id: "apple:cache-test", title: "Kuzu Kuzu", artist: "Tarkan", duration: 233)
+        let candidate = Track(id: "youtube:abcdefghijk", title: "Kuzu Kuzu", artist: "Tarkan", duration: 234, source: "youtube")
+        let cache = RecordingMatchStore(file: file)
+        await cache.save(candidate, for: track, locale: "tr-tr")
+        let reopened = RecordingMatchStore(file: file)
+        let remembered = await reopened.candidate(for: track, locale: "tr-tr")
+        XCTAssertEqual(remembered?.id, candidate.id)
+        var changed = track; changed.title = "Kuzu Kuzu Remix"
+        let wrong = await reopened.candidate(for: changed, locale: "tr-tr")
+        XCTAssertNil(wrong)
+        let otherRegion = await reopened.candidate(for: track, locale: "en-us")
+        XCTAssertNil(otherRegion)
+        var incomplete = track; incomplete.duration = 0
+        let enriched = await reopened.details(for: incomplete, locale: "tr-tr")
+        XCTAssertEqual(enriched?.duration, 233)
+        await reopened.remove(track, locale: "tr-tr")
+        let removed = await reopened.candidate(for: track, locale: "tr-tr")
+        XCTAssertNil(removed)
+    }
+
+    func testSmallArtworkRequestsDoNotRewriteOtherHostsOrSignedAudioURLs() throws {
+        let apple = try XCTUnwrap(URL(string: "https://is1-ssl.mzstatic.com/image/thumb/album/600x600bb.jpg"))
+        XCTAssertTrue(try XCTUnwrap(ArtworkRequest.sized(apple, pixels: 150)).absoluteString.hasSuffix("160x160bb.jpg"))
+        for address in ["https://rr1.googlevideo.com/videoplayback?sig=abc", "https://is1-ssl.mzstatic.com.evil.example/600x600bb.jpg"] {
+            let url = try XCTUnwrap(URL(string: address))
+            XCTAssertEqual(ArtworkRequest.sized(url, pixels: 160), url)
+        }
+    }
+
+    @MainActor func testArtworkPaletteExtractsDifferentEdgeColors() throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 48, height: 24)).image { context in
+            UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 24, height: 24))
+            UIColor.blue.setFill(); context.fill(CGRect(x: 24, y: 0, width: 24, height: 24))
+        }
+        let colors = try XCTUnwrap(ArtworkPalette.extract(image))
+        XCTAssertGreaterThan(colors.left.r, colors.left.b)
+        XCTAssertGreaterThan(colors.right.b, colors.right.r)
+    }
+
     func testLivePlaybackResolutionDiagnostic() async throws {
         guard ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_TIMING"] == "1" else {
             throw XCTSkip("Live provider timing is opt-in; offline regression tests stay deterministic.")
@@ -644,7 +713,12 @@ final class CoreTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertEqual(player.engine.items().count, 2)
-        player.engine.advanceToNextItem()
+        let prepared = try XCTUnwrap(player.engine.items().last)
+        let started = Date()
+        player.next()
+        let controlMS = Date().timeIntervalSince(started) * 1000
+        XCTAssertTrue(player.engine.currentItem === prepared, "Next must reuse the already prepared player item")
+        print("PREPARED_ITEM_SWITCH_CONTROL_MS=\(controlMS) (control path, not audible latency)")
         for _ in 0..<100 {
             if player.current?.id == tracks[1].id { break }
             try await Task.sleep(for: .milliseconds(10))
@@ -810,6 +884,11 @@ final class CoreTests: XCTestCase {
                       expiresAt: Date().timeIntervalSince1970 + lifetime, duration: 180)
     }
 
+}
+
+private actor PlaybackCallRecorder {
+    var values: [String] = []
+    func record(_ value: String) { values.append(value) }
 }
 
 private final class CompletedDownloadTask: URLSessionDownloadTask, @unchecked Sendable {

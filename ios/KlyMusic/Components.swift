@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Color {
-    static let canvas = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
+    static let canvas = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.045, alpha: 1) : UIColor(white: 0.98, alpha: 1) })
     static let panel = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.075, alpha: 1) : UIColor(white: 0.96, alpha: 1) })
 }
 
@@ -15,8 +15,8 @@ struct SettingsButton: View {
     @State private var presented = false
     var body: some View {
         Button { presented = true } label: {
-            Image(systemName: "gearshape").font(.system(size: 19, weight: .regular))
-                .foregroundStyle(Color.primary).frame(width: 36, height: 36).background(Color.musicElevated, in: Circle()).frame(width: 44, height: 44).contentShape(Circle())
+            Image(systemName: "slider.horizontal.3").font(.system(size: 18, weight: .medium))
+                .foregroundStyle(Color.primary).frame(width: 32, height: 36).contentShape(Rectangle())
         }.accessibilityLabel("Ayarlar").accessibilityIdentifier("settings.open")
             .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28) }
     }
