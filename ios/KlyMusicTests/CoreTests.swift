@@ -846,6 +846,33 @@ final class CoreTests: XCTestCase {
         XCTAssertFalse(NativeCatalog.sameRecordingIdentity(requested, remix))
     }
 
+    func testReportedAzeriMashupResolutionDiagnostic() async throws {
+        try await reportedPlaybackDiagnostic(Track(id: "apple:1617467916", title: "Azeri Mashup 2", artist: "Dj Roshka", duration: 224.365))
+    }
+    func testReportedSayItRightResolutionDiagnostic() async throws {
+        try await reportedPlaybackDiagnostic(Track(id: "apple:1445855879", title: "Say It Right", artist: "Nelly Furtado", duration: 223.08))
+    }
+    private func reportedPlaybackDiagnostic(_ track: Track) async throws {
+        guard ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_TIMING"] == "1" else { throw XCTSkip("Live provider diagnostic is opt-in") }
+        do {
+            let prepareStart = Date()
+            await API.shared.prepareMatches([track])
+            let preparationMS = Date().timeIntervalSince(prepareStart) * 1000
+            let start = Date()
+            let asset = try await API.shared.resolve(track, quality: "data")
+            let resolveMS = Date().timeIntervalSince(start) * 1000
+            XCTAssertTrue(NativeCatalog.durationCompatible(expected: track.duration, actual: asset.duration))
+            let repeatStart = Date()
+            let repeated = try await API.shared.resolve(track, quality: "data")
+            let cacheMS = Date().timeIntervalSince(repeatStart) * 1000
+            XCTAssertEqual(asset.path, repeated.path)
+            print("REPORTED_PLAYBACK id=\(track.id) provider=\(asset.provider) prepare_ms=\(preparationMS) prepared_resolve_ms=\(resolveMS) cache_ms=\(cacheMS) audible_measurement=false")
+        } catch {
+            print("REPORTED_PLAYBACK id=\(track.id) unavailable=\(error.localizedDescription)")
+            throw XCTSkip("Live provider unavailable from CI for \(track.title): \(error.localizedDescription)")
+        }
+    }
+
     func testSourceMatchingRejectsCombinedAndDifferentRecordings() {
         let target = Track(id: "apple:6773420730", title: "Kayıp Kalp", artist: "BLOK3", duration: 153.231)
         let correct = Track(id: "youtube:nKHGXOdJlNc", title: "Kayıp Kalp", artist: "BLOK3", duration: 154)

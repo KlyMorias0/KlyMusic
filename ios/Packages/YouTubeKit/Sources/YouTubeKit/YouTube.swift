@@ -557,7 +557,7 @@ actor FastAudioContextCache {
         pending = request
         defer { pending = nil }
         let context = try await request.value
-        cached = (.now, context)
+        cached = (Date(), context)
         return context
     }
     func invalidate() { cached = nil }
