@@ -838,6 +838,18 @@ final class CoreTests: XCTestCase {
         XCTAssertGreaterThan(NativeCatalog.match(medley, medley), 0.9)
     }
 
+    func testReportedMashupMatchesExplicitCollaborationWithCreditedUploader() {
+        let original = Track(id: "apple:1617467916", title: "Azeri Mashup 2", artist: "Dj Roshka", duration: 224.365)
+        let video = Track(id: "youtube:abcdefghijk", title: "Sevil Sevinc & Dj Roshka - Azeri Mashup 2", artist: "Sevil Sevinc", duration: 225)
+        XCTAssertGreaterThan(NativeCatalog.match(original, video), 0.9)
+        var unrelated = video; unrelated.artist = "Unrelated Covers"
+        XCTAssertEqual(NativeCatalog.match(original, unrelated), 0)
+        unrelated = video; unrelated.title = "Sevil Sevinc & Other Producer - Azeri Mashup 2"
+        XCTAssertEqual(NativeCatalog.match(original, unrelated), 0)
+        unrelated = video; unrelated.duration = 450
+        XCTAssertEqual(NativeCatalog.match(original, unrelated), 0)
+    }
+
     func testFeaturedArtistsCanMoveBetweenTitleAndArtistMetadata() {
         let requested = Track(id: "apple:featured", title: "Gece (feat. Konuk)", artist: "Sanatçı", duration: 220)
         let copy = Track(id: "youtube:abcdefghijk", title: "Gece (Official Audio)", artist: "Sanatçı, Konuk", duration: 221)

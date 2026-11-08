@@ -490,7 +490,19 @@ actor NativeCatalog {
         return metadata
     }
 
+    private static func creditedVideo(_ track: Track) -> (artists: Set<String>, title: String)? {
+        // A collaboration may be uploaded by one credited artist, while another
+        // catalogue lists the producer. Require explicit credits and a credited uploader.
+        guard let separator = track.title.range(of: #"\s+[-–—]\s+"#, options: .regularExpression) else { return nil }
+        let credits = artistIdentity(String(track.title[..<separator.lowerBound]))
+        let uploader = artistIdentity(track.artist)
+        guard !uploader.isEmpty, uploader.isSubset(of: credits) else { return nil }
+        let title = canonical(String(track.title[separator.upperBound...]))
+        return title.isEmpty ? nil : (credits, title)
+    }
+
     private static func recordingTitle(_ track: Track) -> String {
+        if let video = creditedVideo(track) { return video.title }
         let title = canonical(track.title)
         let artists = artistIdentity(track.artist)
         let words = title.split(separator: " ")
@@ -523,10 +535,13 @@ actor NativeCatalog {
     }
 
     static func sameRecordingIdentity(_ requested: Track, _ candidate: Track) -> Bool {
-        // Mashup/medley can be the released song's actual name. Identity and duration,
-        // rather than title keywords, keep unrelated compilations and remixes out.
-        !recordingTitle(requested).isEmpty && recordingTitle(requested) == recordingTitle(candidate)
-            && !recordingArtists(requested).isEmpty && recordingArtists(requested) == recordingArtists(candidate)
+        guard !recordingTitle(requested).isEmpty, recordingTitle(requested) == recordingTitle(candidate) else { return false }
+        let requestedArtists = recordingArtists(requested)
+        let candidateArtists = recordingArtists(candidate)
+        guard !requestedArtists.isEmpty else { return false }
+        if requestedArtists == candidateArtists { return true }
+        if let video = creditedVideo(candidate), requestedArtists.isSubset(of: video.artists) { return true }
+        return false
     }
 
     static func match(_ requested: Track, _ candidate: Track) -> Double {
