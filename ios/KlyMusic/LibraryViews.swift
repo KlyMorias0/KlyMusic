@@ -21,7 +21,7 @@ struct LibraryView: View {
                 }
                 if !recent.isEmpty {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(sortValue == LibraryCollectionSort.added.rawValue ? "Son Eklenenler" : "Albümler ve Listeler").font(.title2.bold()).tracking(-0.5)
+                        Text(L(sortValue == LibraryCollectionSort.added.rawValue ? "Son Eklenenler" : "Albümler ve Listeler")).font(.title2.bold()).tracking(-0.5)
                         Spacer()
                         Menu {
                             Picker("Sırala", selection: $sortValue) {
@@ -197,7 +197,7 @@ private struct LibraryLayoutEditor: View {
                 }.onMove { source, destination in
                     var updated = layout; updated.order.move(fromOffsets: source, toOffset: destination)
                     storedValue = updated.storedValue
-                }
+                }.listRowBackground(Color.pageBackground)
             }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground)
                 .environment(\.editMode, .constant(.active))
                 .navigationTitle("Kütüphaneyi Düzenle").navigationBarTitleDisplayMode(.inline)

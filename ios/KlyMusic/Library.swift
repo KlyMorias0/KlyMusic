@@ -89,7 +89,7 @@ struct LibraryRecentEntry: Identifiable {
         }
         let entries = tracks.compactMap { track -> LibraryRecentEntry? in
             guard albums.insert(track.albumID ?? track.id).inserted else { return nil }
-            return LibraryRecentEntry(content: .album(track), addedAt: addedAt(track.id))
+            return LibraryRecentEntry(content: .album(track), addedAt: Date(timeIntervalSince1970: dates[track.id] ?? Date.distantPast.timeIntervalSince1970))
         } + playlists.map { LibraryRecentEntry(content: .playlist($0), addedAt: $0.createdAt) }
         return entries.sorted { $0.addedAt == $1.addedAt ? $0.id < $1.id : $0.addedAt > $1.addedAt }
     }
@@ -158,9 +158,10 @@ struct LibraryRecentEntry: Identifiable {
     }
     func removeHistory() { for item in saved { item.lastPlayed = nil; item.playCount = 0 }; commit() }
     func backup() throws -> Data {
+        let dates = addedDates
         let tracks = saved.compactMap { item -> LibraryBackup.BackupTrack? in
             guard let track = item.track else { return nil }
-            return .init(track: track, favorite: item.favorite, lastPlayed: item.lastPlayed, playCount: item.playCount, addedAt: addedAt(item.id))
+            return .init(track: track, favorite: item.favorite, lastPlayed: item.lastPlayed, playCount: item.playCount, addedAt: Date(timeIntervalSince1970: dates[item.id] ?? Date.distantPast.timeIntervalSince1970))
         }
         var settings = ["quality", "theme", "language", "wifiOnly", "followedArtists"].reduce(into: [String:String]()) { result, key in
             if let value = UserDefaults.standard.object(forKey: key) { result[key] = String(describing: value) }

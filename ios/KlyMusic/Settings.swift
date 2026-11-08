@@ -18,33 +18,32 @@ struct SettingsView: View {
     private var selection: String { lowData ? "data" : "high" }
     var body: some View {
         List {
-            Section {
+            Group {
+                settingsHeader("Dinleme")
                 NavigationLink {
                     AudioQualitySettings(quality: $quality, lowData: $lowData)
                 } label: {
                     settingValue("Ses kalitesi", value: L(lowData ? "Veri Tasarrufu" : "Yüksek Kalite"))
                 }.accessibilityIdentifier("settings.quality")
-            } header: { settingsHeader("Dinleme") }
-            Section {
-                Toggle("Yalnızca Wi-Fi ile indir", isOn: $wifiOnly).tint(.green).accessibilityIdentifier("settings.wifiOnly")
+                settingsHeader("İndirilenler")
+                Toggle("Yalnızca Wi-Fi ile indir", isOn: $wifiOnly).tint(.green).frame(minHeight: 52).accessibilityIdentifier("settings.wifiOnly")
                 NavigationLink { DownloadsView() } label: {
                     settingValue("İndirilen Müzikler", value: storageSize)
                 }.accessibilityIdentifier("settings.downloads")
-            } header: { settingsHeader("İndirilenler") }
-            Section {
+                settingsHeader("Görünüm")
                 Picker("Görünüm", selection: $theme) {
                     Text("Sistem").tag("system"); Text("Açık").tag("light"); Text("Koyu").tag("dark")
-                }.pickerStyle(.navigationLink).accessibilityIdentifier("settings.theme")
+                }.pickerStyle(.navigationLink).frame(minHeight: 52).accessibilityIdentifier("settings.theme")
                 Picker("Dil", selection: $language) {
                     Text("Sistem").tag("system"); Text("Türkçe").tag("tr"); Text("English").tag("en")
-                }.pickerStyle(.navigationLink).accessibilityIdentifier("settings.language")
-            } header: { settingsHeader("Görünüm") }
-            Section {
-                NavigationLink("Kütüphane ve Veriler") { dataSettings }.accessibilityIdentifier("settings.data")
-                NavigationLink("Hakkında") { aboutSettings }.accessibilityIdentifier("settings.about")
-            }
-            if let status { Section { Text(status).font(.footnote).accessibilityIdentifier("settings.status") } }
-        }.musicSettingsList()
+                }.pickerStyle(.navigationLink).frame(minHeight: 52).accessibilityIdentifier("settings.language")
+                settingsHeader("Kütüphane")
+                NavigationLink { dataSettings } label: { Text("Kütüphane ve Veriler").frame(minHeight: 52) }.accessibilityIdentifier("settings.data")
+                NavigationLink { aboutSettings } label: { Text("Hakkında").frame(minHeight: 52) }.accessibilityIdentifier("settings.about")
+                if let status { Text(status).font(.footnote).accessibilityIdentifier("settings.status") }
+            }.listRowBackground(Color.pageBackground)
+                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+        }.musicSettingsList(compactHeaders: true)
             .navigationTitle("Ayarlar").navigationBarTitleDisplayMode(.inline).tint(.primary)
             .toolbarBackground(Color.pageBackground, for: .navigationBar)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { dismiss() }.foregroundStyle(.primary) } }
@@ -59,11 +58,11 @@ struct SettingsView: View {
                     catch { status = error.localizedDescription }
                 } label: { Text("Kütüphaneyi Yedekle") }.accessibilityIdentifier("settings.backup")
                 Button("Yedeği Geri Yükle") { importing = true }.accessibilityIdentifier("settings.restore")
-            } footer: { Text("Ses dosyaları yedeğe dahil edilmez.") }
+            } footer: { Text("Ses dosyaları yedeğe dahil edilmez.") }.listRowBackground(Color.pageBackground)
             Section {
                 Button("Dinleme Geçmişini Temizle", role: .destructive) { eraseHistory = true }
                     .accessibilityIdentifier("settings.eraseHistory")
-            }
+            }.listRowBackground(Color.pageBackground)
             if let status { Section { Text(status).font(.footnote).accessibilityIdentifier("settings.status") } }
         }.musicSettingsList().navigationTitle("Kütüphane ve Veriler")
             .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "KlyMusic-Backup") { result in
@@ -85,7 +84,7 @@ struct SettingsView: View {
     }
     private var aboutSettings: some View {
         List {
-            Section { settingValue("Uygulama", value: "KlyMusic"); settingValue("Sürüm", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") }
+            Section { settingValue("Uygulama", value: "KlyMusic"); settingValue("Sürüm", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") }.listRowBackground(Color.pageBackground)
             Section {
                 NavigationLink("Lisanslar") {
                     ScrollView {
@@ -93,18 +92,19 @@ struct SettingsView: View {
                             .font(.footnote).textSelection(.enabled).padding(20)
                     }.navigationTitle("Lisanslar")
                 }
-            }
+            }.listRowBackground(Color.pageBackground)
         }.musicSettingsList().navigationTitle("Hakkında")
     }
     private func settingsHeader(_ title: String) -> some View {
-        Text(L(title)).font(.headline).foregroundStyle(.primary).textCase(nil).padding(.top, 14).padding(.bottom, 4)
+        Text(L(title)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            .padding(.top, 24).padding(.bottom, 8).listRowSeparator(.hidden)
     }
     private func settingValue(_ title: String, value: String) -> some View {
         HStack {
             Text(L(title)).foregroundStyle(.primary)
             Spacer()
             Text(value).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
-        }
+        }.frame(minHeight: 52)
     }
     private var storageSize: String {
         let urls = (try? FileManager.default.contentsOfDirectory(at: MusicFiles.downloads, includingPropertiesForKeys: [.fileSizeKey])) ?? []
@@ -123,7 +123,7 @@ private struct AudioQualitySettings: View {
                 option("Yüksek Kalite", value: "high", subtitle: "Kaynağın sunduğu yüksek kaliteli sesi kullanır.")
             } footer: {
                 Text("Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır.")
-            }
+            }.listRowBackground(Color.pageBackground)
         }.musicSettingsList()
             .navigationTitle("Ses kalitesi").navigationBarTitleDisplayMode(.inline)
     }
@@ -143,9 +143,9 @@ private struct AudioQualitySettings: View {
 }
 
 private extension View {
-    func musicSettingsList() -> some View {
+    func musicSettingsList(compactHeaders: Bool = false) -> some View {
         self.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground)
-            .environment(\.defaultMinListRowHeight, 54)
-            .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20))
+            .environment(\.defaultMinListRowHeight, compactHeaders ? 0 : 54)
+            .contentMargins(.top, 8, for: .scrollContent)
     }
 }

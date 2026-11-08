@@ -169,7 +169,7 @@ actor NativeCatalog {
             try Task.checkCancellation()
             response = HomeResponse(sections: sections)
             if recommendationCache.count > 12 { recommendationCache.removeAll() }
-            recommendationCache[key] = (Date(), response)
+            if !sections.isEmpty { recommendationCache[key] = (Date(), response) }
         }
         return HomeResponse(sections: HomeFeed.distinct(response.sections, excluding: seeds))
     }
