@@ -88,7 +88,6 @@ struct NowPlayingView: View {
                     .frame(minHeight: geometry.size.height).frame(maxWidth: .infinity)
                 }.scrollBounceBehavior(.basedOnSize)
             }
-            .accessibilityElement(children: .contain).accessibilityIdentifier("player.surface")
         }
         .buttonStyle(.plain).presentationBackground(Color.canvas)
         .sheet(isPresented: $showQueue) { QueueView() }
@@ -196,7 +195,7 @@ private struct ApplePlaybackTimeline: View {
                 Spacer()
                 Text("−" + Track.time(max(0, clock.duration - value)))
             }.font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
-        }.accessibilityIdentifier("player.timeline")
+        }.accessibilityElement(children: .contain).accessibilityIdentifier("player.timeline")
     }
 }
 

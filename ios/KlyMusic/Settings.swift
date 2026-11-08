@@ -15,7 +15,7 @@ struct SettingsView: View {
     @State private var exporting = false
     @State private var importing = false
     @State private var eraseHistory = false
-    private var selection: String { lowData ? "data" : quality }
+    private var selection: String { lowData ? "data" : "high" }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -82,9 +82,8 @@ struct SettingsView: View {
             Text(L("Ses kalitesi")).font(.headline)
             HStack(spacing: 10) {
                 qualityChoice("Az veri", value: "data", symbol: "leaf")
-                qualityChoice("Dengeli", value: "auto", symbol: "waveform")
                 qualityChoice("Yüksek", value: "high", symbol: "hifispeaker")
-            }.accessibilityIdentifier("settings.quality")
+            }
             VStack(alignment: .leading, spacing: 5) {
                 Text(L(selection == "data" ? "Ses için yaklaşık 22–58 MB/saat" : selection == "high" ? "Ses için yaklaşık 58–115 MB/saat" : "Ses için yaklaşık 58 MB/saat"))
                     .font(.system(size: 13, weight: .medium))
