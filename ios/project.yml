@@ -1,0 +1,74 @@
+name: KlyMusic
+options:
+  developmentLanguage: tr
+  bundleIdPrefix: com.klymusic
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+packages:
+  YouTubeKit:
+    path: Packages/YouTubeKit
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGNING_ALLOWED: NO
+    "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": YES
+    "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  KlyMusic:
+    type: application
+    platform: iOS
+    sources:
+      - KlyMusic
+    dependencies:
+      - package: YouTubeKit
+    info:
+      path: KlyMusic/Info.plist
+      properties:
+        CFBundleDisplayName: KlyMusic
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "9"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIBackgroundModes: [audio]
+        NSLocalNetworkUsageDescription: Geliştirme sırasında yerel test sunucusuna bağlanmak için kullanılır.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            localhost:
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "127.0.0.1":
+              NSExceptionAllowsInsecureHTTPLoads: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        LSSupportsOpeningDocumentsInPlace: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.klymusic.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    scheme:
+      testTargets: [KlyMusicTests, KlyMusicUITests]
+  KlyMusicTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [KlyMusicTests]
+    dependencies:
+      - target: KlyMusic
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  KlyMusicUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [KlyMusicUITests]
+    dependencies:
+      - target: KlyMusic
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

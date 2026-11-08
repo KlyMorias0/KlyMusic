@@ -1,0 +1,101 @@
+Test Suite 'All tests' started at 2026-11-06 01:27:30.966.
+Test Suite 'KlyMusicTests.xctest' started at 2026-11-06 01:27:30.967.
+Test Suite 'CoreTests' started at 2026-11-06 01:27:30.968.
+Test Case '-[KlyMusicTests.CoreTests testAppLanguageFollowsSystemUnlessManuallySelected]' started.
+Test Case '-[KlyMusicTests.CoreTests testAppLanguageFollowsSystemUnlessManuallySelected]' passed (0.005 seconds).
+Test Case '-[KlyMusicTests.CoreTests testBackgroundCompletionDrainsAllValidationsIncludingFailure]' started.
+Test Case '-[KlyMusicTests.CoreTests testBackgroundCompletionDrainsAllValidationsIncludingFailure]' passed (0.510 seconds).
+Test Case '-[KlyMusicTests.CoreTests testBackgroundCompletionIncludesHTTPAndTransportFailures]' started.
+Test Case '-[KlyMusicTests.CoreTests testBackgroundCompletionIncludesHTTPAndTransportFailures]' passed (0.044 seconds).
+Test Case '-[KlyMusicTests.CoreTests testBackgroundCompletionWaitsForValidationAndStorage]' started.
+Test Case '-[KlyMusicTests.CoreTests testBackgroundCompletionWaitsForValidationAndStorage]' passed (0.037 seconds).
+Test Case '-[KlyMusicTests.CoreTests testBackupMergesWithoutInventingDownloads]' started.
+Test Case '-[KlyMusicTests.CoreTests testBackupMergesWithoutInventingDownloads]' passed (0.052 seconds).
+Test Case '-[KlyMusicTests.CoreTests testCachedCombinedRecordingIsRejectedBeforePlayback]' started.
+Test Case '-[KlyMusicTests.CoreTests testCachedCombinedRecordingIsRejectedBeforePlayback]' passed (0.049 seconds).
+Test Case '-[KlyMusicTests.CoreTests testCancelDuringDownloadResolutionDoesNotRecreateJob]' started.
+Test Case '-[KlyMusicTests.CoreTests testCancelDuringDownloadResolutionDoesNotRecreateJob]' passed (0.035 seconds).
+Test Case '-[KlyMusicTests.CoreTests testCanceledResolutionCannotOverwriteNewRequestForSameSong]' started.
+Test Case '-[KlyMusicTests.CoreTests testCanceledResolutionCannotOverwriteNewRequestForSameSong]' passed (0.007 seconds).
+Test Case '-[KlyMusicTests.CoreTests testCancelingWarmupDoesNotCancelPlaybackWaitingForSameSong]' started.
+Test Case '-[KlyMusicTests.CoreTests testCancelingWarmupDoesNotCancelPlaybackWaitingForSameSong]' passed (0.033 seconds).
+Test Case '-[KlyMusicTests.CoreTests testCancelledFinalizationCannotRestoreDownload]' started.
+Test Case '-[KlyMusicTests.CoreTests testCancelledFinalizationCannotRestoreDownload]' passed (0.105 seconds).
+Test Case '-[KlyMusicTests.CoreTests testDirectPlaybackAcceptsOnlyProviderMediaURLs]' started.
+Test Case '-[KlyMusicTests.CoreTests testDirectPlaybackAcceptsOnlyProviderMediaURLs]' passed (0.007 seconds).
+Test Case '-[KlyMusicTests.CoreTests testDisplayedDurationHonorsVerifiedPlaybackBoundary]' started.
+Test Case '-[KlyMusicTests.CoreTests testDisplayedDurationHonorsVerifiedPlaybackBoundary]' passed (0.018 seconds).
+Test Case '-[KlyMusicTests.CoreTests testDownloadRejectsFileWithDifferentSongDuration]' started.
+Test Case '-[KlyMusicTests.CoreTests testDownloadRejectsFileWithDifferentSongDuration]' passed (1.504 seconds).
+Test Case '-[KlyMusicTests.CoreTests testDurationCompatibilityRejectsUnknownAndMergedAudio]' started.
+Test Case '-[KlyMusicTests.CoreTests testDurationCompatibilityRejectsUnknownAndMergedAudio]' passed (0.004 seconds).
+Test Case '-[KlyMusicTests.CoreTests testGenuinelyLongAudioContainerIsRejectedWithoutTrimming]' started.
+Test Case '-[KlyMusicTests.CoreTests testGenuinelyLongAudioContainerIsRejectedWithoutTrimming]' passed (0.194 seconds).
+Test Case '-[KlyMusicTests.CoreTests testLibraryDurationEnrichmentPreservesAppleMetadataAndFlags]' started.
+Test Case '-[KlyMusicTests.CoreTests testLibraryDurationEnrichmentPreservesAppleMetadataAndFlags]' passed (0.012 seconds).
+Test Case '-[KlyMusicTests.CoreTests testLibraryPositiveDurationRemainsAuthoritative]' started.
+Test Case '-[KlyMusicTests.CoreTests testLibraryPositiveDurationRemainsAuthoritative]' passed (0.011 seconds).
+Test Case '-[KlyMusicTests.CoreTests testListeningLocaleUsesPhoneLanguageAndRegionalEnglishStore]' started.
+Test Case '-[KlyMusicTests.CoreTests testListeningLocaleUsesPhoneLanguageAndRegionalEnglishStore]' passed (0.002 seconds).
+Test Case '-[KlyMusicTests.CoreTests testLyricsNetworkFailureCanBeRetried]' started.
+Test Case '-[KlyMusicTests.CoreTests testLyricsNetworkFailureCanBeRetried]' passed (0.030 seconds).
+Test Case '-[KlyMusicTests.CoreTests testLyricsTimestampsAndRepeatedLines]' started.
+Test Case '-[KlyMusicTests.CoreTests testLyricsTimestampsAndRepeatedLines]' passed (0.005 seconds).
+Test Case '-[KlyMusicTests.CoreTests testNativeMatchingRejectsWrongRecording]' started.
+Test Case '-[KlyMusicTests.CoreTests testNativeMatchingRejectsWrongRecording]' passed (0.006 seconds).
+Test Case '-[KlyMusicTests.CoreTests testOldRecoveredCallbackCannotReplaceResolvingDownload]' started.
+Test Case '-[KlyMusicTests.CoreTests testOldRecoveredCallbackCannotReplaceResolvingDownload]' passed (0.041 seconds).
+Test Case '-[KlyMusicTests.CoreTests testOneHundredRapidSelectionsKeepLastTrack]' started.
+Test Case '-[KlyMusicTests.CoreTests testOneHundredRapidSelectionsKeepLastTrack]' passed (0.098 seconds).
+Test Case '-[KlyMusicTests.CoreTests testOrdinaryAACContainerPassesWithoutRewriting]' started.
+Test Case '-[KlyMusicTests.CoreTests testOrdinaryAACContainerPassesWithoutRewriting]' passed (0.037 seconds).
+Test Case '-[KlyMusicTests.CoreTests testPausedFinalizationCannotRestoreDownload]' started.
+Test Case '-[KlyMusicTests.CoreTests testPausedFinalizationCannotRestoreDownload]' passed (0.081 seconds).
+Test Case '-[KlyMusicTests.CoreTests testPausedResolvingDownloadCanBeImmediatelyResumed]' started.
+Test Case '-[KlyMusicTests.CoreTests testPausedResolvingDownloadCanBeImmediatelyResumed]' passed (0.098 seconds).
+Test Case '-[KlyMusicTests.CoreTests testPlaybackCacheRenewsExpiringAssetsAndEvictsLeastRecentlyUsed]' started.
+Test Case '-[KlyMusicTests.CoreTests testPlaybackCacheRenewsExpiringAssetsAndEvictsLeastRecentlyUsed]' passed (0.007 seconds).
+Test Case '-[KlyMusicTests.CoreTests testPlaybackResolutionIsSharedAndCached]' started.
+Test Case '-[KlyMusicTests.CoreTests testPlaybackResolutionIsSharedAndCached]' passed (0.036 seconds).
+Test Case '-[KlyMusicTests.CoreTests testQueueItemTransitionKeepsMetadataClockAndIndexTogether]' started.
+Test Case '-[KlyMusicTests.CoreTests testQueueItemTransitionKeepsMetadataClockAndIndexTogether]' passed (0.175 seconds).
+Test Case '-[KlyMusicTests.CoreTests testRecoveredDownloadIsSavedWithoutReconnect]' started.
+Test Case '-[KlyMusicTests.CoreTests testRecoveredDownloadIsSavedWithoutReconnect]' passed (0.061 seconds).
+Test Case '-[KlyMusicTests.CoreTests testReplayingSameLocalTrackKeepsLoadedLyrics]' started.
+Test Case '-[KlyMusicTests.CoreTests testReplayingSameLocalTrackKeepsLoadedLyrics]' passed (0.299 seconds).
+Test Case '-[KlyMusicTests.CoreTests testSeekClampsClockAndIgnoresNonFiniteInput]' started.
+Test Case '-[KlyMusicTests.CoreTests testSeekClampsClockAndIgnoresNonFiniteInput]' passed (0.034 seconds).
+Test Case '-[KlyMusicTests.CoreTests testSourceMatchingRejectsCombinedAndDifferentRecordings]' started.
+Test Case '-[KlyMusicTests.CoreTests testSourceMatchingRejectsCombinedAndDifferentRecordings]' passed (0.042 seconds).
+Test Case '-[KlyMusicTests.CoreTests testSwitchingLyricsKeepsNewRequestLoadingUntilItCompletes]' started.
+Test Case '-[KlyMusicTests.CoreTests testSwitchingLyricsKeepsNewRequestLoadingUntilItCompletes]' passed (0.064 seconds).
+Test Case '-[KlyMusicTests.CoreTests testTimeFormattingHandlesUnloadedDuration]' started.
+Test Case '-[KlyMusicTests.CoreTests testTimeFormattingHandlesUnloadedDuration]' passed (0.004 seconds).
+Test Case '-[KlyMusicTests.CoreTests testUnknownBackupVersionIsRejected]' started.
+Test Case '-[KlyMusicTests.CoreTests testUnknownBackupVersionIsRejected]' passed (0.043 seconds).
+Test Suite 'CoreTests' passed at 2026-11-06 01:27:34.791.
+	 Executed 36 tests, with 0 failures (0 unexpected) in 3.788 (3.823) seconds
+Test Suite 'KlyMusicTests.xctest' passed at 2026-11-06 01:27:34.792.
+	 Executed 36 tests, with 0 failures (0 unexpected) in 3.788 (3.824) seconds
+Test Suite 'All tests' passed at 2026-11-06 01:27:34.792.
+	 Executed 36 tests, with 0 failures (0 unexpected) in 3.788 (3.826) seconds
+Test Suite 'Selected tests' started at 2026-11-06 01:27:45.187.
+Test Suite 'KlyMusicUITests.xctest' started at 2026-11-06 01:27:45.189.
+Test Suite 'NavigationTests' started at 2026-11-06 01:27:45.189.
+Test Case '-[KlyMusicUITests.NavigationTests testLyricsFollowAndLineSeeking]' started.
+Test Case '-[KlyMusicUITests.NavigationTests testLyricsFollowAndLineSeeking]' passed (58.788 seconds).
+Test Case '-[KlyMusicUITests.NavigationTests testNativeTabBarNavigationOffline]' started.
+
+Final separate navigation run:
+Test Suite 'Selected tests' started at 2026-11-06 01:37:01.968.
+Test Suite 'KlyMusicUITests.xctest' started at 2026-11-06 01:37:01.973.
+Test Suite 'NavigationTests' started at 2026-11-06 01:37:01.974.
+Test Case '-[KlyMusicUITests.NavigationTests testNativeTabBarNavigationOffline]' started.
+Test Case '-[KlyMusicUITests.NavigationTests testNativeTabBarNavigationOffline]' passed (124.151 seconds).
+Test Suite 'NavigationTests' passed at 2026-11-06 01:39:06.137.
+	 Executed 1 test, with 0 failures (0 unexpected) in 124.151 (124.163) seconds
+Test Suite 'KlyMusicUITests.xctest' passed at 2026-11-06 01:39:06.138.
+	 Executed 1 test, with 0 failures (0 unexpected) in 124.151 (124.165) seconds
+Test Suite 'Selected tests' passed at 2026-11-06 01:39:06.138.
+	 Executed 1 test, with 0 failures (0 unexpected) in 124.151 (124.171) seconds
+** TEST EXECUTE SUCCEEDED **

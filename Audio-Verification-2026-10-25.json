@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-25",
+  "method": "Full AAC files decoded to PCM with macOS afconvert; RMS and peak measured over all samples. Not a physical speaker test.",
+  "tracks": [
+    {
+      "query": "BLOK3 VUR",
+      "track": {
+        "id": "apple:1653643431",
+        "title": "VUR",
+        "artist": "BLOK3",
+        "album": "VUR - Single",
+        "duration": 190.271,
+        "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/e6/a5/46/e6a54604-e8fd-49c0-0a21-ff33888e45fd/cover.jpg/600x600bb.jpg",
+        "artistID": "1633245914",
+        "albumID": "1653643108",
+        "explicit": false,
+        "source": "apple"
+      },
+      "searchSeconds": 1.34,
+      "resolveSeconds": 20.0,
+      "decodedSeconds": 190.26,
+      "sampleRate": 44100,
+      "channels": 2,
+      "bytes": 3081259,
+      "rmsDbFS": -14.79,
+      "peakDbFS": 0.0,
+      "nonSilent": true
+    },
+    {
+      "query": "Tarkan Kuzu Kuzu",
+      "track": {
+        "id": "apple:499334149",
+        "title": "Kuzu Kuzu",
+        "artist": "Tarkan",
+        "album": "Karma",
+        "duration": 233.639,
+        "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/35/8d/22/358d22cf-8b9c-1e7d-996d-85aad739a255/dj.nixigvoo.jpg/600x600bb.jpg",
+        "artistID": "102640",
+        "albumID": "499333901",
+        "explicit": false,
+        "source": "apple"
+      },
+      "searchSeconds": 1.04,
+      "resolveSeconds": 13.95,
+      "decodedSeconds": 233.2,
+      "sampleRate": 44100,
+      "channels": 2,
+      "bytes": 3776599,
+      "rmsDbFS": -13.81,
+      "peakDbFS": 0.0,
+      "nonSilent": true
+    },
+    {
+      "query": "Semicenk Düşer Aklıma",
+      "track": {
+        "id": "apple:1598163730",
+        "title": "Düşer Aklıma",
+        "artist": "Semicenk",
+        "album": "Düşer Aklıma - Single",
+        "duration": 160.0,
+        "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/bc/77/93/bc779397-3182-c21d-fa24-c5ce283f88aa/cover.jpg/600x600bb.jpg",
+        "artistID": "1581975222",
+        "albumID": "1598163352",
+        "explicit": false,
+        "source": "apple"
+      },
+      "searchSeconds": 1.34,
+      "resolveSeconds": 13.64,
+      "decodedSeconds": 160.01,
+      "sampleRate": 44100,
+      "channels": 2,
+      "bytes": 2591476,
+      "rmsDbFS": -13.87,
+      "peakDbFS": -0.47,
+      "nonSilent": true
+    }
+  ]
+}

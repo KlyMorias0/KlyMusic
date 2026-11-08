@@ -1,0 +1,52 @@
+{
+  "actualSignedMediaDuration": 153.23,
+  "appleArtworkRetained": true,
+  "appleDuration": 153.231,
+  "appleID": "apple:6773420730",
+  "artist": "BLOK3",
+  "avFoundationDuration": 306.4499319727891,
+  "avFoundationDurationAgrees": false,
+  "downloadBytes": 2482355,
+  "missingChartDurationRecovered": true,
+  "nativeCatalogSources": "Current production source files via symlinks",
+  "playableFlag": true,
+  "provider": "youtube",
+  "query": "BLOK3 KAYIP KALP",
+  "resolvedID": "youtube:nKHGXOdJlNc",
+  "resolveWallSeconds": 14.662045001983643,
+  "title": "Kayıp Kalp",
+  "checkedUTC": "2026-11-06T08:15:29.811467+00:00",
+  "audioSHA256": "d14d08e72613a3831545596527bd928b21fe1213af12c0bef49507923a57d6ce",
+  "fullPCMDecode": {
+    "tool": "macOS afconvert (CoreAudio)",
+    "frames": 6757312,
+    "sampleRateHz": 44100,
+    "channels": 2,
+    "sampleWidthBytes": 2,
+    "durationSeconds": 153.22702947845804,
+    "rmsNormalized": 0.15339183463763686,
+    "peakNormalized": 1.0,
+    "nonSilent": true,
+    "wholeFileDecoded": true
+  },
+  "scope": "Prior live source resolution and full-file decode of Kayıp Kalp, followed by current container normalization regression. No physical iPhone or audible song-identity test.",
+  "knownContainerIssue": "Original fragmented DASH AAC reports306.449932s in AVFoundation but153.227029s in whole-file CoreAudio PCM. Build7 normalizes downloaded container only after full decoded duration matches Apple recording; original streaming uses verified153.23s end boundary.",
+  "productionSourceSHA256": {
+    "ios/KlyMusic/NativeCatalog.swift": "8cb381bf981f9c25d1d19a8f5aeac621b526ea2bff7efd215d1c6be00ee0cf29",
+    "ios/KlyMusic/API.swift": "41dbae4551df6b914909db73cf67d2c4a27ae16d397967ecaad85cc1ac2a3b15",
+    "ios/KlyMusic/Models.swift": "0130cd64612102b56298c38cfcb4facc354b78a30d9286e3cab7fd3a6b33e1ac",
+    "ios/KlyMusic/Localization.swift": "601bb1f3e73a43c1d5fbc483c5057a7ea23403d31179442f5c869dbfaffda602"
+  },
+  "providerHostFamily": "googlevideo.com",
+  "expiringMediaURLIncluded": false,
+  "containerNormalization": {
+    "method": "Complete AVAssetExportPresetPassthrough export without trimming",
+    "beforeSeconds": 306.4499319727891,
+    "afterSeconds": 153.1828798185941,
+    "expectedSeconds": 153.231,
+    "productionHelper": "DownloadAudioContainer.verifiedDuration(at:expected:)",
+    "independentWholePCMHashBefore": "c1b408267e96cb75e5949a0682c0b56d55d832ce2cacabf62f82a66ab4482d06",
+    "independentWholePCMHashAfter": "c1b408267e96cb75e5949a0682c0b56d55d832ce2cacabf62f82a66ab4482d06",
+    "hashScope": "Earlier complete passthrough feasibility probe; current helper separately verified output duration, full source regressions recorded in Regression-Verification.json."
+  }
+}

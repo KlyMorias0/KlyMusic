@@ -1,0 +1,21 @@
+KlyMusic — 7 Kasım 2026 kaynak aktarımı
+
+Bu arşiv, “Tasarımı modern ve sadeleştir” sohbetinde düzenlenen çalışma
+klasörünün mevcut halini içerir. Kaynak kodu, Xcode projesi, yerel YouTubeKit
+paketi, varlıklar, testler, geliştirme betikleri ve mevcut belgeler dahildir.
+
+Başlamak için ios/KlyMusic.xcodeproj dosyasını Xcode ile aç.
+Derleme ve çalışma ayrıntıları README.md içindedir.
+
+DİKKAT: dist/KlyMusic-unsigned.ipa önceki (6 Kasım) derlemedir;
+son tasarım değişikliklerini içermez. Güncel kaynaklardan yeniden üretmek için:
+  bash scripts/build-ipa.sh
+
+Son tasarım sohbeti tamamlanmadan kesilmiştir. O sohbette simülatör için
+build-for-testing başarıyla tamamlanmış, ancak son tasarımın tüm testleri ve
+cihaz derlemesi tamamlanmamıştır. Mevcut doğrulama belgeleri önceki sürümün
+kayıtlarıdır. Bu aktarımda kod değiştirilmedi veya yeni uygulama testi yapılmadı.
+ZIP bütünlüğü ve kaynak dosyalarının arşivde birebir bulunması kontrol edildi.
+
+Derleme önbellekleri, geçici dosyalar ve makineye özel Xcode kullanıcı
+ayarları arşive alınmadı.

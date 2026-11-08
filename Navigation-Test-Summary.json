@@ -1,0 +1,36 @@
+{
+  "devicesAndConfigurations": [
+    {
+      "device": {
+        "architecture": "x86_64",
+        "deviceId": "8577F34E-A7FB-4B72-9F06-EE940A8D3972",
+        "deviceName": "KlyMusic Small iPhone",
+        "modelName": "iPhone SE (3rd generation)",
+        "osBuildNumber": "23D8133",
+        "osVersion": "26.3.1",
+        "platform": "iOS Simulator"
+      },
+      "expectedFailures": 0,
+      "failedTests": 0,
+      "passedTests": 1,
+      "skippedTests": 0,
+      "testPlanConfiguration": {
+        "configurationId": "1",
+        "configurationName": "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription": "KlyMusic \u00b7 Built with macOS 15.7.4",
+  "expectedFailures": 0,
+  "failedTests": 0,
+  "finishTime": 1793957946.737,
+  "passedTests": 1,
+  "result": "Passed",
+  "skippedTests": 0,
+  "startTime": 1793957797.782,
+  "statistics": [],
+  "testFailures": [],
+  "title": "Test - KlyMusic",
+  "topInsights": [],
+  "totalTestCount": 1
+}

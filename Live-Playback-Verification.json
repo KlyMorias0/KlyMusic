@@ -1,0 +1,62 @@
+{
+  "appleID": "apple:6773420730",
+  "baselineComparison": [
+    {
+      "allowedMediaURL": true,
+      "codec": "aac",
+      "mode": "original-catalog",
+      "passed": true,
+      "provider": "youtube",
+      "resolvedID": "youtube:nKHGXOdJlNc",
+      "resolveWallSeconds": 13.250974893569946,
+      "signedMediaDurationSeconds": 153.23
+    },
+    {
+      "failureDescription": "Bu kaydın aynı sürümü kaynaklarda çalınamıyor. Başka bir sonuç dene.",
+      "failureType": "APIError",
+      "mode": "current-api",
+      "passed": false,
+      "resolveWallSeconds": 5.811828017234802
+    }
+  ],
+  "checkedUTC": "2026-11-06T09:19:03Z",
+  "expectedDurationSeconds": 153.231,
+  "expiringMediaURLIncluded": false,
+  "extraMediaDownloadPerformed": false,
+  "fallbackFixCheckedUTC": "2026-11-06T09:19:03Z",
+  "finalCurrentSource": {
+    "allowedMediaURL": true,
+    "cacheReturnedSameAsset": true,
+    "codec": "aac",
+    "coldResolveWallSeconds": 8.851302981376648,
+    "immediateCachedResolveWallSeconds": 0.00022900104522705078,
+    "passed": true,
+    "provider": "youtube",
+    "resolvedID": "youtube:nKHGXOdJlNc",
+    "signedMediaDurationSeconds": 153.23
+  },
+  "passed": true,
+  "physicalIPhoneLatencyMeasured": false,
+  "platform": "macOS x86_64 SwiftPM executable; production source symlinks",
+  "query": "BLOK3 Kayıp Kalp",
+  "recheckedUTC": "2026-11-06T09:17:15Z",
+  "initialOptimizedAttempt": {
+    "checkedUTC": "2026-11-06T09:13:00Z",
+    "passed": false,
+    "elapsedSeconds": 7.571462988853455,
+    "failureType": "APIError"
+  },
+  "productionSourceSHA256": {
+    "ios/KlyMusic/API.swift": "f0e97317bbc7c6c7ced7a11515b24f8c558ff6552a337c988f5a3a06aaaccbef",
+    "ios/KlyMusic/NativeCatalog.swift": "edc2aab57db9e2306b38c2fdc4da1335668828d57634cd17d70aae134ba1667e",
+    "ios/KlyMusic/Player.swift": "f12cd277efe6fe5814288a1163f3ddcbcd2c07842d2d881baa3e9bd22eb46149",
+    "ios/KlyMusic/Models.swift": "0130cd64612102b56298c38cfcb4facc354b78a30d9286e3cab7fd3a6b33e1ac",
+    "ios/KlyMusic/Localization.swift": "601bb1f3e73a43c1d5fbc483c5057a7ea23403d31179442f5c869dbfaffda602",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/YouTube.swift": "dd15cff05c6f97ed9977e30745594c73100f97a45cc7664d7e7846a228cab4c5",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/InnerTube.swift": "0dc63a807c14bec0cc9173d5b173b761281bf3d3c97e18065f31b75af5ce8f62",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/Extensions/Concurrency.swift": "02e1569f442e5314f0e85fdf0b658cba27f271648f8803825dbf7e99a198adca",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/Extensions/Retry.swift": "5a92ab7825f09a8cad1637140f2757a980ed4f70b4f65cd3cc4e5c4b568bc2de"
+  },
+  "productionValidation": "NativeCatalog selected native-playable m4a audio, verified allowed CDN URL, signed duration, HTTP response and MP4 ftyp header before returning.",
+  "interpretation": "One macOS smoke sample, not an iPhone transition benchmark. Early audio-only client/fallback suppression failed and was removed; complete client coverage plus audio-only format processing passed."
+}

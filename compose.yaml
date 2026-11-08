@@ -1,0 +1,35 @@
+services:
+  api:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      REQUESTS_PER_MINUTE: 180
+      LRCLIB_USER_AGENT: ${LRCLIB_USER_AGENT:-KlyMusic/1.0 (http://localhost:8787/docs)}
+    depends_on:
+      - redis
+    ports:
+      - "127.0.0.1:8787:8787"
+    networks: [internal]
+    mem_limit: 1g
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    networks: [internal]
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      KLYMUSIC_DOMAIN: ${KLYMUSIC_DOMAIN:-localhost}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./server/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+volumes:
+  caddy_data:
+  caddy_config:
+networks:
+  internal:

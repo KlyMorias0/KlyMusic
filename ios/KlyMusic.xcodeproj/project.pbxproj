@@ -1,0 +1,613 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		ABA284D4F8A74633B4412D17 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 953C612EFE3D4685AD12FA1D /* YouTubeKit */; };
+		00CFDD76736B4AE7883CCEDE /* NativeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2C86DCED08451C90996F1F /* NativeCatalog.swift */; };
+		0B6093EBCF094358BB1D059D /* ThirdPartyLicenses.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0C3B1DA23A3D4CAE915B858A /* ThirdPartyLicenses.txt */; };
+		023973C731CEB0D7F547A4C1 /* NowPlaying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 867F89B4FFE7C042BA935FDB /* NowPlaying.swift */; };
+		0A7A25DBB0EA3052B15C6966 /* LibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFA7DE2AF864A168BB9E830 /* LibraryViews.swift */; };
+		0CC383627772D546C2233780 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C2FDD46FFD64345A9168B7 /* Components.swift */; };
+		3BEEC80608AAECA02EAE8E88 /* CoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 018B458778AF24BA1B03F327 /* CoreTests.swift */; };
+		422A53C34DB6D64DD544FF60 /* KlyMusicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2011E3B8E8CE8A3050ACDDF7 /* KlyMusicApp.swift */; };
+		47F6B5B0F0ECCF2291910649 /* NavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7722F1B82F7D13595430F54 /* NavigationTests.swift */; };
+		4F3B3AA894C31634286862F3 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50E24EB7EF2AA9F9CF6F298 /* Localization.swift */; };
+		6206AD3226E2FCC0A01DB364 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D983ADED1C7BB1894F586E6 /* Library.swift */; };
+		775AE1ACD7B9D4F10E0ACFC8 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E63E61711274F812348484E /* Player.swift */; };
+		79246913E6F44FF64EF8FD6E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5317D2A64C7A066DAFECB6E /* Models.swift */; };
+		7DBB5DABF9CAAE848B747AD4 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99DE100E351FED23D82077A5 /* Settings.swift */; };
+		ADF14A020D8F54A48B98DA4C /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AA776F33073F858CECC0CA /* API.swift */; };
+		BD7879707DAA2A619F8FD870 /* Browse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93947BDE81BA2939826C0CC /* Browse.swift */; };
+		C1FC43ED400ABF6D66A32B3A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 18717AF74C321331DEA575C3 /* PrivacyInfo.xcprivacy */; };
+		E0F036DAB3F5A01D4D523607 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662964706FFEE337355A005A /* Artwork.swift */; };
+		EB4DE76125656FE74DB44D6A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DD4470BDDA484EFCAA262C1 /* Assets.xcassets */; };
+		EE2D25FAAC4582CF3CBEB013 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = E81834B4550A7635ED25F031 /* Localizable.strings */; };
+		FBEC044186FE940B4431D8FA /* Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EB0707C6EED3401262899A /* Downloads.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0FE157572081C7930014BB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EC457F6BBE200DAF7304F582 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3F6C4AD05E6C3C834C55B296;
+			remoteInfo = KlyMusic;
+		};
+		37CE1420678B34548DC08E95 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EC457F6BBE200DAF7304F582 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3F6C4AD05E6C3C834C55B296;
+			remoteInfo = KlyMusic;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		AD2C86DCED08451C90996F1F /* NativeCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCatalog.swift; sourceTree = "<group>"; };
+		0C3B1DA23A3D4CAE915B858A /* ThirdPartyLicenses.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyLicenses.txt; sourceTree = "<group>"; };
+		018B458778AF24BA1B03F327 /* CoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreTests.swift; sourceTree = "<group>"; };
+		18717AF74C321331DEA575C3 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		2011E3B8E8CE8A3050ACDDF7 /* KlyMusicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KlyMusicApp.swift; sourceTree = "<group>"; };
+		396B117EB7A2C244F1CE214D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3DD4470BDDA484EFCAA262C1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4237C400EEBDB1F2438AC036 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/Localizable.strings; sourceTree = "<group>"; };
+		4611D8947F7170AA9F7C65A7 /* KlyMusic.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KlyMusic.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CFA7DE2AF864A168BB9E830 /* LibraryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViews.swift; sourceTree = "<group>"; };
+		662964706FFEE337355A005A /* Artwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artwork.swift; sourceTree = "<group>"; };
+		6D983ADED1C7BB1894F586E6 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		71C23E4BEE1C1CAAB814ACE4 /* KlyMusicTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KlyMusicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		76EB0707C6EED3401262899A /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
+		80AA776F33073F858CECC0CA /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
+		867F89B4FFE7C042BA935FDB /* NowPlaying.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlaying.swift; sourceTree = "<group>"; };
+		86C2FDD46FFD64345A9168B7 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		99DE100E351FED23D82077A5 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+		9E63E61711274F812348484E /* Player.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
+		A5156D589667828AEF2B245E /* KlyMusicUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KlyMusicUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B50E24EB7EF2AA9F9CF6F298 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		C7722F1B82F7D13595430F54 /* NavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationTests.swift; sourceTree = "<group>"; };
+		D604A91E9A875C19C1B14659 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		E5317D2A64C7A066DAFECB6E /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		F93947BDE81BA2939826C0CC /* Browse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Browse.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DE5784173D9447C7AF5C5C09 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (ABA284D4F8A74633B4412D17 /* YouTubeKit in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0F4EB3FBE46E2176B031DEF2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4611D8947F7170AA9F7C65A7 /* KlyMusic.app */,
+				71C23E4BEE1C1CAAB814ACE4 /* KlyMusicTests.xctest */,
+				A5156D589667828AEF2B245E /* KlyMusicUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		833C19FCA0328DB78D3CE042 /* KlyMusicUITests */ = {
+			isa = PBXGroup;
+			children = (
+				C7722F1B82F7D13595430F54 /* NavigationTests.swift */,
+			);
+			path = KlyMusicUITests;
+			sourceTree = "<group>";
+		};
+		A08BA3219D760707CF14C947 /* KlyMusic */ = {
+			isa = PBXGroup;
+			children = (
+				80AA776F33073F858CECC0CA /* API.swift */,
+				AD2C86DCED08451C90996F1F /* NativeCatalog.swift */,
+				0C3B1DA23A3D4CAE915B858A /* ThirdPartyLicenses.txt */,
+				662964706FFEE337355A005A /* Artwork.swift */,
+				3DD4470BDDA484EFCAA262C1 /* Assets.xcassets */,
+				F93947BDE81BA2939826C0CC /* Browse.swift */,
+				86C2FDD46FFD64345A9168B7 /* Components.swift */,
+				76EB0707C6EED3401262899A /* Downloads.swift */,
+				396B117EB7A2C244F1CE214D /* Info.plist */,
+				2011E3B8E8CE8A3050ACDDF7 /* KlyMusicApp.swift */,
+				6D983ADED1C7BB1894F586E6 /* Library.swift */,
+				4CFA7DE2AF864A168BB9E830 /* LibraryViews.swift */,
+				B50E24EB7EF2AA9F9CF6F298 /* Localization.swift */,
+				E5317D2A64C7A066DAFECB6E /* Models.swift */,
+				867F89B4FFE7C042BA935FDB /* NowPlaying.swift */,
+				9E63E61711274F812348484E /* Player.swift */,
+				18717AF74C321331DEA575C3 /* PrivacyInfo.xcprivacy */,
+				99DE100E351FED23D82077A5 /* Settings.swift */,
+				E81834B4550A7635ED25F031 /* Localizable.strings */,
+			);
+			path = KlyMusic;
+			sourceTree = "<group>";
+		};
+		BA650849ACB95E3C96CE05CE = {
+			isa = PBXGroup;
+			children = (
+				A08BA3219D760707CF14C947 /* KlyMusic */,
+				D6AD2E7FA9EE18B4359EAFC6 /* KlyMusicTests */,
+				833C19FCA0328DB78D3CE042 /* KlyMusicUITests */,
+				0F4EB3FBE46E2176B031DEF2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D6AD2E7FA9EE18B4359EAFC6 /* KlyMusicTests */ = {
+			isa = PBXGroup;
+			children = (
+				018B458778AF24BA1B03F327 /* CoreTests.swift */,
+			);
+			path = KlyMusicTests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3F6C4AD05E6C3C834C55B296 /* KlyMusic */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFB3C0A1EE1AA6AEAB0475E3 /* Build configuration list for PBXNativeTarget "KlyMusic" */;
+			buildPhases = (
+				CA19CFF0FFA799D8ABA1BD8D /* Sources */,
+				DE5784173D9447C7AF5C5C09 /* Frameworks */,
+				EA65FD006D7B739D81B6BEAE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KlyMusic;
+			packageProductDependencies = (
+				953C612EFE3D4685AD12FA1D /* YouTubeKit */,
+			);
+			productName = KlyMusic;
+			productReference = 4611D8947F7170AA9F7C65A7 /* KlyMusic.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6CAF948E239744D9255D16C5 /* KlyMusicUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF933FF5AE35F7E4DE0C6446 /* Build configuration list for PBXNativeTarget "KlyMusicUITests" */;
+			buildPhases = (
+				566E25DA5789C0169113ED9E /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C4BD4FC7A16391808587CA2C /* PBXTargetDependency */,
+			);
+			name = KlyMusicUITests;
+			packageProductDependencies = (
+			);
+			productName = KlyMusicUITests;
+			productReference = A5156D589667828AEF2B245E /* KlyMusicUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		F6C2CBC25B1902D9C2B3697D /* KlyMusicTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 253206CDB27CC8308CD13B29 /* Build configuration list for PBXNativeTarget "KlyMusicTests" */;
+			buildPhases = (
+				1B9163CED266ADE872B09BB5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3D70D7B3C96EE3C02EFF1744 /* PBXTargetDependency */,
+			);
+			name = KlyMusicTests;
+			packageProductDependencies = (
+			);
+			productName = KlyMusicTests;
+			productReference = 71C23E4BEE1C1CAAB814ACE4 /* KlyMusicTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		EC457F6BBE200DAF7304F582 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					3F6C4AD05E6C3C834C55B296 = {
+						DevelopmentTeam = "";
+					};
+					6CAF948E239744D9255D16C5 = {
+						DevelopmentTeam = "";
+						TestTargetID = 3F6C4AD05E6C3C834C55B296;
+					};
+					F6C2CBC25B1902D9C2B3697D = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = E9979BE6E6F902E3E52A5FCF /* Build configuration list for PBXProject "KlyMusic" */;
+			developmentRegion = tr;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				tr,
+			);
+			mainGroup = BA650849ACB95E3C96CE05CE;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 0F4EB3FBE46E2176B031DEF2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			packageReferences = (36494AD7F3C5462A81781320 /* XCLocalSwiftPackageReference "YouTubeKit" */,);
+			targets = (
+				3F6C4AD05E6C3C834C55B296 /* KlyMusic */,
+				F6C2CBC25B1902D9C2B3697D /* KlyMusicTests */,
+				6CAF948E239744D9255D16C5 /* KlyMusicUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		EA65FD006D7B739D81B6BEAE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EB4DE76125656FE74DB44D6A /* Assets.xcassets in Resources */,
+				0B6093EBCF094358BB1D059D /* ThirdPartyLicenses.txt in Resources */,
+				EE2D25FAAC4582CF3CBEB013 /* Localizable.strings in Resources */,
+				C1FC43ED400ABF6D66A32B3A /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1B9163CED266ADE872B09BB5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3BEEC80608AAECA02EAE8E88 /* CoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		566E25DA5789C0169113ED9E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				47F6B5B0F0ECCF2291910649 /* NavigationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CA19CFF0FFA799D8ABA1BD8D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADF14A020D8F54A48B98DA4C /* API.swift in Sources */,
+				00CFDD76736B4AE7883CCEDE /* NativeCatalog.swift in Sources */,
+				E0F036DAB3F5A01D4D523607 /* Artwork.swift in Sources */,
+				BD7879707DAA2A619F8FD870 /* Browse.swift in Sources */,
+				0CC383627772D546C2233780 /* Components.swift in Sources */,
+				FBEC044186FE940B4431D8FA /* Downloads.swift in Sources */,
+				422A53C34DB6D64DD544FF60 /* KlyMusicApp.swift in Sources */,
+				6206AD3226E2FCC0A01DB364 /* Library.swift in Sources */,
+				0A7A25DBB0EA3052B15C6966 /* LibraryViews.swift in Sources */,
+				4F3B3AA894C31634286862F3 /* Localization.swift in Sources */,
+				79246913E6F44FF64EF8FD6E /* Models.swift in Sources */,
+				023973C731CEB0D7F547A4C1 /* NowPlaying.swift in Sources */,
+				775AE1ACD7B9D4F10E0ACFC8 /* Player.swift in Sources */,
+				7DBB5DABF9CAAE848B747AD4 /* Settings.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3D70D7B3C96EE3C02EFF1744 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3F6C4AD05E6C3C834C55B296 /* KlyMusic */;
+			targetProxy = 0FE157572081C7930014BB61 /* PBXContainerItemProxy */;
+		};
+		C4BD4FC7A16391808587CA2C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3F6C4AD05E6C3C834C55B296 /* KlyMusic */;
+			targetProxy = 37CE1420678B34548DC08E95 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		E81834B4550A7635ED25F031 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				D604A91E9A875C19C1B14659 /* en */,
+				4237C400EEBDB1F2438AC036 /* tr */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		36494AD7F3C5462A81781320 /* XCLocalSwiftPackageReference "YouTubeKit" */ = {isa = XCLocalSwiftPackageReference; relativePath = Packages/YouTubeKit; };
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		953C612EFE3D4685AD12FA1D /* YouTubeKit */ = {isa = XCSwiftPackageProductDependency; package = 36494AD7F3C5462A81781320 /* XCLocalSwiftPackageReference "YouTubeKit" */; productName = YouTubeKit; };
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCBuildConfiguration section */
+		106A9DD2CE0B885456F3EF37 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		3C2339E1D6B6EC4E3BE21DC0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.KlyMusicTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KlyMusic.app/KlyMusic";
+			};
+			name = Release;
+		};
+		419F84651F4591670A4E3C66 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.KlyMusicUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = KlyMusic;
+			};
+			name = Release;
+		};
+		5B8F90780276121BB49EA143 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.KlyMusicTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KlyMusic.app/KlyMusic";
+			};
+			name = Debug;
+		};
+		662E18ADF0304DB8EA578FC4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = KlyMusic/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		92000C8A97504DFE06DB1EF1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.KlyMusicUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = KlyMusic;
+			};
+			name = Debug;
+		};
+		E262231AE34A5FE3C33BD278 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E86C4EF5DBF807DD034BAB0B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = KlyMusic/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		253206CDB27CC8308CD13B29 /* Build configuration list for PBXNativeTarget "KlyMusicTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B8F90780276121BB49EA143 /* Debug */,
+				3C2339E1D6B6EC4E3BE21DC0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BF933FF5AE35F7E4DE0C6446 /* Build configuration list for PBXNativeTarget "KlyMusicUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				92000C8A97504DFE06DB1EF1 /* Debug */,
+				419F84651F4591670A4E3C66 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E9979BE6E6F902E3E52A5FCF /* Build configuration list for PBXProject "KlyMusic" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E262231AE34A5FE3C33BD278 /* Debug */,
+				106A9DD2CE0B885456F3EF37 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EFB3C0A1EE1AA6AEAB0475E3 /* Build configuration list for PBXNativeTarget "KlyMusic" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E86C4EF5DBF807DD034BAB0B /* Debug */,
+				662E18ADF0304DB8EA578FC4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = EC457F6BBE200DAF7304F582 /* Project object */;
+}
