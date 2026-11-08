@@ -105,7 +105,7 @@ struct DiscoverView: View {
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     BrowseShelfHeading(title: "Türler ve ruh halleri")
-                    categoryGrid(tracks: sections.flatMap(\.tracks))
+                    categoryGrid()
                 }
                 if let failure, sections.isEmpty { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 20) }
             }.padding(.top, 8).padding(.bottom, 24)
@@ -121,22 +121,27 @@ struct DiscoverView: View {
     }
 }
 
-@ViewBuilder private func categoryGrid(tracks: [Track]) -> some View {
+@ViewBuilder private func categoryGrid() -> some View {
     LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-        ForEach(Array(MusicMood.all.enumerated()), id: \.element.id) { index, mood in
-            NavigationLink { QueryView(query: mood.query, title: L(mood.title)) } label: {
-                ZStack(alignment: .bottomLeading) {
-                    mood.color
-                    if !tracks.isEmpty {
-                        Artwork(url: tracks[index % tracks.count].artwork, radius: 0)
-                            .opacity(0.48).blendMode(.luminosity)
-                    }
-                    Text(L(mood.title)).font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
-                        .padding(12).shadow(color: .black.opacity(0.3), radius: 4, y: 1)
-                }.frame(height: 116).clipShape(RoundedRectangle(cornerRadius: 9))
-            }.buttonStyle(.plain).accessibilityIdentifier("search.category.\(mood.id)")
+        ForEach(MusicMood.all) { mood in
+            NavigationLink { QueryView(query: mood.query, title: L(mood.title)) } label: { MusicCategoryTile(mood: mood) }
+                .buttonStyle(.plain).accessibilityIdentifier("search.category.\(mood.id)")
         }
     }.padding(.horizontal, 20)
+}
+
+private struct MusicCategoryTile: View {
+    var mood: MusicMood
+    @State private var artwork: String?
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            mood.color
+            if let artwork { Artwork(url: artwork, radius: 0).opacity(0.54).blendMode(.luminosity) }
+            Text(L(mood.title)).font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
+                .padding(12).shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+        }.frame(height: 116).clipShape(RoundedRectangle(cornerRadius: 9))
+            .task(id: ListeningLocale.current.cacheKey) { artwork = try? await API.shared.categoryArtwork(mood.query) }
+    }
 }
 
 struct QueryView: View {
@@ -173,7 +178,6 @@ struct SearchView: View {
     @State private var failure: String?
     @State private var filter = "all"
     @State private var scope = "catalog"
-    @State private var suggestions: [Track] = []
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var library: LibraryStore
     @AppStorage("searchHistory") private var historyData = ""
@@ -188,7 +192,7 @@ struct SearchView: View {
                 if !hasQuery {
                     if !history.isEmpty { recentSearches.padding(.horizontal, 20) }
                     BrowseShelfHeading(title: "Kategorilere göz at")
-                    categoryGrid(tracks: suggestions)
+                    categoryGrid()
                 } else {
                     Picker("Arama kapsamı", selection: $scope) {
                         Text("KlyMusic").tag("catalog"); Text("Kitaplığın").tag("library")
@@ -196,14 +200,16 @@ struct SearchView: View {
                     if scope == "catalog" { filters }
                     if loading && scope == "catalog" { ProgressView().frame(maxWidth: .infinity).padding(30) }
                     else if let failure, scope == "catalog" { ErrorState(message: failure) { Task { await search() } } }
-                    else { searchResults }
+                    else {
+                        if scope == "catalog", (filter == "albums" && result.albums.isEmpty) || (filter == "artists" && result.artists.isEmpty) { noResults }
+                        else { searchResults }
+                    }
                 }
             }.padding(.top, 8).padding(.bottom, 28)
         }.background(Color.pageBackground).navigationTitle("Ara").navigationBarTitleDisplayMode(.large)
             .searchable(text: $query, prompt: "Sanatçılar, Şarkılar, Sözler ve Daha Fazlası")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
             .scrollDismissesKeyboard(.interactively)
-            .task(id: ListeningLocale.current.cacheKey) { suggestions = (try? await API.shared.home().sections.first?.tracks) ?? [] }
             .task(id: query) {
                 guard hasQuery else { result = SearchResponse(); loading = false; failure = nil; return }
                 loading = true; failure = nil
@@ -250,22 +256,10 @@ struct SearchView: View {
     }
     @ViewBuilder private var searchResults: some View {
         if scope == "library" || filter == "songs" || filter == "all" {
-            if filter == "all", scope == "catalog", let first = songs.first {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("En İyi Sonuç").font(.title2.bold())
-                    Button { player.play(first, in: songs) } label: {
-                        VStack(spacing: 12) {
-                            Artwork(url: first.artwork, radius: 7).frame(width: 112, height: 112)
-                            Text(first.title).font(.headline).lineLimit(1)
-                            Text(first.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                        }.frame(maxWidth: .infinity).padding(20).background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 12))
-                    }.buttonStyle(.plain).accessibilityIdentifier("search.topResult")
-                }.padding(.horizontal, 20)
-            }
             if songs.isEmpty { noResults }
             else {
                 VStack(alignment: .leading, spacing: 10) {
-                    if filter == "all" { Text("Şarkılar").font(.title2.bold()).padding(.horizontal, 20) }
+                    if filter == "all" { Text("En İyi Sonuçlar").font(.title2.bold()).padding(.horizontal, 20) }
                     trackRows(songs)
                 }
             }

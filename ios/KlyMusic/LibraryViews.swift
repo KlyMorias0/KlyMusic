@@ -235,6 +235,9 @@ struct PlaylistDetailView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var downloads: DownloadManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var editing: EditMode = .inactive
+    @State private var deleting = false
     @State private var rename = false
     @State private var newName = ""
     var tracks: [Track] { library.tracks(in: playlist) }
@@ -264,12 +267,25 @@ struct PlaylistDetailView: View {
                 EmptyState(symbol: "text.badge.plus", title: "İlk şarkını ekle", message: "Bir şarkının seçeneklerinden bu listeye ekleyebilirsin.")
                     .listRowSeparator(.hidden).listRowBackground(Color.clear)
             }
-        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground).navigationBarTitleDisplayMode(.inline).tint(.coral)
+        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground).navigationBarTitleDisplayMode(.inline).tint(.primary).environment(\.editMode, $editing)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { EditButton().disabled(tracks.isEmpty) }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { newName = playlist.name; rename = true } label: { Image(systemName: "pencil") }.accessibilityLabel("Yeniden adlandır")
+                    if editing.isEditing {
+                        Button("Bitti") { editing = .inactive }
+                    } else {
+                        Menu {
+                            Button { editing = .active } label: { Label("Çalma Listesini Düzenle", systemImage: "pencil") }
+                            Button { newName = playlist.name; rename = true } label: { Label("Yeniden Adlandır", systemImage: "textformat") }
+                            Section {
+                                Button { tracks.forEach { downloads.enqueue($0) } } label: { Label("İndir", systemImage: "arrow.down.circle") }
+                                Button(role: .destructive) { deleting = true } label: { Label("Çalma Listesini Sil", systemImage: "trash") }
+                            }
+                        } label: { Image(systemName: "ellipsis") }.accessibilityLabel("Çalma Listesi Seçenekleri")
+                    }
                 }
+            }
+            .confirmationDialog("Çalma listesi silinsin mi?", isPresented: $deleting, titleVisibility: .visible) {
+                Button("Çalma Listesini Sil", role: .destructive) { library.deletePlaylist(playlist); dismiss() }
             }
             .alert("Yeniden adlandır", isPresented: $rename) {
                 TextField("Liste adı", text: $newName)
@@ -332,7 +348,7 @@ struct DownloadsView: View {
         }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle("İndirilenler")
             .overlay {
                 if library.downloaded.isEmpty && downloads.jobs.isEmpty {
-                    EmptyState(symbol: "arrow.down.circle", title: "Müziğin yanında olsun", message: "Şarkıları indir, internet olmadan dinle.")
+                    EmptyState(symbol: "arrow.down.circle", title: "İndirilen Müzik Yok", message: "İndirdiğin müzikler burada görünür.")
                 }
             }
             .toolbar {
@@ -398,15 +414,21 @@ struct FollowedArtistsView: View {
     @EnvironmentObject private var library: LibraryStore
     @Environment(\.dynamicTypeSize) private var typeSize
     var artists: [(String, String)] {
-        followed.components(separatedBy: "\n").compactMap { value in
+        let followedRows = followed.components(separatedBy: "\n").compactMap { value -> (String, String)? in
             let parts = value.split(separator: "|", maxSplits: 1)
             return parts.count == 2 ? (String(parts[0]), String(parts[1])) : nil
         }
+        let savedRows = library.saved.compactMap(\.track).compactMap { track -> (String, String)? in
+            guard let id = track.artistID, !id.isEmpty else { return nil }
+            return (id, track.artist)
+        }
+        var seen = Set<String>()
+        return (followedRows + savedRows).filter { seen.insert($0.0).inserted }.sorted { $0.1.localizedStandardCompare($1.1) == .orderedAscending }
     }
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if !artists.isEmpty { Text("\(artists.count) sanatçı takip ediliyor").font(.subheadline).foregroundStyle(.secondary).padding(.bottom, 20) }
+                if !artists.isEmpty { Text("\(artists.count) sanatçı").font(.subheadline).foregroundStyle(.secondary).padding(.bottom, 20) }
                 ForEach(artists, id: \.0) { artist in
                     NavigationLink { ArtistDetailView(id: artist.0, name: artist.1) } label: {
                         HStack(spacing: 16) {
@@ -418,7 +440,7 @@ struct FollowedArtistsView: View {
                             }
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(artist.1).font(.headline).foregroundStyle(.primary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                                Text("Takip ediliyor").font(.caption).foregroundStyle(.secondary)
+                                Text("Sanatçı").font(.caption).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
                         }.padding(.vertical, 14).contentShape(Rectangle())

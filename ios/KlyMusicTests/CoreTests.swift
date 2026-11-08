@@ -829,12 +829,23 @@ final class CoreTests: XCTestCase {
         let mashup = Track(id: "apple:mashup", title: "Azeri Mashup 2", artist: "Dj Roshka", duration: 220)
         let copy = Track(id: "youtube:abcdefghijk", title: "Dj Roshka - Azeri Mashup 2 (Official Audio)", artist: "Dj Roshka - Topic", duration: 221)
         XCTAssertGreaterThan(NativeCatalog.match(mashup, copy), 0.9)
+        XCTAssertEqual(NativeCatalog.normalized("Əzizim"), NativeCatalog.normalized("Ezizim"))
         var other = copy; other.title = "Azeri Mashup 3"
         XCTAssertEqual(NativeCatalog.match(mashup, other), 0)
         other = copy; other.duration = 440
         XCTAssertEqual(NativeCatalog.match(mashup, other), 0)
         let medley = Track(id: "apple:medley", title: "Live Medley", artist: "Artist", duration: 500)
         XCTAssertGreaterThan(NativeCatalog.match(medley, medley), 0.9)
+    }
+
+    func testFeaturedArtistsCanMoveBetweenTitleAndArtistMetadata() {
+        let requested = Track(id: "apple:featured", title: "Gece (feat. Konuk)", artist: "Sanatçı", duration: 220)
+        let copy = Track(id: "youtube:abcdefghijk", title: "Gece (Official Audio)", artist: "Sanatçı, Konuk", duration: 221)
+        XCTAssertGreaterThan(NativeCatalog.match(requested, copy), 0.9)
+        var wrong = copy; wrong.artist = "Sanatçı, Başkası"
+        XCTAssertEqual(NativeCatalog.match(requested, wrong), 0)
+        wrong = copy; wrong.title = "Gece Remix"
+        XCTAssertEqual(NativeCatalog.match(requested, wrong), 0)
     }
 
     func testMissingAppleDurationCanMatchIdentityWithoutAcceptingWrongVersions() {
@@ -844,6 +855,17 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(NativeCatalog.match(requested, copy), 0, "Duration still has to be established before accepting media")
         var remix = copy; remix.title = "Say It Right Remix"
         XCTAssertFalse(NativeCatalog.sameRecordingIdentity(requested, remix))
+    }
+
+    func testAudioFormatDurationCoversURLsWithoutDurationAndRejectsConflicts() throws {
+        let bare = try XCTUnwrap(URL(string: "https://rr1.googlevideo.com/videoplayback?id=audio"))
+        XCTAssertEqual(NativeCatalog.streamDuration(bare, formatDuration: 223.08), 223.08)
+        XCTAssertNil(NativeCatalog.streamDuration(bare, formatDuration: nil))
+        XCTAssertNil(NativeCatalog.streamDuration(bare, formatDuration: .nan))
+        let signed = try XCTUnwrap(URL(string: "https://rr1.googlevideo.com/videoplayback?dur=223.08"))
+        XCTAssertNil(NativeCatalog.streamDuration(signed, formatDuration: 440))
+        let duplicate = try XCTUnwrap(URL(string: "https://rr1.googlevideo.com/videoplayback?dur=223&dur=440"))
+        XCTAssertNil(NativeCatalog.streamDuration(duplicate, formatDuration: 223))
     }
 
     func testReportedAzeriMashupResolutionDiagnostic() async throws {

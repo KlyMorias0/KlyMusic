@@ -82,13 +82,13 @@ struct TrackRow: View {
                     Artwork(url: track.artwork, radius: 6).frame(width: 54, height: 54)
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 5) {
-                            Text(track.title).font(.system(size: 15, weight: .medium)).lineLimit(1)
+                            Text(track.title).font(.system(size: 17)).lineLimit(1)
                             if track.explicit { Image(systemName: "e.square.fill").font(.system(size: 10)).foregroundStyle(.tertiary) }
                         }.foregroundStyle(current ? Color.coral : Color.primary)
                         HStack(spacing: 4) {
                             if library.localURL(track.id) != nil { Image(systemName: "arrow.down.circle.fill").font(.system(size: 10)) }
                             Text(track.artist).lineLimit(1)
-                        }.font(.system(size: 12)).foregroundStyle(.secondary)
+                        }.font(.system(size: 14)).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if player.pendingTrack?.id == track.id { ProgressView().controlSize(.small).tint(Color.coral) }
                     else if current && player.isPlaying { Image(systemName: "waveform").font(.system(size: 14)).foregroundStyle(Color.coral) }

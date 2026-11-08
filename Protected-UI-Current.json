@@ -11,7 +11,7 @@
     "unchanged": true,
     "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
   },
-  "scope": "2.6.0: preserve the approved player layout, lyrics/animation, native tab bar and mini player. Change only song menu, queue and non-player page surfaces.",
+  "scope": "2.7.0: preserve the entire approved NowPlaying.swift (player, queue, lyric flow/animation and mini player), the native tab/root and the player song menu. Rebuild all surrounding pages; improve playback resolution without changing protected UI.",
   "approvedPlayerAndLyrics": {
     "unchanged": true,
     "baselineCommit": "8e6ae9c2481d8b27c6075135d6a03ca6d63bc145",
@@ -21,5 +21,15 @@
   "artworkAndPlayerBackdrop": {
     "unchanged": true,
     "sha256": "6671ceb380e681a0cbe85aa04d0b8e3f1bafae158e63e4a713c200128b098e3e"
+  },
+  "approvedFullPlayer": {
+    "unchanged": true,
+    "baselineCommit": "d49d1e968ae31dbb3bb799cc9a6b91a1252c9426",
+    "sha256": "3a41971e3f77f729225161f4ec94c7aa3631533cc68b48d3f1fc23cee744dfdf"
+  },
+  "nativeTabsAndRoot": {
+    "unchanged": true,
+    "baselineCommit": "d49d1e968ae31dbb3bb799cc9a6b91a1252c9426",
+    "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
   }
 }

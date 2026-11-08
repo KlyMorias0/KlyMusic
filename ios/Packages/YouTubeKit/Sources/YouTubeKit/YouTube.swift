@@ -198,7 +198,8 @@ public class YouTube {
             if let cached = Self.scriptCache.object(forKey: jsURL as NSURL) {
                 _js = cached as String
             } else {
-                let (data, response) = try await URLSession.shared.data(from: jsURL)
+                let request = URLRequest(url: jsURL, timeoutInterval: 8)
+                let (data, response) = try await URLSession.shared.data(for: request)
                 try Task.checkCancellation()
                 guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                       let text = String(data: data, encoding: .utf8), !text.isEmpty else { throw YouTubeKitError.extractError }
@@ -345,6 +346,11 @@ public class YouTube {
                         let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
                                              useOAuth: useOAuth, allowCache: allowOAuthCache)
                         let info = try await tube.player(videoID: videoID)
+                        #if DEBUG
+                        if ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_TIMING"] == "1" {
+                            print("YOUTUBE_AUDIO client=\(client.rawValue) id=\(videoID) status=\(info.playabilityStatus?.status ?? "unknown") reason=\(info.playabilityStatus?.reason ?? "")")
+                        }
+                        #endif
                         try Task.checkCancellation()
                         guard info.videoDetails?.videoId == videoID,
                               info.playabilityStatus?.status == "OK", let data = info.streamingData else { return nil }

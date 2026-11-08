@@ -230,6 +230,12 @@ actor API {
         if Self.endpoint == "native" { return try await catalog.search(text, source: source) }
         return try await request("v1/search", query: [.init(name: "q", value: text), .init(name: "source", value: source)])
     }
+    func categoryArtwork(_ query: String) async throws -> String? {
+        if Self.endpoint == "native" { return try await catalog.categoryArtwork(query) }
+        struct ArtworkResponse: Decodable { var artwork: String? }
+        let response: ArtworkResponse = try await request("v1/category-artwork", query: [.init(name: "query", value: query)])
+        return response.artwork
+    }
     func album(_ id: String) async throws -> AlbumResponse {
         if Self.endpoint == "native" { return try await catalog.album(id) }
         return try await request("v1/albums/" + id)

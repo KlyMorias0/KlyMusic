@@ -1,0 +1,74 @@
+{
+  "Türkçe Pop": {
+    "file": "category-0.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/f1/95/04/f1950424-2ae5-55ff-580d-d52e8300ec1b/dj.iedkotfi.jpg/320x320bb.jpg",
+    "album": "Ölürüm Sana",
+    "artist": "Tarkan"
+  },
+  "Türkçe Rap": {
+    "file": "category-1.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/5a/80/44/5a80447f-5d5e-0a48-c922-9eaa979b6aef/820233494144.jpg/320x320bb.jpg",
+    "album": "Başa Bela - Single",
+    "artist": "Ezhel"
+  },
+  "pop": {
+    "file": "category-2.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/0e/c1/57/0ec1575f-5153-ac4b-d578-c5fa3a90bfe1/5021732511676.jpg/320x320bb.jpg",
+    "album": "Dua Lipa - Live from the Royal Albert Hall",
+    "artist": "Dua Lipa"
+  },
+  "hip hop": {
+    "file": "category-3.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/94/28/36/94283609-93bb-db1c-e997-44e82c157e90/00602567261216.rgb.jpg/320x320bb.jpg",
+    "album": "DAMN. COLLECTORS EDITION.",
+    "artist": "Kendrick Lamar"
+  },
+  "alternative": {
+    "file": "category-4.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/69/9c/b5/699cb5d6-115c-ff73-9d26-e57ea4350d72/887828031795.png/320x320bb.jpg",
+    "album": "AM",
+    "artist": "Arctic Monkeys"
+  },
+  "rock": {
+    "file": "category-5.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/15/c7/55/15c755bc-7603-3ce3-e243-e59f1f9863ea/602527724171.jpg/320x320bb.jpg",
+    "album": "The Platinum Collection",
+    "artist": "Queen"
+  },
+  "acoustic": {
+    "file": "category-6.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Features124/v4/3e/b8/e1/3eb8e16a-52b8-bce4-6c53-2133684888d7/dj.xnudzdgv.jpg/320x320bb.jpg",
+    "album": "Acoustic Guitar",
+    "artist": "Søren Bødker Madsen"
+  },
+  "chill": {
+    "file": "category-7.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/cb/1b/eb/cb1bebf7-73b9-686a-b032-8c81f47772d7/00792755640258_Cover.jpg/320x320bb.jpg",
+    "album": "Chill",
+    "artist": "The Piano Guys"
+  },
+  "jazz": {
+    "file": "category-8.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music/7f/9f/d6/mzi.vtnaewef.jpg/320x320bb.jpg",
+    "album": "Kind of Blue",
+    "artist": "Miles Davis"
+  },
+  "classical": {
+    "file": "category-9.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/f7/58/57/f75857a3-0c71-0e66-c5f3-b16495347c5d/192650423930_cover.jpg/320x320bb.jpg",
+    "album": "Beethoven - Fur Elise (Komuz Remix) - Single",
+    "artist": "Komuz"
+  },
+  "dance": {
+    "file": "category-10.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/81/51/2a/81512a57-c386-bb63-4b80-8afdbbc949e7/0.jpg/320x320bb.jpg",
+    "album": "DANCE - Single",
+    "artist": "CLMD & Tungevaag"
+  },
+  "lofi": {
+    "file": "category-11.jpg",
+    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/6e/24/8f/6e248f0a-d8c2-9979-d19d-ab9adbaed6a6/859775505650_cover.jpg/320x320bb.jpg",
+    "album": "Lofi - Late Night Sessions",
+    "artist": "Various Artists"
+  }
+}

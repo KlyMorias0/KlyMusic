@@ -19,6 +19,8 @@ public struct Stream: Sendable {
     
     public let bitrate: Int?
     public let averageBitrate: Int?
+    /// Duration declared by the actual audio format, independent of search labels.
+    public let duration: Double?
     
     @available(*, deprecated, message: "Might be empty if using remote fetching method. Use `videoCodec`, `audioCodec` or `fileExtension` instead.")
     public let mimeType: String
@@ -67,6 +69,7 @@ public struct Stream: Sendable {
         
         self.bitrate = format.bitrate
         self.averageBitrate = format.averageBitrate
+        self.duration = format.approxDurationMs.flatMap(Double.init).flatMap { $0.isFinite && $0 > 0 ? $0 / 1000 : nil }
         self.filesize = format.contentLength.flatMap { Int($0) }
     }
     
@@ -88,6 +91,7 @@ public struct Stream: Sendable {
         
         self.bitrate = remoteStream.videoBitrate ?? remoteStream.audioBitrate
         self.averageBitrate = remoteStream.averageBitrate
+        self.duration = nil
         self.filesize = remoteStream.filesize
         
         // Backward compatibility for deprecated `subtype` and `mimeType`

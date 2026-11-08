@@ -127,7 +127,7 @@ final class NavigationTests: XCTestCase {
         app.buttons["search.filter.albums"].tap()
         let album = app.buttons["album.open.9002"]
         XCTAssertTrue(album.waitForExistence(timeout: 5)); album.tap()
-        XCTAssertTrue(app.buttons["Karıştır"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Karıştır"].firstMatch.waitForExistence(timeout: 5))
         shot(app, "Apple-Album-Detail")
         app.navigationBars.buttons.firstMatch.tap()
         app.scrollViews["search.filters"].swipeLeft()

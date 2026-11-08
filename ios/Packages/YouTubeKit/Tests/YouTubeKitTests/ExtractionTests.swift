@@ -107,6 +107,14 @@ final class FastAudioTests: XCTestCase {
         XCTAssertEqual(reloaded.source, "player-2")
     }
 
+    func testFormatCarriesAudioDurationWithoutCDNQueryParameter() throws {
+        let data = Data(#"{"itag":140,"url":"https://rr1.googlevideo.com/videoplayback?id=audio","mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","approxDurationMs":"223080"}"#.utf8)
+        let format = try JSONDecoder().decode(InnerTube.StreamingData.Format.self, from: data)
+        let stream = try Stream(format: format)
+        XCTAssertEqual(stream.duration, 223.08)
+        XCTAssertTrue(stream.isNativelyPlayable)
+    }
+
     func testFailedContextDoesNotPoisonNextSong() async throws {
         let cache = FastAudioContextCache()
         do {
