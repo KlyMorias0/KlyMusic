@@ -49,7 +49,23 @@ struct SettingsView: View {
             .toolbarBackground(Color.pageBackground, for: .navigationBar)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { dismiss() } } }
             .onChange(of: selection) { _, _ in player.refreshPreparation() }
-            .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "KlyMusic-Backup") { result in
+
+    }
+    private var dataSettings: some View {
+        Form {
+            Section {
+                Button {
+                    do { document = BackupDocument(data: try library.backup()); exporting = true }
+                    catch { status = error.localizedDescription }
+                } label: { Text("Kütüphaneyi Yedekle") }.accessibilityIdentifier("settings.backup")
+                Button("Yedeği Geri Yükle") { importing = true }.accessibilityIdentifier("settings.restore")
+            } footer: { Text("Ses dosyaları yedeğe dahil edilmez.") }
+            Section {
+                Button("Dinleme Geçmişini Temizle", role: .destructive) { eraseHistory = true }
+                    .accessibilityIdentifier("settings.eraseHistory")
+            }
+            if let status { Section { Text(status).font(.footnote).accessibilityIdentifier("settings.status") } }
+        }.scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle("Kütüphane ve Veriler")            .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "KlyMusic-Backup") { result in
                 switch result {
                 case .failure(let error): status = error.localizedDescription
                 case .success: status = L("Kütüphane yedeklendi.")
@@ -65,21 +81,6 @@ struct SettingsView: View {
             .confirmationDialog("Dinleme geçmişi temizlensin mi?", isPresented: $eraseHistory, titleVisibility: .visible) {
                 Button("Geçmişi temizle", role: .destructive) { library.removeHistory() }
             }
-    }
-    private var dataSettings: some View {
-        Form {
-            Section {
-                Button {
-                    do { document = BackupDocument(data: try library.backup()); exporting = true }
-                    catch { status = error.localizedDescription }
-                } label: { Text("Kütüphaneyi Yedekle") }.accessibilityIdentifier("settings.backup")
-                Button("Yedeği Geri Yükle") { importing = true }.accessibilityIdentifier("settings.restore")
-            } footer: { Text("Ses dosyaları yedeğe dahil edilmez.") }
-            Section {
-                Button("Dinleme Geçmişini Temizle", role: .destructive) { eraseHistory = true }
-                    .accessibilityIdentifier("settings.eraseHistory")
-            }
-        }.scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle("Kütüphane ve Veriler")
     }
     private var aboutSettings: some View {
         Form {
