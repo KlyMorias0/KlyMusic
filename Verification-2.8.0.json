@@ -1,0 +1,98 @@
+{
+  "version": "2.8.0",
+  "build_number": "15",
+  "code_commit": "fb7bbde7a2921f5cad37ae435575dd7c5f895b13",
+  "ci_run": "https://github.com/KlyMorias0/KlyMusic/actions/runs/42479879904",
+  "device_build": {
+    "result": "passed",
+    "version": "2.8.0",
+    "build_number": "15",
+    "minimum_iOS": "17.0",
+    "sdk": "iphoneos26.2",
+    "configuration": "Release",
+    "architecture": "arm64",
+    "unsigned": true,
+    "sha256": "d2ee023b9ac539190fb93d66153aa7bc43077351d6132f365257925d749d7279",
+    "bytes": 1660247
+  },
+  "tests": {
+    "core": {
+      "passed": 57,
+      "skipped": 3,
+      "failed": 0
+    },
+    "ui": {
+      "passed": 5,
+      "failed": 0
+    },
+    "YouTubeKit": {
+      "passed": 15,
+      "failed": 0
+    },
+    "total_passed": 77
+  },
+  "preservation": {
+    "tabBarAndRoot": {
+      "unchanged": true,
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "miniPlayer": {
+      "unchanged": true,
+      "sha256": "7e72982a248b924880831d6de3cb7a249e27a1a65c274e9aa772f415daf2f962"
+    },
+    "lyricsFlowAndAnimation": {
+      "unchanged": true,
+      "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
+    },
+    "scope": "2.8.0: preserve the entire approved player, queue, mini player, lyrics, native tabs, root, artwork rendering and player song menu. Refine only search, home, discover, library, artist and settings pages.",
+    "approvedPlayerAndLyrics": {
+      "unchanged": true,
+      "baselineCommit": "8e6ae9c2481d8b27c6075135d6a03ca6d63bc145",
+      "scope": "NowPlaying.swift before QueueView plus AirPlayControl and VolumeControl. TrackMenu implementation and QueueView are explicitly authorized exceptions.",
+      "sha256BeforeQueue": "7e885b4bbac75797e3aafbe653e3971aad6bbc4fa3f5984b699965d80ff04eba"
+    },
+    "artworkAndPlayerBackdrop": {
+      "unchanged": true,
+      "sha256": "6671ceb380e681a0cbe85aa04d0b8e3f1bafae158e63e4a713c200128b098e3e"
+    },
+    "approvedFullPlayer": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "3a41971e3f77f729225161f4ec94c7aa3631533cc68b48d3f1fc23cee744dfdf"
+    },
+    "nativeTabsAndRoot": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "approvedSongMenu": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "ec187711e4d246acfe792b902b5d884ce499f17287d6c5f7ddfbf98abae63fd5"
+    }
+  },
+  "runtime_validation": {
+    "simulator": "iPhone 17 Pro / iOS 26",
+    "iOS_27_tested": false,
+    "physical_iPhone_tested": false
+  },
+  "playback": {
+    "one_second_start_verified": false,
+    "all_catalog_playback_verified": false,
+    "audible_start_latency_ms": null,
+    "live_audio_checks_skipped": 3,
+    "youtube_bot_confirmation_observed": true
+  },
+  "visual_review": [
+    "Apple-Search-Categories",
+    "Apple-Search-Results",
+    "Apple-Library",
+    "Apple-Artist-Detail",
+    "Redesign-Settings-Dark",
+    "Music-Library-Data-Settings",
+    "Music-About-Settings",
+    "Apple-Album-Detail",
+    "30-Home-Top-Flat"
+  ],
+  "fixture_note": "Screenshots use local test audio/metadata and editorial artwork. They do not establish live YouTube playback, actual phone latency or pixel identity with Apple Music."
+}

@@ -14,7 +14,7 @@ Ana sayfa: büyük kapak rafı, üçlü kompakt listeler; kayıt kimliğine gör
 
 Ayarlar: gereksiz logo alanı kaldırıldı. Dinleme, indirilenler ve görünüm kısa native gruplardır. Yedek ve geçmiş işlemleri Kütüphane ve Veriler alt sayfasına; sürüm/lisanslar Hakkında alt sayfasına taşındı. Desteklenmeyen hesap/abonelik özellikleri eklenmedi.
 
-Kütüphane: beş ana satır; favoriler ve geçmiş seçenekler menüsünde, favoriler ayrıca listeler içinde. Son Eklenenler ilk kayıt sırasına dayanır ve tekrar dinleyince değişmez. Eski veritabanlarında eklenme tarihi olmadığı için sıra bir kez mevcut veriden başlatılır; SwiftData şeması değişmedi.
+Kütüphane: beş ana satır; üstteki bağımsız liste oluşturma düğmesi seçenekler menüsüne alındı; favoriler ve geçmiş seçenekler menüsünde, favoriler ayrıca listeler içinde. Son Eklenenler ilk kayıt sırasına dayanır ve tekrar dinleyince değişmez. Eski veritabanlarında eklenme tarihi olmadığı için sıra bir kez mevcut veriden başlatılır; SwiftData şeması değişmedi.
 
 Sanatçı: gerçek portre varsa kullanılır; yoksa kişi yer tutucusu gösterilir. Albüm resmi profil resmi yapılmaz. Ayrı Son Çıkan/Yakında/Öne Çıkan kartı yayın tarihine göre adlandırılır.
 
