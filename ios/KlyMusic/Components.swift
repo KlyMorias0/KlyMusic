@@ -16,7 +16,7 @@ struct SettingsButton: View {
     @State private var presented = false
     var body: some View {
         Button { presented = true } label: {
-            Image(systemName: "person.crop.circle").font(.system(size: 26, weight: .regular))
+            Image(systemName: "slider.horizontal.3").font(.system(size: 22, weight: .medium))
                 .foregroundStyle(Color.primary).frame(width: 32, height: 36).contentShape(Rectangle())
         }.accessibilityLabel("Ayarlar").accessibilityIdentifier("settings.open")
             .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28).presentationBackground(Color.pageBackground) }

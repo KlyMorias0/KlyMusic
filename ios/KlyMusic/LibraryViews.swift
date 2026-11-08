@@ -4,42 +4,36 @@ struct LibraryView: View {
     @EnvironmentObject private var library: LibraryStore
     @State private var newList = false
     @State private var destination: LibraryDestination?
-    private var recent: [Track] {
-        var seen = Set<String>()
-        return Array(library.recentlyAdded.filter {
-            seen.insert($0.albumID ?? $0.id).inserted
-        }.prefix(12))
+    @State private var editingCategories = false
+    @AppStorage("libraryLayout-v1") private var layoutValue = ""
+    @AppStorage("librarySort-v1") private var sortValue = LibraryCollectionSort.added.rawValue
+    private var layout: LibraryLayout { LibraryLayout(storedValue: layoutValue) }
+    private var recent: [LibraryRecentEntry] {
+        Array((LibraryCollectionSort(rawValue: sortValue) ?? .added).sorted(library.recentlyAddedCollections).prefix(16))
     }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(spacing: 0) {
-                    libraryRow("Çalma Listeleri", symbol: "music.note.list", destination: .playlists, identifier: "library.playlists")
-                    libraryRow("Sanatçılar", symbol: "mic", destination: .artists, identifier: "library.artists")
-                    libraryRow("Albümler", symbol: "square.stack", destination: .albums, identifier: "library.albums")
-                    libraryRow("Şarkılar", symbol: "music.note", destination: .songs, identifier: "library.songs")
-                    libraryRow("İndirilenler", symbol: "arrow.down.circle", destination: .downloads, identifier: "library.downloads")
+                    ForEach(layout.visible) { category in
+                        libraryRow(category.title, symbol: category.symbol, destination: category.destination, identifier: "library." + category.rawValue)
+                    }
                 }
-                if !recent.isEmpty || !library.playlists.isEmpty {
-                    Text("Son Eklenenler").font(.title2.bold()).tracking(-0.5)
+                if !recent.isEmpty {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(sortValue == LibraryCollectionSort.added.rawValue ? "Son Eklenenler" : "Albümler ve Listeler").font(.title2.bold()).tracking(-0.5)
+                        Spacer()
+                        Menu {
+                            Picker("Sırala", selection: $sortValue) {
+                                ForEach(LibraryCollectionSort.allCases) { sort in Text(L(sort.title)).tag(sort.rawValue) }
+                            }
+                        } label: {
+                            Label("Sırala", systemImage: "arrow.up.arrow.down").font(.subheadline)
+                        }.foregroundStyle(.secondary).accessibilityIdentifier("library.sort")
+                    }
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 16)], alignment: .leading, spacing: 24) {
-                        ForEach(library.playlists.prefix(4)) { list in
-                            NavigationLink { PlaylistDetailView(playlist: list) } label: {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    PlaylistArtwork(tracks: library.tracks(in: list)).aspectRatio(1, contentMode: .fit)
-                                    Text(list.name).font(.subheadline).foregroundStyle(.primary).lineLimit(1)
-                                    Text("Çalma Listesi").font(.subheadline).foregroundStyle(.secondary)
-                                }
-                            }.buttonStyle(.plain)
-                        }
-                        ForEach(recent) { track in
-                            NavigationLink { TrackListView(title: track.album.isEmpty ? track.title : track.album, tracks: albumTracks(track)) } label: {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Artwork(url: track.artwork, radius: 7).aspectRatio(1, contentMode: .fit)
-                                    Text(track.album.isEmpty ? track.title : track.album).font(.subheadline).foregroundStyle(.primary).lineLimit(1)
-                                    Text(track.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                                }
-                            }.buttonStyle(.plain)
+                        ForEach(recent) { entry in
+                            recentCard(entry)
                         }
                     }
                 }
@@ -60,6 +54,7 @@ struct LibraryView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button { newList = true } label: { Label("Yeni Çalma Listesi…", systemImage: "text.badge.plus") }.accessibilityIdentifier("playlist.create")
+                        Button { editingCategories = true } label: { Label("Düzenle", systemImage: "line.3.horizontal") }.accessibilityIdentifier("library.edit")
                         Divider()
                         Button { destination = .favorites } label: { Label("Favoriler", systemImage: "star") }.accessibilityIdentifier("library.favorites")
                         Button { destination = .recent } label: { Label("Son dinlenenler", systemImage: "clock") }.accessibilityIdentifier("library.recent")
@@ -68,6 +63,26 @@ struct LibraryView: View {
                 ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
             }
             .sheet(isPresented: $newList) { CreatePlaylistView() }
+            .sheet(isPresented: $editingCategories) { LibraryLayoutEditor(storedValue: $layoutValue) }
+    }
+    private func recentCard(_ entry: LibraryRecentEntry) -> some View {
+        NavigationLink {
+            switch entry.content {
+            case .playlist(let list): PlaylistDetailView(playlist: list)
+            case .album(let track): TrackListView(title: entry.title, tracks: albumTracks(track))
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Group {
+                    switch entry.content {
+                    case .playlist(let list): PlaylistArtwork(tracks: library.tracks(in: list))
+                    case .album(let track): Artwork(url: track.artwork, radius: 7)
+                    }
+                }.aspectRatio(1, contentMode: .fit)
+                Text(entry.title).font(.subheadline).foregroundStyle(.primary).lineLimit(1)
+                Text(entry.artist.isEmpty ? L("Çalma Listesi") : entry.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }.buttonStyle(.plain).accessibilityIdentifier("library.recent." + entry.id)
     }
     private func albumTracks(_ track: Track) -> [Track] {
         guard let id = track.albumID else { return [track] }
@@ -80,6 +95,114 @@ struct LibraryView: View {
             }.buttonStyle(.plain).accessibilityIdentifier(identifier)
             Divider().padding(.leading, 42)
         }
+    }
+}
+
+enum LibraryCategory: String, CaseIterable, Codable, Identifiable {
+    case playlists, artists, albums, songs, downloads
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .playlists: "Çalma Listeleri"
+        case .artists: "Sanatçılar"
+        case .albums: "Albümler"
+        case .songs: "Şarkılar"
+        case .downloads: "İndirilenler"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .playlists: "music.note.list"
+        case .artists: "mic"
+        case .albums: "square.stack"
+        case .songs: "music.note"
+        case .downloads: "arrow.down.circle"
+        }
+    }
+    fileprivate var destination: LibraryDestination {
+        switch self {
+        case .playlists: .playlists
+        case .artists: .artists
+        case .albums: .albums
+        case .songs: .songs
+        case .downloads: .downloads
+        }
+    }
+}
+
+struct LibraryLayout: Codable, Equatable {
+    var order = LibraryCategory.allCases
+    var hidden = Set<LibraryCategory>()
+    var visible: [LibraryCategory] { order.filter { !hidden.contains($0) } }
+    init(storedValue: String) {
+        if let data = storedValue.data(using: .utf8), let saved = try? JSONDecoder().decode(Self.self, from: data) {
+            var seen = Set<LibraryCategory>()
+            order = (saved.order + LibraryCategory.allCases).filter { seen.insert($0).inserted }
+            hidden = saved.hidden
+            if visible.isEmpty { hidden.remove(order[0]) }
+        }
+    }
+    var storedValue: String { String(data: (try? JSONEncoder().encode(self)) ?? Data(), encoding: .utf8) ?? "" }
+}
+
+enum LibraryCollectionSort: String, CaseIterable, Identifiable {
+    case added, title, artist
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .added: "Son Eklenenler"
+        case .title: "Başlık"
+        case .artist: "Sanatçı"
+        }
+    }
+    func sorted(_ entries: [LibraryRecentEntry]) -> [LibraryRecentEntry] {
+        entries.sorted { first, second in
+            switch self {
+            case .added: return first.addedAt == second.addedAt ? first.id < second.id : first.addedAt > second.addedAt
+            case .title:
+                let comparison = first.title.localizedStandardCompare(second.title)
+                return comparison == .orderedSame ? first.id < second.id : comparison == .orderedAscending
+            case .artist:
+                let comparison = first.artist.localizedStandardCompare(second.artist)
+                if comparison != .orderedSame { return comparison == .orderedAscending }
+                let title = first.title.localizedStandardCompare(second.title)
+                return title == .orderedSame ? first.id < second.id : title == .orderedAscending
+            }
+        }
+    }
+}
+
+private struct LibraryLayoutEditor: View {
+    @Binding var storedValue: String
+    @Environment(\.dismiss) private var dismiss
+    private var layout: LibraryLayout { LibraryLayout(storedValue: storedValue) }
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(layout.order) { category in
+                    Button {
+                        var updated = layout
+                        if updated.hidden.contains(category) { updated.hidden.remove(category) }
+                        else if updated.visible.count > 1 { updated.hidden.insert(category) }
+                        storedValue = updated.storedValue
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: layout.hidden.contains(category) ? "circle" : "checkmark.circle.fill")
+                                .foregroundStyle(layout.hidden.contains(category) ? Color.secondary : Color.coral)
+                            Label(L(category.title), systemImage: category.symbol).foregroundStyle(.primary)
+                            Spacer()
+                        }.frame(minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).accessibilityIdentifier("library.category." + category.rawValue)
+                        .accessibilityAddTraits(layout.hidden.contains(category) ? [] : .isSelected)
+                }.onMove { source, destination in
+                    var updated = layout; updated.order.move(fromOffsets: source, toOffset: destination)
+                    storedValue = updated.storedValue
+                }
+            }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground)
+                .environment(\.editMode, .constant(.active))
+                .navigationTitle("Kütüphaneyi Düzenle").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { dismiss() }.foregroundStyle(.primary) } }
+        }.presentationBackground(Color.pageBackground)
     }
 }
 

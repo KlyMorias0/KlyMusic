@@ -145,27 +145,41 @@ actor NativeCatalog {
 
     func recommendations(for seeds: [Track]) async throws -> HomeResponse {
         var artists = Set<String>()
-        let choices = Array(seeds.filter { !$0.artist.isEmpty && artists.insert(Self.normalized($0.artist)).inserted }.prefix(2))
+        let choices = Array(seeds.filter { !$0.artist.isEmpty && artists.insert(Self.normalized($0.artist)).inserted }.prefix(4))
         guard !choices.isEmpty else { return HomeResponse(sections: []) }
         let key = ListeningLocale.current.cacheKey + "|" + choices.map { $0.artist }.joined(separator: "|")
         let response: HomeResponse
         if let (date, cached) = recommendationCache[key], Date().timeIntervalSince(date) < 86400 { response = cached }
         else {
-            var sections: [HomeSection] = []
-            for seed in choices {
-                try Task.checkCancellation()
-                let rows = try await appleSearch(seed.artist, limit: 12)
-                let songs = rows.compactMap(Self.appleTrack).filter { track in
-                    if let id = seed.artistID { return track.artistID == id }
-                    return Self.normalized(track.artist) == Self.normalized(seed.artist)
+            let sections = await withTaskGroup(of: (Int, [Track]).self) { group in
+                for (index, seed) in choices.enumerated() {
+                    group.addTask {
+                        guard !Task.isCancelled else { return (index, []) }
+                        return (index, (try? await self.recommendationTracks(for: seed)) ?? [])
+                    }
                 }
-                if !songs.isEmpty { sections.append(.init(id: "artist-" + (seed.artistID ?? Self.normalized(seed.artist)), title: "Senin için", subtitle: seed.artist + " dinlediğin için", tracks: songs)) }
+                var results: [(Int, [Track])] = []
+                for await result in group { results.append(result) }
+                return results.sorted { $0.0 < $1.0 }.compactMap { index, songs -> HomeSection? in
+                    let seed = choices[index]
+                    guard !songs.isEmpty else { return nil }
+                    return HomeSection(id: "artist-" + (seed.artistID ?? Self.normalized(seed.artist)), title: "Senin için", subtitle: seed.artist + " dinlediğin için", tracks: songs)
+                }
             }
+            try Task.checkCancellation()
             response = HomeResponse(sections: sections)
             if recommendationCache.count > 12 { recommendationCache.removeAll() }
             recommendationCache[key] = (Date(), response)
         }
         return HomeResponse(sections: HomeFeed.distinct(response.sections, excluding: seeds))
+    }
+
+    private func recommendationTracks(for seed: Track) async throws -> [Track] {
+        let rows = try await appleSearch(seed.artist, limit: 12)
+        return rows.compactMap(Self.appleTrack).filter { track in
+            if let id = seed.artistID { return track.artistID == id }
+            return Self.normalized(track.artist) == Self.normalized(seed.artist)
+        }
     }
 
     private func publicMusicPage(path: String, locale: ListeningLocale) async throws -> JSON {

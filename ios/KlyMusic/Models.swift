@@ -50,6 +50,11 @@ struct BrowseCategory: Codable, Identifiable, Hashable, Sendable {
 
 /// Keep a song's catalogue reissues from occupying several shelves on one page.
 enum HomeFeed {
+    static func interleaved(_ sections: [HomeSection]) -> [Track] {
+        (0..<(sections.map { $0.tracks.count }.max() ?? 0)).flatMap { index in
+            sections.compactMap { index < $0.tracks.count ? $0.tracks[index] : nil }
+        }
+    }
     static func identity(_ track: Track) -> String { NativeCatalog.normalized(track.artist) + "|" + NativeCatalog.canonical(track.title) }
     static func distinct(_ sections: [HomeSection], excluding tracks: [Track] = []) -> [HomeSection] {
         var seen = Set(tracks.map(identity))
@@ -156,6 +161,6 @@ struct LibraryBackup: Codable {
     var tracks: [BackupTrack]
     var playlists: [BackupPlaylist]
     var settings: [String: String]
-    struct BackupTrack: Codable { var track: Track; var favorite: Bool; var lastPlayed: Date?; var playCount: Int }
-    struct BackupPlaylist: Codable { var id: UUID; var name: String; var trackIDs: [String] }
+    struct BackupTrack: Codable { var track: Track; var favorite: Bool; var lastPlayed: Date?; var playCount: Int; var addedAt: Date? = nil }
+    struct BackupPlaylist: Codable { var id: UUID; var name: String; var trackIDs: [String]; var createdAt: Date? = nil }
 }

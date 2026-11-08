@@ -45,6 +45,76 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(restored.recentlyAdded.map(\.id), [second.id, first.id])
     }
 
+    @MainActor func testAlbumsAndPlaylistsShareInsertionDatesAcrossReloadAndBackup() throws {
+        let suite = "MixedLibrary-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        var clock = Date(timeIntervalSince1970: 100)
+        let store = LibraryStore(context: context, insertionDefaults: defaults, now: { clock })
+        store.createPlaylist("Older list")
+        let original = Track(id: "one", title: "One", artist: "Artist", album: "Album", albumID: "a")
+        clock = Date(timeIntervalSince1970: 200); store.toggleFavorite(original)
+        clock = Date(timeIntervalSince1970: 300); store.createPlaylist("Newer list")
+        XCTAssertEqual(store.recentlyAddedCollections.map(\.title), ["Newer list", "Album", "Older list"])
+        let second = Track(id: "two", title: "Two", artist: "Artist", album: "Album", albumID: "a")
+        clock = Date(timeIntervalSince1970: 400); store.toggleFavorite(second)
+        clock = Date(timeIntervalSince1970: 500); store.played(original)
+        XCTAssertEqual(store.recentlyAddedCollections.map(\.title), ["Album", "Newer list", "Older list"])
+        XCTAssertEqual(store.recentlyAddedCollections.map { $0.addedAt.timeIntervalSince1970 }, [400, 300, 100])
+        let reloaded = LibraryStore(context: context, insertionDefaults: defaults)
+        XCTAssertEqual(reloaded.recentlyAddedCollections.map(\.id), store.recentlyAddedCollections.map(\.id))
+        let expectedDates = store.recentlyAddedCollections.map(\.addedAt)
+        let backup = try store.backup()
+        // Restore into an independent empty library, preserving chronology instead of import time.
+        defaults.removePersistentDomain(forName: suite)
+        let other = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let restored = LibraryStore(context: ModelContext(other), insertionDefaults: defaults)
+        try restored.restore(backup)
+        XCTAssertEqual(restored.recentlyAddedCollections.map(\.title), ["Album", "Newer list", "Older list"])
+        XCTAssertEqual(restored.recentlyAddedCollections.map(\.addedAt), expectedDates)
+        XCTAssertEqual(LibraryCollectionSort.title.sorted(store.recentlyAddedCollections).map(\.title), ["Album", "Newer list", "Older list"])
+    }
+
+    @MainActor func testLegacyInsertionDatesAreSeededOnlyOnce() throws {
+        let suite = "LegacyLibrary-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let one = Track(id: "legacy-one", title: "One", artist: "Test")
+        let two = Track(id: "legacy-two", title: "Two", artist: "Test")
+        for track in [one, two] { context.insert(SavedTrack(track)) }; try context.save()
+        defaults.set([two.id, one.id], forKey: "savedTrackInsertionOrder-v1")
+        let migrated = LibraryStore(context: context, insertionDefaults: defaults)
+        let dates = migrated.recentlyAddedCollections.map(\.addedAt)
+        migrated.played(one)
+        let reloaded = LibraryStore(context: context, insertionDefaults: defaults)
+        XCTAssertEqual(reloaded.recentlyAddedCollections.map(\.id), ["album:" + two.id, "album:" + one.id])
+        XCTAssertEqual(reloaded.recentlyAddedCollections.map(\.addedAt), dates)
+    }
+
+    func testLibraryLayoutRestoresReorderedHiddenCategoriesAndRepairsDuplicates() {
+        var layout = LibraryLayout(storedValue: "")
+        layout.order = [.songs, .playlists, .songs]
+        layout.hidden = [.artists, .downloads]
+        let restored = LibraryLayout(storedValue: layout.storedValue)
+        XCTAssertEqual(restored.order, [.songs, .playlists, .artists, .albums, .downloads])
+        XCTAssertEqual(restored.visible, [.songs, .playlists, .albums])
+        layout.hidden = Set(LibraryCategory.allCases)
+        XCTAssertFalse(LibraryLayout(storedValue: layout.storedValue).visible.isEmpty)
+        XCTAssertEqual(LibraryLayout(storedValue: "not JSON").visible, LibraryCategory.allCases)
+    }
+
+    func testRecommendationsRotateArtistsWithoutDroppingUnevenShelves() {
+        let a = [Track(id: "a1", title: "A1", artist: "A"), Track(id: "a2", title: "A2", artist: "A"), Track(id: "a3", title: "A3", artist: "A")]
+        let b = [Track(id: "b1", title: "B1", artist: "B")]
+        let shelves = [HomeSection(id: "a", title: "A", subtitle: "", tracks: a), HomeSection(id: "empty", title: "Empty", subtitle: "", tracks: []), HomeSection(id: "b", title: "B", subtitle: "", tracks: b)]
+        XCTAssertEqual(HomeFeed.interleaved(shelves).map(\.id), ["a1", "b1", "a2", "a3"])
+        XCTAssertTrue(HomeFeed.interleaved([]).isEmpty)
+    }
+
     func testLegacyArtistResponseDecodesAndDoesNotInventReleaseDate() throws {
         let json = #"{"artist":{"id":"1","name":"Test"},"tracks":[],"albums":[{"id":"2","title":"Old Album","artist":"Test","kind":"album"}]}"#
         let response = try JSONDecoder().decode(ArtistResponse.self, from: Data(json.utf8))

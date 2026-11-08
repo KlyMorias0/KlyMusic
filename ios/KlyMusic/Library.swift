@@ -22,6 +22,30 @@ enum MusicFiles {
     static func lyrics(_ id: String) -> URL { root.appendingPathComponent(filename(id) + ".lyrics.json") }
 }
 
+struct LibraryRecentEntry: Identifiable {
+    enum Content { case album(Track), playlist(SavedPlaylist) }
+    let content: Content
+    let addedAt: Date
+    var id: String {
+        switch content {
+        case .album(let track): "album:" + (track.albumID ?? track.id)
+        case .playlist(let list): "playlist:" + list.id.uuidString
+        }
+    }
+    var title: String {
+        switch content {
+        case .album(let track): track.album.isEmpty ? track.title : track.album
+        case .playlist(let list): list.name
+        }
+    }
+    var artist: String {
+        switch content {
+        case .album(let track): track.artist
+        case .playlist: ""
+        }
+    }
+}
+
 @MainActor final class LibraryStore: ObservableObject {
     let context: ModelContext
     @Published var saved: [SavedTrack] = []
@@ -30,18 +54,44 @@ enum MusicFiles {
 
     private let insertionDefaults: UserDefaults
     private let insertionKey = "savedTrackInsertionOrder-v1"
-    init(context: ModelContext, insertionDefaults: UserDefaults = .standard) {
-        self.context = context; self.insertionDefaults = insertionDefaults; refresh()
+    private let addedDatesKey = "savedTrackAddedDates-v1"
+    private let now: () -> Date
+    init(context: ModelContext, insertionDefaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init) {
+        self.context = context; self.insertionDefaults = insertionDefaults; self.now = now; refresh()
         // Existing databases have no added-at field. Seed once; replays never reorder it.
         if insertionDefaults.stringArray(forKey: insertionKey) == nil {
             insertionDefaults.set(saved.sorted { ($0.lastPlayed ?? .distantPast) > ($1.lastPlayed ?? .distantPast) }.map(\.id), forKey: insertionKey)
         }
+        // Legacy records lack insertion dates. Keep their existing relative order once;
+        // later playback never changes the estimated dates or newly recorded dates.
+        var dates = addedDates
+        let anchor = saved.compactMap(\.lastPlayed).max() ?? .distantPast
+        for (index, track) in recentlyAdded.enumerated() where dates[track.id] == nil {
+            dates[track.id] = anchor.timeIntervalSince1970 - Double(index) * 0.001
+        }
+        insertionDefaults.set(dates, forKey: addedDatesKey)
     }
+    private var addedDates: [String: Double] { insertionDefaults.dictionary(forKey: addedDatesKey) as? [String: Double] ?? [:] }
+    private func addedAt(_ id: String) -> Date { Date(timeIntervalSince1970: addedDates[id] ?? Date.distantPast.timeIntervalSince1970) }
     var recentlyAdded: [Track] {
         let records = Dictionary(saved.compactMap { item in item.track.map { (item.id, $0) } }, uniquingKeysWith: { first, _ in first })
         let order = insertionDefaults.stringArray(forKey: insertionKey) ?? []
         let known = Set(order)
         return order.compactMap { records[$0] } + saved.filter { !known.contains($0.id) }.compactMap(\.track)
+    }
+    var recentlyAddedCollections: [LibraryRecentEntry] {
+        var albums = Set<String>()
+        let dates = addedDates
+        let tracks = saved.compactMap(\.track).sorted {
+            let first = dates[$0.id] ?? Date.distantPast.timeIntervalSince1970
+            let second = dates[$1.id] ?? Date.distantPast.timeIntervalSince1970
+            return first == second ? $0.id < $1.id : first > second
+        }
+        let entries = tracks.compactMap { track -> LibraryRecentEntry? in
+            guard albums.insert(track.albumID ?? track.id).inserted else { return nil }
+            return LibraryRecentEntry(content: .album(track), addedAt: addedAt(track.id))
+        } + playlists.map { LibraryRecentEntry(content: .playlist($0), addedAt: $0.createdAt) }
+        return entries.sorted { $0.addedAt == $1.addedAt ? $0.id < $1.id : $0.addedAt > $1.addedAt }
     }
     func refresh() {
         do {
@@ -67,6 +117,8 @@ enum MusicFiles {
         var order = insertionDefaults.stringArray(forKey: insertionKey) ?? []
         order.removeAll { $0 == track.id }; order.insert(track.id, at: 0)
         insertionDefaults.set(order, forKey: insertionKey)
+        var dates = addedDates; dates[track.id] = now().timeIntervalSince1970
+        insertionDefaults.set(dates, forKey: addedDatesKey)
         return record
     }
     func isFavorite(_ track: Track) -> Bool { saved.first { $0.id == track.id }?.favorite == true }
@@ -92,7 +144,8 @@ enum MusicFiles {
     func createPlaylist(_ name: String) {
         let clean = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(100))
         guard !clean.isEmpty else { return }
-        context.insert(SavedPlaylist(name: clean)); commit()
+        let list = SavedPlaylist(name: clean); list.createdAt = now()
+        context.insert(list); commit()
     }
     func deletePlaylist(_ list: SavedPlaylist) { context.delete(list); commit() }
     func add(_ track: Track, to list: SavedPlaylist) {
@@ -107,13 +160,13 @@ enum MusicFiles {
     func backup() throws -> Data {
         let tracks = saved.compactMap { item -> LibraryBackup.BackupTrack? in
             guard let track = item.track else { return nil }
-            return .init(track: track, favorite: item.favorite, lastPlayed: item.lastPlayed, playCount: item.playCount)
+            return .init(track: track, favorite: item.favorite, lastPlayed: item.lastPlayed, playCount: item.playCount, addedAt: addedAt(item.id))
         }
         var settings = ["quality", "theme", "language", "wifiOnly", "followedArtists"].reduce(into: [String:String]()) { result, key in
             if let value = UserDefaults.standard.object(forKey: key) { result[key] = String(describing: value) }
         }
         settings["lowDataMode"] = String(PlaybackPreferences.savesData())
-        let payload = LibraryBackup(tracks: tracks, playlists: playlists.map { .init(id: $0.id, name: $0.name, trackIDs: $0.trackIDs) }, settings: settings)
+        let payload = LibraryBackup(tracks: tracks, playlists: playlists.map { .init(id: $0.id, name: $0.name, trackIDs: $0.trackIDs, createdAt: $0.createdAt) }, settings: settings)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(payload)
     }
@@ -123,6 +176,10 @@ enum MusicFiles {
         guard backup.version == 1, backup.tracks.count <= 50000 else { throw APIError.invalidResponse }
         for entry in backup.tracks {
             let item = record(entry.track)
+            if let date = entry.addedAt, date < addedAt(item.id) {
+                var dates = addedDates; dates[item.id] = date.timeIntervalSince1970
+                insertionDefaults.set(dates, forKey: addedDatesKey)
+            }
             item.favorite = item.favorite || entry.favorite
             item.playCount = max(item.playCount, entry.playCount)
             if let last = entry.lastPlayed, last > (item.lastPlayed ?? .distantPast) { item.lastPlayed = last }
@@ -131,6 +188,7 @@ enum MusicFiles {
         for entry in backup.playlists where !playlists.contains(where: { $0.id == entry.id }) {
             let list = SavedPlaylist(name: String(entry.name.prefix(100)), trackIDs: entry.trackIDs.filter { known.contains($0) })
             list.id = entry.id; context.insert(list)
+            if let date = entry.createdAt { list.createdAt = date }
         }
         for key in ["quality", "theme", "language", "followedArtists"] {
             if let value = backup.settings[key] { UserDefaults.standard.set(value, forKey: key) }

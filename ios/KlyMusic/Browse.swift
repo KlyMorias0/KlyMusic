@@ -13,9 +13,9 @@ struct HomeView: View {
     }
     private var seedKey: String {
         var artists = Set<String>()
-        return seeds.filter { artists.insert($0.artist).inserted }.prefix(2).map(\.artist).joined(separator: "|")
+        return seeds.filter { artists.insert(NativeCatalog.normalized($0.artist)).inserted }.prefix(4).map(\.artist).joined(separator: "|")
     }
-    private var recommendations: [Track] { HomeFeed.distinct(personal, excluding: seeds).flatMap(\.tracks) }
+    private var recommendations: [Track] { HomeFeed.interleaved(HomeFeed.distinct(personal, excluding: seeds)) }
     private var featured: [Track] {
         if !recommendations.isEmpty { return recommendations }
         return Array(HomeFeed.distinct(sections, excluding: library.recent).first?.tracks.prefix(5) ?? [])
@@ -81,17 +81,19 @@ private struct BrowseShelfHeading: View {
     var caption: String? = nil
     var tracks: [Track]? = nil
     var body: some View {
-        HStack(spacing: 5) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Text(L(title)).font(.title2.bold()).tracking(-0.5)
-                if let caption, !caption.isEmpty { Text(L(caption)).font(.subheadline).foregroundStyle(.secondary) }
+                if let tracks {
+                    NavigationLink { TrackListView(title: title, tracks: tracks) } label: {
+                        Image(systemName: "chevron.right").font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.tertiary).padding(.trailing, 14).padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                    }.accessibilityLabel("Tümünü göster")
+                }
+                Spacer(minLength: 0)
             }
-            if let tracks {
-                NavigationLink { TrackListView(title: title, tracks: tracks) } label: {
-                    Image(systemName: "chevron.right").font(.system(size: 15, weight: .semibold)).foregroundStyle(.tertiary).frame(width: 30, height: 40)
-                }.accessibilityLabel("Tümünü göster")
-            }
-            Spacer(minLength: 0)
+            if let caption, !caption.isEmpty { Text(L(caption)).font(.subheadline).foregroundStyle(.secondary) }
         }.padding(.horizontal, 20)
     }
 }
@@ -244,7 +246,7 @@ struct SearchView: View {
     private var filters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                filterButton("En iyi sonuçlar", value: "all")
+                filterButton("Tümü", value: "all")
                 filterButton("Şarkılar", value: "songs")
                 filterButton("Albümler", value: "albums")
                 filterButton("Sanatçılar", value: "artists")
@@ -253,9 +255,9 @@ struct SearchView: View {
     }
     private func filterButton(_ title: String, value: String) -> some View {
         Button { filter = value } label: {
-            Text(L(title)).font(.system(size: 14, weight: .medium)).padding(.horizontal, 16).padding(.vertical, 9)
-                .foregroundStyle(.primary)
-                .background(filter == value ? Color.musicElevated : Color.clear, in: Capsule())
+            Text(L(title)).font(.system(size: 14, weight: .semibold)).padding(.horizontal, 14).padding(.vertical, 10)
+                .foregroundStyle(filter == value ? Color.pageBackground : Color.primary)
+                .background(filter == value ? Color.primary : Color.musicElevated, in: Capsule())
         }.buttonStyle(.plain).accessibilityIdentifier("search.filter.\(value)")
             .accessibilityAddTraits(filter == value ? .isSelected : [])
     }
@@ -435,6 +437,7 @@ struct ArtistDetailView: View {
     var name: String
     @State private var details: ArtistResponse?
     @State private var failure: String?
+    @State private var compactTitle = false
     @EnvironmentObject private var player: MusicPlayer
     @AppStorage("followedArtists") private var followed = ""
     private var isFollowing: Bool { followed.split(separator: "\n").contains { $0.split(separator: "|", maxSplits: 1).first == Substring(id) } }
@@ -455,23 +458,28 @@ struct ArtistDetailView: View {
                             artistName
                         }.frame(maxWidth: .infinity).padding(.vertical, 26)
                     }
-                    HStack(spacing: 12) {
-                        if let tracks = details?.tracks { CollectionPlayButtons(tracks: tracks) }
-                        Button(action: toggleFollow) {
-                            Image(systemName: isFollowing ? "star.fill" : "star").font(.system(size: 18, weight: .medium)).frame(width: 44, height: 44)
-                                .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 10))
-                        }.buttonStyle(.plain).foregroundStyle(.primary).accessibilityLabel(isFollowing ? "Takibi bırak" : "Takip et")
-                    }.padding(.horizontal, 20)
+                    if let tracks = details?.tracks { CollectionPlayButtons(tracks: tracks).padding(.horizontal, 20) }
                 }
                 if let details { artistContent(details) }
                 else if let failure { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }
                 else { ProgressView().frame(maxWidth: .infinity).padding(40) }
             }.padding(.bottom, 32)
-        }.background(Color.pageBackground).navigationTitle(name).navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar).task { await load() }
+        }.coordinateSpace(name: "artistScroll")
+            .background(Color.pageBackground).navigationTitle(compactTitle ? name : "").navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: toggleFollow) { Image(systemName: isFollowing ? "star.fill" : "star") }
+                        .foregroundStyle(.primary).accessibilityLabel(isFollowing ? "Takibi bırak" : "Takip et")
+                }
+            }.task { await load() }
     }
     private var artistName: some View {
         Text(details?.artist.name ?? name).font(.system(size: 34, weight: .bold))
             .multilineTextAlignment(.center).padding(.horizontal, 20).frame(maxWidth: .infinity)
+            .onGeometryChange(for: Bool.self) { geometry in
+                geometry.frame(in: .named("artistScroll")).maxY < 0
+            } action: { compactTitle = $0 }
     }
     private func artistContent(_ details: ArtistResponse) -> some View {
         VStack(alignment: .leading, spacing: 32) {
