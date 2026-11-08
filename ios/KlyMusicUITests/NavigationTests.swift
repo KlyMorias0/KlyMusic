@@ -54,7 +54,10 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(play.waitForExistence(timeout: 10))
         expectation(for: NSPredicate(format: "value == 'playing'"), evaluatedWith: play)
         waitForExpectations(timeout: 15); play.tap()
-        app.buttons["track.options.fixture:lyrics"].tap()
+        let options = app.buttons.matching(identifier: "track.options.fixture:lyrics").allElementsBoundByIndex
+        let visibleOptions = options.first(where: { $0.isHittable })
+        XCTAssertNotNil(visibleOptions)
+        visibleOptions?.tap()
         XCTAssertTrue(app.buttons["track.options.playlist"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["track.options.next"].exists, "Current-song queue actions must not be shown")
         XCTAssertFalse(app.buttons["track.options.append"].exists)
@@ -64,7 +67,7 @@ final class NavigationTests: XCTestCase {
         app.navigationBars["Listeye ekle"].buttons["Vazgeç"].tap()
         app.buttons["player.queue"].tap()
         XCTAssertTrue(app.navigationBars["Çalma sırası"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any)["queue.current"].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "queue.current").firstMatch.exists)
         XCTAssertFalse(app.buttons["queue.track.fixture:lyrics"].exists)
         let next = app.buttons["queue.track.fixture:next"]
         XCTAssertTrue(next.exists)
@@ -79,10 +82,10 @@ final class NavigationTests: XCTestCase {
         app.buttons["queue.clear"].tap()
         let clear = app.buttons["Sırayı temizle"].firstMatch
         XCTAssertTrue(clear.waitForExistence(timeout: 5)); clear.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["queue.empty"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "queue.empty").firstMatch.waitForExistence(timeout: 5))
         shot(app, "28-Queue-Empty")
         app.navigationBars["Çalma sırası"].buttons["Kapat"].tap()
-        XCTAssertTrue(app.staticTexts["Sabah Işığı"].exists)
+        XCTAssertTrue(app.staticTexts["Sabah Işığı"].firstMatch.exists)
         app.buttons["player.close"].tap()
         tapTab("nav.home", label: "Dinle", in: app)
         let scroll = app.scrollViews.firstMatch
