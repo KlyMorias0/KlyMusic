@@ -317,9 +317,12 @@ public class YouTube {
         let config = try await ytcfg
         let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .web, .mediaConnectFrontend]
         let winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
-            for client in clients {
+            for (index, client) in clients.enumerated() {
                 group.addTask { [videoID, useOAuth, allowOAuthCache] in
                     do {
+                        // Give the primary audio clients a short head start;
+                        // healthy playback need not fan out to every fallback.
+                        if index >= 2 { try await Task.sleep(nanoseconds: 500_000_000) }
                         let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
                                              useOAuth: useOAuth, allowCache: allowOAuthCache)
                         let info = try await tube.player(videoID: videoID)

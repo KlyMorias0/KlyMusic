@@ -5,6 +5,28 @@ import MediaPlayer
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testLivePlaybackResolutionDiagnostic() async throws {
+        guard ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_TIMING"] == "1" else {
+            throw XCTSkip("Live provider timing is opt-in; offline regression tests stay deterministic.")
+        }
+        do {
+            let response = try await API.shared.search("Tarkan Kuzu Kuzu")
+            let track = try XCTUnwrap(response.tracks.first(where: { NativeCatalog.canonical($0.title) == "kuzu kuzu" }))
+            let start = Date()
+            let asset = try await API.shared.resolve(track)
+            let cold = Date().timeIntervalSince(start) * 1000
+            XCTAssertTrue(NativeCatalog.durationCompatible(expected: track.duration, actual: asset.duration))
+            let warmStart = Date()
+            let cached = try await API.shared.resolve(track)
+            let warm = Date().timeIntervalSince(warmStart) * 1000
+            XCTAssertEqual(asset.path, cached.path)
+            print("KLYMUSIC_LIVE_TIMING cold_resolve_ms=\(Int(cold)) cached_resolve_ms=\(Int(warm))")
+        } catch {
+            print("KLYMUSIC_LIVE_TIMING unavailable=\(error.localizedDescription)")
+            throw XCTSkip("Live provider unavailable from CI: \(error.localizedDescription)")
+        }
+    }
+
     func testPlaybackRaceSkipsFailureAndCancelsSlowAlternative() async throws {
         let canceled = expectation(description: "Losing network request is canceled")
         let value: String = try await PlaybackRace.first([

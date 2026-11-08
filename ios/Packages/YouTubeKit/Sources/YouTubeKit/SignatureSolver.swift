@@ -15,6 +15,7 @@ import os.log
 class SignatureSolver {
 
     private static let log = OSLog(SignatureSolver.self)
+    private static let preparationLock = NSLock()
     // Cache immutable compiled player text, never a JSContext shared across threads.
     private static let preparedPlayers: NSCache<NSString, NSString> = {
         let cache = NSCache<NSString, NSString>()
@@ -165,18 +166,25 @@ class SignatureSolver {
             Request(type: .sig, challenges: request.sigInputs)
         ]
 
-        let prepared = Self.preparedPlayers.object(forKey: playerKey).map { $0 as String }
-        let input = Input(
-            type: prepared == nil ? .player : .preprocessedPlayer,
-            player: prepared == nil ? self.playerJS : nil,
-            preprocessed_player: prepared,
-            requests: requests,
-            output_preprocessed: prepared == nil
-        )
-
-        let response = try solve(with: input)
-        if let prepared = response.preprocessed_player, !prepared.isEmpty {
-            Self.preparedPlayers.setObject(prepared as NSString, forKey: playerKey, cost: prepared.utf8.count)
+        let response: Response
+        // Single-flight cold preparation: parallel clients should not all parse
+        // the same large player program before the first one fills the cache.
+        Self.preparationLock.lock()
+        if let prepared = Self.preparedPlayers.object(forKey: playerKey) {
+            Self.preparationLock.unlock()
+            try Task.checkCancellation()
+            response = try solve(with: Input(type: .preprocessedPlayer, player: nil,
+                                            preprocessed_player: prepared as String,
+                                            requests: requests, output_preprocessed: false))
+        } else {
+            defer { Self.preparationLock.unlock() }
+            try Task.checkCancellation()
+            response = try solve(with: Input(type: .player, player: self.playerJS,
+                                            preprocessed_player: nil,
+                                            requests: requests, output_preprocessed: true))
+            if let prepared = response.preprocessed_player, !prepared.isEmpty {
+                Self.preparedPlayers.setObject(prepared as NSString, forKey: playerKey, cost: prepared.utf8.count)
+            }
         }
 
         var nMap: [String: String] = [:]

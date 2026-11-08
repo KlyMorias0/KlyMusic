@@ -25,6 +25,8 @@ jobs:
           fi
           gh release upload klymusic-2.4.0 dist/KlyMusic-unsigned.ipa dist/SHA256.txt device-build.log --clobber
       - name: Unit tests and protected UI regression tests
+        env:
+          TEST_RUNNER_KLYMUSIC_LIVE_TIMING: '1'
         run: |
           set -o pipefail
           bash scripts/ci-verify.sh 2>&1 | tee verification.log
@@ -37,7 +39,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for file in verification.log package-tests.log; do
+          if ! gh release view klymusic-2.4.0 >/dev/null 2>&1; then
+            gh release create klymusic-2.4.0 --target "$GITHUB_SHA" --title 'KlyMusic 2.4.0 — verification' --notes 'Build and verification diagnostics.'
+          fi
+          for file in device-build.log verification.log package-tests.log; do
             if [ -f "$file" ]; then gh release upload klymusic-2.4.0 "$file" --clobber; fi
           done
           if [ -d dist/screenshots ]; then
