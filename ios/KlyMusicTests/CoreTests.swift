@@ -6,6 +6,100 @@ import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testBilingualSigmaBoyMatchesLatinAndCyrillicCreditsWithoutAcceptingOtherVersions() {
+        let original = Track(id: "apple:sigma", title: "Sigma Boy (Сигма Бой)", artist: "Betsy & Maria Iankovskaia", duration: 161)
+        let latin = Track(id: "youtube:abcdefghijk", title: "Sigma Boy", artist: "Betsy, Maria Yankovskaya", duration: 162)
+        let cyrillic = Track(id: "youtube:abcdefghijk", title: "Сигма Бой", artist: "Бэтси, Мария Янковская", duration: 162)
+        let decorated = Track(id: "youtube:abcdefghijk", title: "Sigma Boy (Сигма Бой) (Official Audio)", artist: latin.artist, duration: 162)
+        for copy in [latin, cyrillic, decorated] { XCTAssertGreaterThan(NativeCatalog.match(original, copy), 0.9) }
+        for title in ["Sigma Boy (Techno Remix)", "Sigma Boy (Sped Up)", "Sigma Boy (Live)", "Sigma Boy (Сигма Бой) Remix"] {
+            var other = latin; other.title = title
+            XCTAssertEqual(NativeCatalog.match(original, other), 0, title)
+        }
+        var cover = latin; cover.artist = "Other Artist"
+        XCTAssertEqual(NativeCatalog.match(original, cover), 0)
+        cover = latin; cover.artist = "Betsy"
+        XCTAssertEqual(NativeCatalog.match(original, cover), 0, "Missing credited collaborators must not be ignored")
+        XCTAssertEqual(NativeCatalog.candidateQueries(original).first, "Betsy & Maria Iankovskaia sigma boy")
+        XCTAssertTrue(NativeCatalog.candidateQueries(original).contains("sigma boy"))
+        XCTAssertEqual(NativeCatalog.candidateQueries(latin).count, 1)
+    }
+
+    func testDirectYouTubeIDCanEstablishDurationFromVerifiedMedia() {
+        let direct = Track(id: "youtube:abcdefghijk", title: "Track", artist: "Artist")
+        XCTAssertTrue(NativeCatalog.validResolvedDuration(direct, candidate: direct, actual: 161))
+        XCTAssertFalse(NativeCatalog.validResolvedDuration(direct, candidate: direct, actual: 0))
+        var other = direct; other.id = "youtube:other123456"
+        XCTAssertFalse(NativeCatalog.validResolvedDuration(direct, candidate: other, actual: 161))
+        var catalog = direct; catalog.id = "apple:1"
+        XCTAssertFalse(NativeCatalog.validResolvedDuration(catalog, candidate: direct, actual: 161))
+        catalog.duration = 161
+        XCTAssertFalse(NativeCatalog.validResolvedDuration(catalog, candidate: direct, actual: 320))
+    }
+
+    func testVideoWithoutSearchDurationRequiresIdentityAndKnownRequestedDuration() {
+        let requested = Track(id: "apple:video", title: "Kuzu Kuzu", artist: "Tarkan", duration: 220)
+        let candidate = Track(id: "youtube:abcdefghijk", title: "Kuzu Kuzu", artist: "Tarkan")
+        XCTAssertTrue(NativeCatalog.validCandidate(requested, candidate, videosOnly: true))
+        XCTAssertFalse(NativeCatalog.validCandidate(requested, candidate, videosOnly: false))
+        var unknown = requested; unknown.duration = 0
+        XCTAssertFalse(NativeCatalog.validCandidate(unknown, candidate, videosOnly: true))
+        var wrong = candidate; wrong.artist = "Unrelated"
+        XCTAssertFalse(NativeCatalog.validCandidate(requested, wrong, videosOnly: true))
+        wrong = candidate; wrong.duration = 440
+        XCTAssertFalse(NativeCatalog.validCandidate(requested, wrong, videosOnly: true))
+        wrong.duration = .nan
+        XCTAssertFalse(NativeCatalog.validCandidate(requested, wrong, videosOnly: true))
+    }
+
+    func testSharedMatchSearchCancellationKeepsOtherWaiterAlive() async throws {
+        let pool = MatchRequestPool()
+        let gate = PlaybackResolutionGate()
+        let first = Task { try await pool.value(for: "same") {
+            _ = await gate.wait("release")
+            return [Track(id: "same", title: "Same", artist: "Test")]
+        } }
+        while await pool.waiterCount(for: "same") < 1 { await Task.yield() }
+        let second = Task { try await pool.value(for: "same") {
+            XCTFail("Matching search must be coalesced")
+            return []
+        } }
+        while await pool.waiterCount(for: "same") < 2 { await Task.yield() }
+        first.cancel()
+        do { _ = try await first.value; XCTFail("Cancelled waiter must leave immediately") } catch is CancellationError { }
+        await gate.complete("release", asset: Self.cacheAsset("ready"))
+        let rows = try await second.value
+        XCTAssertEqual(rows.map(\.id), ["same"])
+    }
+
+    func testPlaybackWinnerDoesNotWaitForLosingMetadataSearch() async throws {
+        let pool = MatchRequestPool()
+        let started = Date()
+        let winner = try await PlaybackRace.first([
+            { @Sendable () async throws -> String in
+                _ = try await pool.value(for: "slow") {
+                    try await Task.sleep(for: .seconds(30))
+                    return []
+                }
+                return "slow"
+            },
+            { @Sendable () async throws -> String in
+                while await pool.waiterCount(for: "slow") == 0 { await Task.yield() }
+                return "ready"
+            }
+        ])
+        XCTAssertEqual(winner, "ready")
+        let elapsed = Date().timeIntervalSince(started) * 1000
+        print("MATCH_RACE_CONTROL_MS=\(elapsed) (synthetic cancellation control, not network or audible latency)")
+        XCTAssertLessThan(elapsed, 2000)
+        let remaining = await pool.waiterCount(for: "slow")
+        XCTAssertEqual(remaining, 0)
+    }
+
+    func testReportedSigmaBoyResolutionDiagnostic() async throws {
+        try await reportedPlaybackDiagnostic(Track(id: "apple:sigma-diagnostic", title: "Sigma Boy (Сигма Бой)", artist: "Betsy & Maria Iankovskaia", duration: 161))
+    }
+
     func testLocalLibrarySearchMatchesWordsInAnyOrderAndSeparatesAlbumsByArtist() throws {
         let first = Track(id: "first", title: "Kuzu Kuzu", artist: "Tarkan", album: "Karma")
         let second = Track(id: "second", title: "Diğer", artist: "Tarkan", album: "Karma")
@@ -1316,5 +1410,79 @@ extension CoreTests {
             XCTAssertEqual(LibraryLayout(storedValue: defaults.string(forKey: keys[0]) ?? ""), layout)
             XCTAssertEqual(defaults.string(forKey: keys[1]), "artist")
         }
+    }
+}
+
+extension CoreTests {
+    func testAudioHeaderProbeStopsIgnoredRangeResponseAfterContainerHeader() async throws {
+        let path = "/valid-" + UUID().uuidString
+        let request = URLRequest(url: URL(string: "https://rr1.googlevideo.com" + path)!)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AudioProbeTestProtocol.self]
+        let valid = try await AudioHeaderProbe.check(request, configuration: configuration)
+        XCTAssertTrue(valid)
+        for _ in 0..<100 {
+            if AudioProbeTestProtocol.didStop(path) { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(AudioProbeTestProtocol.didStop(path), "An HTTP 200 response ignoring Range must be cancelled after its header")
+    }
+
+    func testAudioHeaderProbeRejectsWrongContainerAndHTTPFailure() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AudioProbeTestProtocol.self]
+        for path in ["/invalid-", "/status-"] {
+            let request = URLRequest(url: URL(string: "https://rr1.googlevideo.com" + path + UUID().uuidString)!)
+            let valid = try await AudioHeaderProbe.check(request, configuration: configuration)
+            XCTAssertFalse(valid)
+        }
+    }
+
+    func testAudioHeaderProbeCancellationReleasesPendingTransfer() async throws {
+        let path = "/pending-" + UUID().uuidString
+        let request = URLRequest(url: URL(string: "https://rr1.googlevideo.com" + path)!)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AudioProbeTestProtocol.self]
+        let operation = Task { try await AudioHeaderProbe.check(request, configuration: configuration) }
+        for _ in 0..<100 {
+            if AudioProbeTestProtocol.didStart(path) { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(AudioProbeTestProtocol.didStart(path))
+        operation.cancel()
+        do { _ = try await operation.value; XCTFail("Cancelled header probes must not complete successfully") }
+        catch is CancellationError { }
+        for _ in 0..<100 {
+            if AudioProbeTestProtocol.didStop(path) { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(AudioProbeTestProtocol.didStop(path))
+    }
+}
+
+private final class AudioProbeTestProtocol: URLProtocol, @unchecked Sendable {
+    private static let lock = NSLock()
+    private static var stopped = Set<String>()
+    private static var started = Set<String>()
+    static func didStart(_ path: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }; return started.contains(path)
+    }
+    static func didStop(_ path: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }; return stopped.contains(path)
+    }
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let url = request.url!
+        Self.lock.lock(); Self.started.insert(url.path); Self.lock.unlock()
+        let status = url.path.hasPrefix("/status-") ? 403 : 200
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Length": "50000000", "Content-Type": "audio/mp4"])!, cacheStoragePolicy: .notAllowed)
+        if url.path.hasPrefix("/pending-") || status != 200 { return }
+        let header = url.path.hasPrefix("/valid-") ? Data([0, 0, 0, 24] + Array("ftypM4A ".utf8)) : Data(repeating: 0, count: 12)
+        client?.urlProtocol(self, didLoad: header)
+        // A server ignoring Range would keep streaming. The probe must stop before that.
+    }
+    override func stopLoading() {
+        Self.lock.lock(); Self.stopped.insert(request.url!.path); Self.lock.unlock()
     }
 }

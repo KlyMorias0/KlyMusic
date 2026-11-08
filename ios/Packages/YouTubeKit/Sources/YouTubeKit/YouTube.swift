@@ -327,70 +327,74 @@ public class YouTube {
     /// client (and every video rendition) before the caller can start playback.
     public func firstPlayableAudioStream(dataSaver: Bool = false,
                                          validate: @escaping @Sendable (Stream) async throws -> Bool) async throws -> Stream {
-        #if canImport(JavaScriptCore)
-        try Task.checkCancellation()
-        // These cached properties share the watch/player fetch with the full fallback.
-        let context = try await audioContext()
-        let source = context.source
-        let timestamp = Extraction.extractSignatureTimestamp(fromJS: source)
-        let config = context.config
-        let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .web, .mediaConnectFrontend]
-        let winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
-            for (index, client) in clients.enumerated() {
-                group.addTask { [videoID, useOAuth, allowOAuthCache] in
-                    do {
-                        // Give the primary audio clients a short head start;
-                        // healthy playback need not fan out to every fallback.
-                        if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 180_000_000) }
-                        else if index >= 2 { try await Task.sleep(nanoseconds: 300_000_000) }
-                        let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
-                                             useOAuth: useOAuth, allowCache: allowOAuthCache)
-                        let info = try await tube.player(videoID: videoID)
-                        #if DEBUG
-                        if ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_TIMING"] == "1" {
-                            print("YOUTUBE_AUDIO client=\(client.rawValue) id=\(videoID) status=\(info.playabilityStatus?.status ?? "unknown") reason=\(info.playabilityStatus?.reason ?? "")")
-                        }
-                        #endif
-                        try Task.checkCancellation()
-                        guard info.videoDetails?.videoId == videoID,
-                              info.playabilityStatus?.status == "OK", let data = info.streamingData else { return nil }
-                        var manifest = Extraction.applyDescrambler(streamData: data)
-                        manifest.removeAll { !$0.mimeType.hasPrefix("audio/mp4") }
-                        manifest = Extraction.filterOutDubbedAudio(streamManifest: manifest)
-                        guard !manifest.isEmpty else { return nil }
-                        try Extraction.applySignature(streamManifest: &manifest, videoInfo: info, js: source)
-                        try Task.checkCancellation()
-                        let streams = manifest.compactMap { try? Stream(format: $0) }.sorted {
-                            dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
-                        }
-                        for stream in streams where stream.isNativelyPlayable {
-                            try Task.checkCancellation()
-                            if try await validate(stream) { return stream }
-                        }
-                        return nil
-                    } catch is CancellationError { throw CancellationError() }
-                    catch { try Task.checkCancellation(); return nil }
-                }
-            }
-            defer { group.cancelAll() }
-            while let result = try await group.next() {
-                try Task.checkCancellation()
-                if let result { return result }
-            }
-            return nil
-        }
-        if let winner { return winner }
-        await FastAudioContextCache.shared.invalidate()
-        #endif
-        // Keep all existing extraction alternatives if fast clients are unavailable.
-        let fallback = try await streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }.sorted {
-            dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
-        }
-        for stream in fallback {
+        return try await AudioExtractionFallback.value(fast: { [self] in
+            #if canImport(JavaScriptCore)
             try Task.checkCancellation()
-            if try await validate(stream) { return stream }
-        }
-        throw YouTubeKitError.extractError
+            // These cached properties share the watch/player fetch with the full fallback.
+            let context = try await audioContext()
+            let source = context.source
+            let timestamp = Extraction.extractSignatureTimestamp(fromJS: source)
+            let config = context.config
+            let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .web, .mediaConnectFrontend]
+            let winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
+                for (index, client) in clients.enumerated() {
+                    group.addTask { [videoID, useOAuth, allowOAuthCache] in
+                        do {
+                            // Give the primary audio clients a short head start;
+                            // healthy playback need not fan out to every fallback.
+                            if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 180_000_000) }
+                            else if index >= 2 { try await Task.sleep(nanoseconds: 300_000_000) }
+                            let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
+                                                 useOAuth: useOAuth, allowCache: allowOAuthCache)
+                            let info = try await tube.player(videoID: videoID)
+                            #if DEBUG
+                            if ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_TIMING"] == "1" {
+                                print("YOUTUBE_AUDIO client=\(client.rawValue) id=\(videoID) status=\(info.playabilityStatus?.status ?? "unknown") reason=\(info.playabilityStatus?.reason ?? "")")
+                            }
+                            #endif
+                            try Task.checkCancellation()
+                            guard info.videoDetails?.videoId == videoID,
+                                  info.playabilityStatus?.status == "OK", let data = info.streamingData else { return nil }
+                            var manifest = Extraction.applyDescrambler(streamData: data)
+                            manifest.removeAll { !$0.mimeType.hasPrefix("audio/mp4") }
+                            manifest = Extraction.filterOutDubbedAudio(streamManifest: manifest)
+                            guard !manifest.isEmpty else { return nil }
+                            try Extraction.applySignature(streamManifest: &manifest, videoInfo: info, js: source)
+                            try Task.checkCancellation()
+                            let streams = manifest.compactMap { try? Stream(format: $0) }.sorted {
+                                dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
+                            }
+                            for stream in streams where stream.isNativelyPlayable {
+                                try Task.checkCancellation()
+                                if try await validate(stream) { return stream }
+                            }
+                            return nil
+                        } catch is CancellationError { throw CancellationError() }
+                        catch { try Task.checkCancellation(); return nil }
+                    }
+                }
+                defer { group.cancelAll() }
+                while let result = try await group.next() {
+                    try Task.checkCancellation()
+                    if let result { return result }
+                }
+                return nil
+            }
+            if let winner { return winner }
+            await FastAudioContextCache.shared.invalidate()
+            #endif
+            return nil
+        }, fallback: { [self] in
+            // Keep all existing extraction alternatives if fast clients are unavailable.
+            let fallback = try await streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }.sorted {
+                dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
+            }
+            for stream in fallback {
+                try Task.checkCancellation()
+                if try await validate(stream) { return stream }
+            }
+            throw YouTubeKitError.extractError
+        })
     }
 
     /// Returns a list of live streams - currently only HLS supported
@@ -555,16 +559,77 @@ actor FastAudioContextCache {
     }
     static let shared = FastAudioContextCache()
     private var cached: (Date, Context)?
-    private var pending: Task<Context, Error>?
+    private struct Request {
+        let token: UUID
+        let task: Task<Void, Never>
+        var waiters: [UUID: CheckedContinuation<Context, Error>]
+    }
+    private var pending: Request?
+    #if DEBUG
+    private var completedRequests = 0
+    func waiterCount() -> Int { pending?.waiters.count ?? 0 }
+    func completionCount() -> Int { completedRequests }
+    #endif
     func value(loader: @escaping () async throws -> Context) async throws -> Context {
-        if let (date, context) = cached, Date().timeIntervalSince(date) < 300 { return context }
-        if let pending { return try await pending.value }
-        let request = Task { try await loader() }
-        pending = request
-        defer { pending = nil }
-        let context = try await request.value
-        cached = (Date(), context)
+        try Task.checkCancellation()
+        let waiter = UUID()
+        let context = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Context, Error>) in
+                guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+                if let (date, context) = cached, Date().timeIntervalSince(date) < 300 {
+                    continuation.resume(returning: context)
+                } else if var request = pending {
+                    request.waiters[waiter] = continuation; pending = request
+                } else {
+                    let token = UUID()
+                    let task = Task {
+                        do { self.finish(token: token, result: .success(try await loader())) }
+                        catch { self.finish(token: token, result: .failure(error)) }
+                    }
+                    pending = Request(token: token, task: task, waiters: [waiter: continuation])
+                }
+            }
+        } onCancel: {
+            Task { await self.cancel(waiter: waiter) }
+        }
+        try Task.checkCancellation()
         return context
     }
+    private func cancel(waiter: UUID) {
+        guard var request = pending, let continuation = request.waiters.removeValue(forKey: waiter) else { return }
+        if request.waiters.isEmpty { pending = nil; request.task.cancel() }
+        else { pending = request }
+        continuation.resume(throwing: CancellationError())
+    }
+    private func finish(token: UUID, result: Result<Context, Error>) {
+        #if DEBUG
+        completedRequests += 1
+        #endif
+        // A canceled loader can finish after a new song has started its own context request.
+        guard let request = pending, request.token == token else { return }
+        pending = nil
+        if case .success(let context) = result { cached = (Date(), context) }
+        for continuation in request.waiters.values { continuation.resume(with: result) }
+    }
     func invalidate() { cached = nil }
+}
+
+/// Ordinary fast-path failures may retry through the complete extractor. Cancellation must never start another request.
+@available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
+enum AudioExtractionFallback {
+    static func value<Value>(fast: () async throws -> Value?, fallback: () async throws -> Value) async throws -> Value {
+        try Task.checkCancellation()
+        do {
+            if let value = try await fast() {
+                try Task.checkCancellation()
+                return value
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            try Task.checkCancellation()
+        }
+        try Task.checkCancellation()
+        return try await fallback()
+    }
 }

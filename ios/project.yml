@@ -30,8 +30,8 @@ targets:
       path: KlyMusic/Info.plist
       properties:
         CFBundleDisplayName: KlyMusic
-        CFBundleShortVersionString: "2.10.0"
-        CFBundleVersion: "17"
+        CFBundleShortVersionString: "2.11.0"
+        CFBundleVersion: "18"
         UILaunchScreen:
           UIColorName: LaunchBackground
         UIBackgroundModes: [audio]

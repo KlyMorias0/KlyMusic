@@ -162,6 +162,51 @@ actor PlaybackAssetCache {
     }
 }
 
+/// Coalesces metadata searches while allowing a losing playback branch to stop waiting.
+actor MatchRequestPool {
+    #if DEBUG
+    func waiterCount(for key: String) -> Int { requests[key]?.waiters.count ?? 0 }
+    #endif
+    private struct Request {
+        let token: UUID
+        let task: Task<Void, Never>
+        var waiters: [UUID: CheckedContinuation<[Track], Error>]
+    }
+    private var requests: [String: Request] = [:]
+    func value(for key: String, loader: @escaping @Sendable () async throws -> [Track]) async throws -> [Track] {
+        try Task.checkCancellation()
+        let waiter = UUID()
+        let result = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Track], Error>) in
+                guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+                if var request = requests[key] {
+                    request.waiters[waiter] = continuation; requests[key] = request
+                } else {
+                    let token = UUID()
+                    let task = Task {
+                        do { self.finish(key, token: token, result: .success(try await loader())) }
+                        catch { self.finish(key, token: token, result: .failure(error)) }
+                    }
+                    requests[key] = Request(token: token, task: task, waiters: [waiter: continuation])
+                }
+            }
+        } onCancel: { Task { await self.cancel(key, waiter: waiter) } }
+        try Task.checkCancellation()
+        return result
+    }
+    private func cancel(_ key: String, waiter: UUID) {
+        guard var request = requests[key], let continuation = request.waiters.removeValue(forKey: waiter) else { return }
+        if request.waiters.isEmpty { requests[key] = nil; request.task.cancel() }
+        else { requests[key] = request }
+        continuation.resume(throwing: CancellationError())
+    }
+    private func finish(_ key: String, token: UUID, result: Result<[Track], Error>) {
+        guard let request = requests[key], request.token == token else { return }
+        requests[key] = nil
+        for continuation in request.waiters.values { continuation.resume(with: result) }
+    }
+}
+
 actor API {
     private struct Failure: Decodable { var detail: String }
     static let shared = API()

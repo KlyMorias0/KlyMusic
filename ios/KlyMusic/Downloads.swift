@@ -320,3 +320,81 @@ struct DownloadJob {
         }
     }
 }
+
+/// Inspect only the container header and stop the transfer even when a CDN ignores Range.
+final class AudioHeaderProbe: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Bool, Error>?
+    private var session: URLSession?
+    private var task: URLSessionDataTask?
+    private var header = Data()
+    private var finished = false
+
+    static func check(_ request: URLRequest, configuration: URLSessionConfiguration) async throws -> Bool {
+        let probe = AudioHeaderProbe()
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                probe.start(request, configuration: configuration, continuation: continuation)
+            }
+        } onCancel: { probe.finish(.failure(CancellationError())) }
+    }
+
+    private func start(_ request: URLRequest, configuration: URLSessionConfiguration,
+                       continuation: CheckedContinuation<Bool, Error>) {
+        lock.lock()
+        guard !finished else { lock.unlock(); continuation.resume(throwing: CancellationError()); return }
+        self.continuation = continuation
+        guard let url = request.url, NativeCatalog.allowedMediaURL(url) else {
+            lock.unlock(); finish(.success(false)); return
+        }
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        let task = session.dataTask(with: request)
+        self.session = session; self.task = task
+        task.resume()
+        lock.unlock()
+    }
+
+    private func finish(_ result: Result<Bool, Error>) {
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        finished = true
+        let continuation = self.continuation, session = self.session, task = self.task
+        self.continuation = nil; self.session = nil; self.task = nil
+        lock.unlock()
+        task?.cancel(); session?.invalidateAndCancel()
+        continuation?.resume(with: result)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let url = http.url, NativeCatalog.allowedMediaURL(url) else {
+            completionHandler(.cancel); finish(.success(false)); return
+        }
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        header.append(contentsOf: data.prefix(max(0, 12 - header.count)))
+        let complete = header.count == 12
+        let valid = complete && String(data: header.subdata(in: 4..<8), encoding: .ascii) == "ftyp"
+        lock.unlock()
+        if complete { finish(.success(valid)) }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        guard let url = request.url, NativeCatalog.allowedMediaURL(url) else {
+            completionHandler(nil); finish(.success(false)); return
+        }
+        completionHandler(request)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error { finish(.failure(error)) }
+        else { finish(.success(false)) }
+    }
+}
