@@ -21,7 +21,9 @@ final class CoreTests: XCTestCase {
         func item(_ id: String, _ title: String) -> [String: Any] {
             ["title": title, "contentDescriptor": ["identifiers": ["storeAdamID": id]], "artwork": ["dictionary": ["url": "https://is1-ssl.mzstatic.com/image/thumb/Features/test/{w}x{h}{c}.{f}"]]]
         }
-        let page: [String: Any] = ["data": [["data": ["sections": [["items": [item("1", "Pop"), item("2", "Hip-Hop/Rap"), item("1", "Pop"), item("3", "Radyo"), item("4", "Uzamsal Ses")]]]]]]
+        let items = [item("1", "Pop"), item("2", "Hip-Hop/Rap"), item("1", "Pop"), item("3", "Radyo"), item("4", "Uzamsal Ses")]
+        let sections: [[String: Any]] = [["items": items]]
+        let page: [String: Any] = ["data": [["data": ["sections": sections]]]]
         let result = NativeCatalog.editorialCategories(page)
         XCTAssertEqual(result.map(\.title), ["Pop", "Hip-Hop/Rap"])
         XCTAssertEqual(result.first?.artwork, "https://is1-ssl.mzstatic.com/image/thumb/Features/test/640x426cc.jpg")
