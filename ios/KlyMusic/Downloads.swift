@@ -178,7 +178,7 @@ struct DownloadJob {
             guard requests[track.id] == token, jobs[track.id] != nil, jobs[track.id]?.paused != true, !Task.isCancelled else { return }
             do {
                 let wifiOnly = UserDefaults.standard.object(forKey: "wifiOnly") as? Bool ?? true
-                let asset = try await resolver(track, UserDefaults.standard.string(forKey: "quality") ?? "auto")
+                let asset = try await resolver(track, PlaybackPreferences.quality())
                 try Task.checkCancellation()
                 guard requests[track.id] == token, jobs[track.id] != nil, jobs[track.id]?.paused != true, !Task.isCancelled else { return }
                 var request = URLRequest(url: try API.mediaURL(asset))

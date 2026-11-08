@@ -122,7 +122,7 @@ struct ArtworkPalette: Equatable, Sendable {
             guard let context = CGContext(data: buffer.baseAddress, width: side, height: side, bitsPerComponent: 8,
                                           bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
-            context.draw(cg, in: CGRect(x: 0, y: 0, width: side, height: side)); return true
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: CGFloat(side), height: CGFloat(side))); return true
         }
         guard drawn else { return nil }
         func swatch(_ first: Int, _ end: Int) -> Swatch {

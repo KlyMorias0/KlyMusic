@@ -135,7 +135,7 @@ actor NativeCatalog {
         let track = try await recordingDetails(original)
         let locale = ListeningLocale.current.cacheKey
         if let cached = await recordingMatches.candidate(for: track, locale: locale),
-           provider == "auto" || cached.source == provider {
+           (provider == "auto" ? cached.source == "youtube" : cached.source == provider) {
             do {
                 let id = String(cached.id.split(separator: ":", maxSplits: 1).last ?? "")
                 return try await (cached.source == "saavn" ? saavnStream(id, quality: quality, duration: track.duration) : youtubeStream(id, quality: quality, expectedDuration: track.duration))
