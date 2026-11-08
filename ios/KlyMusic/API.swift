@@ -247,6 +247,10 @@ actor API {
             return try await self.request("v1/resolve", body: JSONEncoder().encode(Body(track: track, provider: provider, quality: quality)))
         }
     }
+    func prepareMatches(_ tracks: [Track]) async {
+        guard Self.endpoint == "native" else { return }
+        await catalog.prepareMatches(tracks)
+    }
     func invalidatePlayback() async { await playbackCache.invalidate() }
     func lyrics(_ track: Track) async throws -> LyricsResponse {
         if Self.endpoint == "native" { return try await catalog.lyrics(track) }

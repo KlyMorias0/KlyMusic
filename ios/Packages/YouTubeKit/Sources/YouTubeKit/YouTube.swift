@@ -309,6 +309,19 @@ public class YouTube {
         }
     }
     
+    /// Reuse the short-lived player context across recordings. This warms scripts, never audio.
+    public func prepareAudioContext() async throws {
+        _ = try await audioContext()
+    }
+
+    private func audioContext() async throws -> FastAudioContextCache.Context {
+        try await FastAudioContextCache.shared.value { [self] in
+            let source = try await js
+            let config = try await ytcfg
+            return .init(source: source, config: config)
+        }
+    }
+
     /// Resolve and validate AAC as clients finish, rather than waiting for every
     /// client (and every video rendition) before the caller can start playback.
     public func firstPlayableAudioStream(dataSaver: Bool = false,
@@ -316,9 +329,10 @@ public class YouTube {
         #if canImport(JavaScriptCore)
         try Task.checkCancellation()
         // These cached properties share the watch/player fetch with the full fallback.
-        let source = try await js
+        let context = try await audioContext()
+        let source = context.source
         let timestamp = Extraction.extractSignatureTimestamp(fromJS: source)
-        let config = try await ytcfg
+        let config = context.config
         let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .web, .mediaConnectFrontend]
         let winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
             for (index, client) in clients.enumerated() {
@@ -326,8 +340,8 @@ public class YouTube {
                     do {
                         // Give the primary audio clients a short head start;
                         // healthy playback need not fan out to every fallback.
-                        if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 650_000_000) }
-                        else if index >= 2 { try await Task.sleep(nanoseconds: 500_000_000) }
+                        if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 180_000_000) }
+                        else if index >= 2 { try await Task.sleep(nanoseconds: 300_000_000) }
                         let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
                                              useOAuth: useOAuth, allowCache: allowOAuthCache)
                         let info = try await tube.player(videoID: videoID)
@@ -360,6 +374,7 @@ public class YouTube {
             return nil
         }
         if let winner { return winner }
+        await FastAudioContextCache.shared.invalidate()
         #endif
         // Keep all existing extraction alternatives if fast clients are unavailable.
         let fallback = try await streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }.sorted {
@@ -522,4 +537,28 @@ public class YouTube {
         }
     }*/
     
+}
+
+
+/// Actor isolation coalesces cold watch/player fetches from concurrent song selections.
+@available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
+actor FastAudioContextCache {
+    struct Context {
+        let source: String
+        let config: Extraction.YtCfg
+    }
+    static let shared = FastAudioContextCache()
+    private var cached: (Date, Context)?
+    private var pending: Task<Context, Error>?
+    func value(loader: @escaping () async throws -> Context) async throws -> Context {
+        if let (date, context) = cached, Date().timeIntervalSince(date) < 300 { return context }
+        if let pending { return try await pending.value }
+        let request = Task { try await loader() }
+        pending = request
+        defer { pending = nil }
+        let context = try await request.value
+        cached = (.now, context)
+        return context
+    }
+    func invalidate() { cached = nil }
 }

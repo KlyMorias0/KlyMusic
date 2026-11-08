@@ -825,6 +825,27 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(MusicPlayer.playbackDuration(item), 153.25, accuracy: 0.01)
     }
 
+    func testReleasedMashupAndMedleyRecordingsArePlayableIdentities() {
+        let mashup = Track(id: "apple:mashup", title: "Azeri Mashup 2", artist: "Dj Roshka", duration: 220)
+        let copy = Track(id: "youtube:abcdefghijk", title: "Dj Roshka - Azeri Mashup 2 (Official Audio)", artist: "Dj Roshka - Topic", duration: 221)
+        XCTAssertGreaterThan(NativeCatalog.match(mashup, copy), 0.9)
+        var other = copy; other.title = "Azeri Mashup 3"
+        XCTAssertEqual(NativeCatalog.match(mashup, other), 0)
+        other = copy; other.duration = 440
+        XCTAssertEqual(NativeCatalog.match(mashup, other), 0)
+        let medley = Track(id: "apple:medley", title: "Live Medley", artist: "Artist", duration: 500)
+        XCTAssertGreaterThan(NativeCatalog.match(medley, medley), 0.9)
+    }
+
+    func testMissingAppleDurationCanMatchIdentityWithoutAcceptingWrongVersions() {
+        let requested = Track(id: "apple:missing", title: "Say It Right", artist: "Nelly Furtado")
+        let copy = Track(id: "youtube:abcdefghijk", title: "Say It Right (Official Music Video)", artist: "Nelly Furtado - Topic", duration: 240)
+        XCTAssertTrue(NativeCatalog.sameRecordingIdentity(requested, copy))
+        XCTAssertEqual(NativeCatalog.match(requested, copy), 0, "Duration still has to be established before accepting media")
+        var remix = copy; remix.title = "Say It Right Remix"
+        XCTAssertFalse(NativeCatalog.sameRecordingIdentity(requested, remix))
+    }
+
     func testSourceMatchingRejectsCombinedAndDifferentRecordings() {
         let target = Track(id: "apple:6773420730", title: "Kayıp Kalp", artist: "BLOK3", duration: 153.231)
         let correct = Track(id: "youtube:nKHGXOdJlNc", title: "Kayıp Kalp", artist: "BLOK3", duration: 154)

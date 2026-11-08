@@ -49,6 +49,8 @@ import Network
     let engine = AVQueuePlayer()
     private var originalQueue: [Track] = []
     private var itemTracks: [ObjectIdentifier: (Track, PlaybackAsset?)] = [:]
+    private var matchingTask: Task<Void, Never>?
+    private var matchingIDs: [String] = []
     private var warmupTask: Task<Void, Never>?
     private var warmupIDs: [String] = []
     private var warmupGeneration = UUID()
@@ -213,6 +215,14 @@ import Network
 
     /// Warm only a small visible set; canceled screens release their own requests.
     func warm(_ tracks: [Track]) {
+        let matchCandidates = Array(tracks.prefix(3))
+        if matchingIDs != matchCandidates.map(\.id) {
+            matchingTask?.cancel(); matchingIDs = matchCandidates.map(\.id)
+            matchingTask = Task(priority: .utility) {
+                do { try await Task.sleep(for: .milliseconds(200)); try Task.checkCancellation() } catch { return }
+                await API.shared.prepareMatches(matchCandidates)
+            }
+        }
         guard PlaybackPreferences.browseWarmupAllowed(savesData: PlaybackPreferences.savesData(), unmetered: PlaybackConnection.shared.isUnmetered) else {
             warmupGeneration = UUID(); warmupTask?.cancel(); warmupTask = nil; warmupIDs = []
             return

@@ -83,3 +83,43 @@ final class ExtractionTests: XCTestCase {
     }
     
 }
+
+
+@available(iOS 15.0, watchOS 8.0, tvOS 15.0, macOS 12.0, *)
+final class FastAudioTests: XCTestCase {
+    func testSharedPlayerContextCoalescesAndInvalidates() async throws {
+        let cache = FastAudioContextCache()
+        let calls = FastAudioLoadCounter()
+        let loader: () async throws -> FastAudioContextCache.Context = {
+            let count = await calls.next()
+            try await Task.sleep(nanoseconds: 25_000_000)
+            let config = try JSONDecoder().decode(Extraction.YtCfg.self, from: Data("{}".utf8))
+            return .init(source: "player-\(count)", config: config)
+        }
+        async let first = cache.value(loader: loader)
+        async let second = cache.value(loader: loader)
+        let values = try await [first, second]
+        XCTAssertEqual(values.map(\.source), ["player-1", "player-1"])
+        let count = await calls.count
+        XCTAssertEqual(count, 1)
+        await cache.invalidate()
+        let reloaded = try await cache.value(loader: loader)
+        XCTAssertEqual(reloaded.source, "player-2")
+    }
+
+    func testFailedContextDoesNotPoisonNextSong() async throws {
+        let cache = FastAudioContextCache()
+        do {
+            _ = try await cache.value { throw URLError(.cannotConnectToHost) }
+            XCTFail("A failed fetch cannot be cached")
+        } catch { }
+        let recovered = try await cache.value {
+            .init(source: "recovered", config: try JSONDecoder().decode(Extraction.YtCfg.self, from: Data("{}".utf8)))
+        }
+        XCTAssertEqual(recovered.source, "recovered")
+    }
+}
+private actor FastAudioLoadCounter {
+    private(set) var count = 0
+    func next() -> Int { count += 1; return count }
+}

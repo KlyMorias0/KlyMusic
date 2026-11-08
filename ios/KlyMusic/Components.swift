@@ -16,7 +16,7 @@ struct SettingsButton: View {
     @State private var presented = false
     var body: some View {
         Button { presented = true } label: {
-            Image(systemName: "slider.horizontal.3").font(.system(size: 18, weight: .medium))
+            Image(systemName: "person.crop.circle").font(.system(size: 26, weight: .regular))
                 .foregroundStyle(Color.primary).frame(width: 32, height: 36).contentShape(Rectangle())
         }.accessibilityLabel("Ayarlar").accessibilityIdentifier("settings.open")
             .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28) }
@@ -175,27 +175,14 @@ struct TrackListView: View {
         }.background(Color.pageBackground).navigationTitle(title).navigationBarTitleDisplayMode(.inline)
     }
     private func collectionHeader(_ first: Track) -> some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .bottom, spacing: 18) {
-                Artwork(url: first.artwork, radius: 6).frame(width: 124, height: 124)
-                VStack(alignment: .leading, spacing: 9) {
-                    Text(L("Koleksiyon")).font(.caption).foregroundStyle(.secondary)
-                    Text(title).font(.title2.bold()).tracking(-0.7).lineLimit(3)
-                    Text("\(tracks.count) " + L("Şarkılar").lowercased()).font(.system(size: 12)).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: 16) {
+            Artwork(url: first.artwork, radius: 9).frame(width: 238, height: 238).padding(.top, 8)
+            VStack(spacing: 5) {
+                Text(title).font(.title2.bold()).multilineTextAlignment(.center)
+                Text("\(tracks.count) " + L("şarkı")).font(.subheadline).foregroundStyle(.secondary)
             }
-            HStack(spacing: 12) {
-                Button { player.play(first, in: tracks) } label: {
-                    Label("Çal", systemImage: "play.fill").font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 46).background(Color.coral, in: Capsule())
-                }
-                Button { tracks.forEach { downloads.enqueue($0) } } label: {
-                    Image(systemName: "arrow.down").font(.system(size: 17, weight: .semibold)).frame(width: 46, height: 46)
-                        .foregroundStyle(.primary).overlay { Circle().strokeBorder(.primary.opacity(0.22), lineWidth: 1) }
-                }.accessibilityLabel("Tümünü indir")
-            }.buttonStyle(.plain)
-            Rectangle().fill(.primary.opacity(0.1)).frame(height: 0.5)
-        }.padding(.bottom, 18)
+            CollectionPlayButtons(tracks: tracks)
+        }.padding(.bottom, 20)
     }
 }
 
@@ -245,5 +232,31 @@ struct MusicLoadingView: View {
                 }
             }
         }.padding(.horizontal, 22).accessibilityLabel("Yükleniyor")
+    }
+}
+
+
+struct CollectionPlayButtons: View {
+    var tracks: [Track]
+    @EnvironmentObject private var player: MusicPlayer
+    var body: some View {
+        HStack(spacing: 12) {
+            Button { if let first = tracks.first { player.play(first, in: tracks) } } label: {
+                Label("Çal", systemImage: "play.fill").frame(maxWidth: .infinity).frame(height: 44)
+            }
+            Button {
+                let shuffled = tracks.shuffled()
+                if let first = shuffled.first { player.play(first, in: shuffled) }
+            } label: { Label("Karıştır", systemImage: "shuffle").frame(maxWidth: .infinity).frame(height: 44) }
+        }.font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary)
+            .disabled(tracks.isEmpty)
+            .buttonStyle(CollectionButtonStyle())
+    }
+}
+
+private struct CollectionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 10))
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }

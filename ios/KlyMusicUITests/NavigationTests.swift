@@ -16,9 +16,13 @@ final class NavigationTests: XCTestCase {
         shot(app, "Redesign-Library-Dark")
         app.buttons["settings.open"].tap()
         XCTAssertTrue(app.staticTexts["Ses kalitesi"].waitForExistence(timeout: 5))
+        app.buttons["settings.quality"].tap()
+        XCTAssertTrue(app.buttons["settings.quality.high"].waitForExistence(timeout: 5))
+        shot(app, "Apple-Quality-Settings")
         app.buttons["settings.quality.high"].tap()
         app.buttons["settings.quality.data"].tap()
         XCTAssertTrue(app.buttons["settings.quality.data"].isSelected)
+        app.navigationBars["Ses kalitesi"].buttons.firstMatch.tap()
         shot(app, "Redesign-Settings-Dark")
         app.navigationBars["Ayarlar"].buttons["Bitti"].tap()
         tapTab("nav.search", label: "Ara", in: app)
@@ -93,6 +97,45 @@ final class NavigationTests: XCTestCase {
         shot(app, "29-Home-Scrolled-Flat")
         scroll.swipeDown(); scroll.swipeDown()
         shot(app, "30-Home-Top-Flat")
+        app.terminate()
+    }
+
+    func testAppleStylePagesAndLibrary() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-theme", "dark", "-language", "tr", "-serverURL", "http://127.0.0.1:8879"]
+        app.launch()
+        tapTab("nav.library", label: "Kütüphane", in: app)
+        XCTAssertTrue(app.buttons["library.playlists"].waitForExistence(timeout: 5))
+        shot(app, "Apple-Library")
+        app.buttons["playlist.create"].tap()
+        let name = "Yolculuk \(Int(Date().timeIntervalSince1970))"
+        let field = app.textFields["playlist.name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText(name)
+        shot(app, "Apple-New-Playlist")
+        app.navigationBars["Yeni Çalma Listesi"].buttons["Oluştur"].tap()
+        app.buttons["library.playlists"].tap()
+        XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 5)); app.staticTexts[name].tap()
+        XCTAssertTrue(app.staticTexts["İlk şarkını ekle"].waitForExistence(timeout: 5))
+        shot(app, "Apple-Playlist-Detail")
+        tapTab("nav.search", label: "Ara", in: app)
+        XCTAssertTrue(app.staticTexts["Kategorilere göz at"].waitForExistence(timeout: 5))
+        shot(app, "Apple-Search-Categories")
+        let search = app.searchFields.firstMatch
+        search.tap(); search.typeText("Gece Yolu\n")
+        XCTAssertTrue(app.buttons["search.filter.albums"].waitForExistence(timeout: 10))
+        shot(app, "Apple-Search-Results")
+        app.buttons["search.filter.albums"].tap()
+        let album = app.buttons["album.open.9002"]
+        XCTAssertTrue(album.waitForExistence(timeout: 5)); album.tap()
+        XCTAssertTrue(app.buttons["Karıştır"].waitForExistence(timeout: 5))
+        shot(app, "Apple-Album-Detail")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.scrollViews["search.filters"].swipeLeft()
+        app.buttons["search.filter.artists"].tap()
+        let artist = app.buttons["artist.open.9001"]
+        XCTAssertTrue(artist.waitForExistence(timeout: 5)); artist.tap()
+        XCTAssertTrue(app.buttons["Takip et"].waitForExistence(timeout: 5) || app.buttons["Takibi bırak"].exists)
+        shot(app, "Apple-Artist-Detail")
         app.terminate()
     }
 

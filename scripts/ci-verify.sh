@@ -17,6 +17,7 @@ xcodebuild -project ios/KlyMusic.xcodeproj -scheme KlyMusic \
     -destination "id=$KLY_DEVICE" -derivedDataPath build-tests/DerivedData \
     -parallel-testing-enabled NO -resultBundlePath build-tests/Verification.xcresult \
     -only-testing:KlyMusicTests \
+    -only-testing:KlyMusicUITests/NavigationTests/testAppleStylePagesAndLibrary \
     -only-testing:KlyMusicUITests/NavigationTests/testNativeTabBarNavigationOffline \
     -only-testing:KlyMusicUITests/NavigationTests/testLyricsFollowAndLineSeeking \
     -only-testing:KlyMusicUITests/NavigationTests/testRedesignedScreensWithFixtures \

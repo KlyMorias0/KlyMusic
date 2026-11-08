@@ -11,6 +11,8 @@ actor NativeCatalog {
     private var searches: [String: (Date, SearchResponse)] = [:]
     private var youtubeSearches: [String: (Date, [Track])] = [:]
     private var details: [String: (Date, Track)] = [:]
+    private var candidateTasks: [String: Task<[Track], Error>] = [:]
+    private var candidateCache: [String: (Date, [Track])] = [:]
     private let recordingMatches = RecordingMatchStore.shared
 
     init() {
@@ -135,7 +137,7 @@ actor NativeCatalog {
         let track = try await recordingDetails(original)
         let locale = ListeningLocale.current.cacheKey
         if let cached = await recordingMatches.candidate(for: track, locale: locale),
-           (provider == "auto" ? cached.source == "youtube" : cached.source == provider) {
+           (provider == "auto" ? ["youtube", "saavn"].contains(cached.source) : cached.source == provider) {
             do {
                 let id = String(cached.id.split(separator: ":", maxSplits: 1).last ?? "")
                 return try await (cached.source == "saavn" ? saavnStream(id, quality: quality, duration: track.duration) : youtubeStream(id, quality: quality, expectedDuration: track.duration))
@@ -143,28 +145,31 @@ actor NativeCatalog {
             catch { try Task.checkCancellation(); await recordingMatches.remove(track, locale: locale) }
         }
         // YouTube Music's song catalogue is primary; Apple identity/artwork stay on the requested Track.
-        let order = provider == "auto" ? ["youtube"] : [provider]
+        let order = provider == "auto" ? ["youtube", "saavn"] : [provider]
         for source in order where ["youtube", "saavn"].contains(source) {
             try Task.checkCancellation()
             do {
                 let candidates: [Track]
                 if track.id.hasPrefix(source + ":") { candidates = [track] }
                 else {
-                    let query = track.artist + " " + Self.canonical(track.title)
-                    let rows = try await (source == "saavn" ? saavnSearch(query) : youtubeSearch(query))
-                    candidates = Array(rows.filter { Self.match(track, $0) >= 0.9 }.sorted { Self.match(track, $0) > Self.match(track, $1) }.prefix(3))
+                    candidates = try await matchedCandidates(track, source: source)
                 }
                 if !candidates.isEmpty {
                     let asset = try await PlaybackRace.first(candidates.map { candidate in
                         { @Sendable [self] in
                         let id = String(candidate.id.split(separator: ":", maxSplits: 1).last ?? "")
-                        let asset = try await (source == "saavn" ? saavnStream(id, quality: quality, duration: track.duration) : youtubeStream(id, quality: quality, expectedDuration: track.duration))
-                        guard Self.durationCompatible(expected: track.duration, actual: asset.duration) else { throw APIError.invalidResponse }
+                        let expected = track.duration > 0 ? track.duration : candidate.duration
+                        let asset = try await (source == "saavn" ? saavnStream(id, quality: quality, duration: expected) : youtubeStream(id, quality: quality, expectedDuration: expected))
+                        guard expected <= 0 || Self.durationCompatible(expected: expected, actual: asset.duration) else { throw APIError.invalidResponse }
                         return asset
                         }
-                    }, limit: quality == "data" ? 1 : 2)
+                    }, limit: 2)
                     if let candidate = candidates.first(where: { $0.id == asset.id }) {
-                        await recordingMatches.save(candidate, for: track, locale: locale)
+                        var enriched = track
+                        if enriched.duration <= 0 { enriched.duration = asset.duration }
+                        var copy = candidate
+                        if copy.duration <= 0 { copy.duration = asset.duration }
+                        await recordingMatches.save(copy, for: enriched, locale: locale)
                     }
                     return asset
                 }
@@ -174,6 +179,63 @@ actor NativeCatalog {
         throw APIError.server(L("Bu kaydın aynı sürümü kaynaklarda çalınamıyor. Başka bir sonuç dene."))
     }
 
+    private func matchedCandidates(_ track: Track, source: String) async throws -> [Track] {
+        let key = [ListeningLocale.current.cacheKey, source, track.id, Self.canonical(track.title), Self.normalized(track.artist), String(track.duration)].joined(separator: "|")
+        if let (date, rows) = candidateCache[key], Date().timeIntervalSince(date) < 600 { return rows }
+        if let pending = candidateTasks[key] { return try await pending.value }
+        let request = Task { try await self.loadMatchedCandidates(track, source: source) }
+        candidateTasks[key] = request
+        defer { candidateTasks[key] = nil }
+        let matches = try await request.value
+        if !matches.isEmpty {
+            if candidateCache.count > 80 { candidateCache.removeAll() }
+            candidateCache[key] = (.now, matches)
+        }
+        return matches
+    }
+
+    private func loadMatchedCandidates(_ track: Track, source: String) async throws -> [Track] {
+        let query = track.artist + " " + Self.canonical(track.title)
+        func valid(_ candidate: Track) -> Bool {
+            Self.sameRecordingIdentity(track, candidate) && candidate.duration > 0
+                && (track.duration <= 0 || Self.durationCompatible(expected: track.duration, actual: candidate.duration))
+        }
+        var rows = try await (source == "saavn" ? saavnSearch(query) : youtubeSearch(query))
+        if source == "youtube", !rows.contains(where: valid) {
+            rows += (try? await youtubeSearch(query, videos: true)) ?? []
+        }
+        try Task.checkCancellation()
+        var seen = Set<String>()
+        let matches = Array(rows.filter { valid($0) && seen.insert($0.id).inserted }
+            .sorted { Self.match(track, $0) > Self.match(track, $1) }.prefix(3))
+        return matches
+    }
+
+    /// Prepare identities/player code only; no song audio is downloaded while browsing.
+    func prepareMatches(_ tracks: [Track]) async {
+        let visible = Array(tracks.prefix(3))
+        let missing = visible.filter { $0.id.hasPrefix("apple:") && $0.duration <= 0 }
+        if !missing.isEmpty {
+            let ids = missing.map { String($0.id.dropFirst(6)) }.joined(separator: ",")
+            if let rows = try? await json("https://itunes.apple.com/lookup", query: ["id": ids, "country": ListeningLocale.current.countryCode, "entity": "song"])["results"] as? [JSON] {
+                for row in rows.compactMap(Self.appleTrack) {
+                    details[ListeningLocale.current.cacheKey + "|" + row.id] = (.now, row)
+                }
+            }
+        }
+        for original in visible {
+            guard !Task.isCancelled else { return }
+            do {
+                let track = try await recordingDetails(original)
+                let candidates = track.id.hasPrefix("youtube:") ? [track] : try await matchedCandidates(track, source: "youtube")
+                if let first = candidates.first {
+                    let video = YouTube(videoID: String(first.id.split(separator: ":").last ?? ""), methods: [.local])
+                    try await video.prepareAudioContext()
+                }
+            } catch { if Task.isCancelled { return } }
+        }
+    }
+
     private func recordingDetails(_ original: Track) async throws -> Track {
         var track = original
         if let saved = await recordingMatches.details(for: original, locale: ListeningLocale.current.cacheKey) { track = saved }
@@ -181,17 +243,21 @@ actor NativeCatalog {
             let key = ListeningLocale.current.cacheKey + "|" + track.id
             if let (date, cached) = details[key], Date().timeIntervalSince(date) < 3600 { track = cached }
             else {
-                let rows = try await lookup(String(track.id.dropFirst(6)))
-                guard let enriched = rows.compactMap(Self.appleTrack).first(where: { $0.id == track.id }) else { throw APIError.invalidResponse }
-                // The chart's Apple identity remains unchanged; only complete its missing catalogue fields.
-                track.duration = enriched.duration
-                if track.album.isEmpty { track.album = enriched.album }
-                if track.artwork == nil { track.artwork = enriched.artwork }
+                var rows = (try? await lookup(String(track.id.dropFirst(6)))) ?? []
+                if rows.compactMap(Self.appleTrack).isEmpty {
+                    rows = (try? await lookup(String(track.id.dropFirst(6)), country: "us")) ?? []
+                }
+                if let enriched = rows.compactMap(Self.appleTrack).first(where: { $0.id == track.id }) {
+                    track.duration = enriched.duration
+                    if track.album.isEmpty { track.album = enriched.album }
+                    if track.artwork == nil { track.artwork = enriched.artwork }
+                }
                 if details.count > 150 { details.removeAll() }
                 details[key] = (.now, track)
             }
         }
-        guard track.duration.isFinite, track.duration > 0, !Self.isCompilationTitle(track.title) else { throw APIError.invalidResponse }
+        try Task.checkCancellation()
+        if !track.duration.isFinite { track.duration = 0 }
         return track
     }
 
@@ -206,7 +272,7 @@ actor NativeCatalog {
             // `dur` is the actual media duration in the signed CDN URL, independent of a search label.
             // Reject unknown or combined recordings before downloading/playing any audio.
             guard Self.allowedMediaURL(stream.url), let actualDuration = Self.mediaDuration(stream.url),
-                  Self.durationCompatible(expected: expectedDuration, actual: actualDuration) else { return false }
+                  (expectedDuration <= 0 || Self.durationCompatible(expected: expectedDuration, actual: actualDuration)) else { return false }
             var request = URLRequest(url: stream.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 4)
             request.setValue("bytes=0-4095", forHTTPHeaderField: "Range")
             do {
@@ -224,15 +290,15 @@ actor NativeCatalog {
         return PlaybackAsset(id: "youtube:" + id, path: stream.url.absoluteString, provider: "youtube", codec: "aac", bitrate: (stream.bitrate ?? 128000) / 1000, expiresAt: min(expires ?? Date().timeIntervalSince1970 + 1800, Date().timeIntervalSince1970 + 1800), duration: actualDuration)
     }
 
-    private func youtubeSearch(_ query: String) async throws -> [Track] {
+    private func youtubeSearch(_ query: String, videos: Bool = false) async throws -> [Track] {
         let locale = ListeningLocale.current
-        let key = locale.cacheKey + "|" + query.lowercased()
+        let key = locale.cacheKey + "|" + (videos ? "videos|" : "songs|") + query.lowercased()
         if let (date, cached) = youtubeSearches[key], Date().timeIntervalSince(date) < 600 { return cached }
         let formatter = DateFormatter(); formatter.dateFormat = "yyyyMMdd"; formatter.timeZone = TimeZone(secondsFromGMT: 0)
         let version = "1." + formatter.string(from: .now) + ".01.00"
         let root = try await json("https://music.youtube.com/youtubei/v1/search?prettyPrint=false", body: [
             "context": ["client": ["clientName": "WEB_REMIX", "clientVersion": version, "hl": locale.languageCode, "gl": locale.countryCode.uppercased()], "user": [:]],
-            "query": query, "params": "EgWKAQIIAWoMEA4QChADEAQQCRAF"
+            "query": query, "params": videos ? "EgWKAQIQAWoMEA4QChADEAQQCRAF" : "EgWKAQIIAWoMEA4QChADEAQQCRAF"
         ], headers: ["Origin": "https://music.youtube.com", "Referer": "https://music.youtube.com/", "X-Youtube-Client-Name": "67", "X-Youtube-Client-Version": version])
         let rows = Self.nodes(root, key: "musicResponsiveListItemRenderer")
         var seen = Set<String>()
@@ -242,7 +308,7 @@ actor NativeCatalog {
             let titleRuns = Self.at(row, "flexColumns.0.musicResponsiveListItemFlexColumnRenderer.text.runs") as? [JSON] ?? []
             let infoRuns = Self.at(row, "flexColumns.1.musicResponsiveListItemFlexColumnRenderer.text.runs") as? [JSON] ?? []
             let title = titleRuns.compactMap { $0["text"] as? String }.joined()
-            guard !title.isEmpty, !Self.isCompilationTitle(title) else { return nil }
+            guard !title.isEmpty else { return nil }
             let artistRuns = infoRuns.filter { Self.at($0, "navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType") as? String == "MUSIC_PAGE_TYPE_ARTIST" }
             let artist = artistRuns.compactMap { $0["text"] as? String }.joined(separator: ", ")
             let albumRun = infoRuns.first { Self.at($0, "navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType") as? String == "MUSIC_PAGE_TYPE_ALBUM" }
@@ -320,9 +386,9 @@ actor NativeCatalog {
         let root = try await json("https://itunes.apple.com/search", query: ["term": query, "entity": entity, "country": country ?? ListeningLocale.current.countryCode, "limit": String(limit), "media": "music"])
         return root["results"] as? [JSON] ?? []
     }
-    private func lookup(_ id: String, entity: String = "song") async throws -> [JSON] {
+    private func lookup(_ id: String, entity: String = "song", country: String? = nil) async throws -> [JSON] {
         guard !id.isEmpty, id.allSatisfy(\.isNumber) else { throw APIError.invalidResponse }
-        let root = try await json("https://itunes.apple.com/lookup", query: ["id": id, "entity": entity, "country": ListeningLocale.current.countryCode, "limit": "100"])
+        let root = try await json("https://itunes.apple.com/lookup", query: ["id": id, "entity": entity, "country": country ?? ListeningLocale.current.countryCode, "limit": "100"])
         return root["results"] as? [JSON] ?? []
     }
     private func saavn(_ method: String, params: [String: String]) async throws -> JSON {
@@ -418,10 +484,13 @@ actor NativeCatalog {
         }.filter { !$0.isEmpty })
     }
 
+    static func sameRecordingIdentity(_ requested: Track, _ candidate: Track) -> Bool {
+        !recordingTitle(requested).isEmpty && recordingTitle(requested) == recordingTitle(candidate)
+            && !artistIdentity(requested.artist).isEmpty && artistIdentity(requested.artist) == artistIdentity(candidate.artist)
+    }
+
     static func match(_ requested: Track, _ candidate: Track) -> Double {
-        guard !isCompilationTitle(requested.title), !isCompilationTitle(candidate.title),
-              !recordingTitle(requested).isEmpty, recordingTitle(requested) == recordingTitle(candidate),
-              !artistIdentity(requested.artist).isEmpty, artistIdentity(requested.artist) == artistIdentity(candidate.artist),
+        guard sameRecordingIdentity(requested, candidate),
               durationCompatible(expected: requested.duration, actual: candidate.duration) else { return 0 }
         // Title/artist identity must be exact after decoration removal; duration only ranks valid copies.
         return 0.9 + 0.1 * max(0, 1 - abs(requested.duration - candidate.duration) / 5)
