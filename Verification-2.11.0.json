@@ -1,0 +1,110 @@
+{
+  "version": "2.11.0",
+  "build_number": "18",
+  "code_commit": "edc2d5b1992aa87814c078e46f2219a0e4d630b2",
+  "ci_run": "https://github.com/KlyMorias0/KlyMusic/actions/runs/42529108113",
+  "device_build": {
+    "result": "passed",
+    "version": "2.11.0",
+    "build_number": "18",
+    "minimum_iOS": "17.0",
+    "sdk": "iphoneos26.2",
+    "configuration": "Release",
+    "architecture": "arm64",
+    "unsigned": true,
+    "sha256": "beb914367201b37a59ef841095c0bf26ea98c5b63c4a1cd1b00c1821c1a1746e",
+    "bytes": 1826914
+  },
+  "tests": {
+    "core": {
+      "passed": 76,
+      "skipped": 4,
+      "failed": 0
+    },
+    "ui": {
+      "passed": 5,
+      "failed": 0
+    },
+    "YouTubeKit": {
+      "passed": 21,
+      "failed": 0
+    },
+    "total_passed": 102
+  },
+  "preservation": {
+    "tabBarAndRoot": {
+      "unchanged": true,
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "miniPlayer": {
+      "unchanged": true,
+      "sha256": "7e72982a248b924880831d6de3cb7a249e27a1a65c274e9aa772f415daf2f962"
+    },
+    "lyricsFlowAndAnimation": {
+      "unchanged": true,
+      "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
+    },
+    "scope": "2.11.0: preserve the entire approved player UI, queue, mini player, lyrics, native tabs, root, artwork rendering and player song menu. Change only audio recording matching, playback resolution scheduling, shared request cancellation and bounded media header probes.",
+    "approvedPlayerAndLyrics": {
+      "unchanged": true,
+      "baselineCommit": "8e6ae9c2481d8b27c6075135d6a03ca6d63bc145",
+      "scope": "NowPlaying.swift before QueueView plus AirPlayControl and VolumeControl. TrackMenu implementation and QueueView are explicitly authorized exceptions.",
+      "sha256BeforeQueue": "7e885b4bbac75797e3aafbe653e3971aad6bbc4fa3f5984b699965d80ff04eba"
+    },
+    "artworkAndPlayerBackdrop": {
+      "unchanged": true,
+      "sha256": "6671ceb380e681a0cbe85aa04d0b8e3f1bafae158e63e4a713c200128b098e3e"
+    },
+    "approvedFullPlayer": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "3a41971e3f77f729225161f4ec94c7aa3631533cc68b48d3f1fc23cee744dfdf"
+    },
+    "nativeTabsAndRoot": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "approvedSongMenu": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "ec187711e4d246acfe792b902b5d884ce499f17287d6c5f7ddfbf98abae63fd5"
+    }
+  },
+  "swiftdata_schema_unchanged": true,
+  "runtime_validation": {
+    "simulator": "iPhone 17 Pro / iOS 26",
+    "iOS_27_tested": false,
+    "physical_iPhone_tested": false
+  },
+  "playback": {
+    "pipeline_changed": true,
+    "one_second_start_verified": false,
+    "all_catalog_playback_verified": false,
+    "audible_start_latency_ms": null,
+    "live_audio_checks_skipped": 4,
+    "youtube_bot_confirmation_observed": true,
+    "reported_sigma_boy": {
+      "apple_id": "1833553551",
+      "catalog_duration_seconds": 134.4,
+      "live_search_matched": true,
+      "matched_youtube_song_id": "tVSCbJZ54tc",
+      "resolution_succeeded": false,
+      "observed_playability": "LOGIN_REQUIRED: Sign in to confirm you are not a bot",
+      "audible_start_verified": false
+    },
+    "synthetic_match_race_control_ms": 0.16391277313232422
+  },
+  "visual_review": [
+    "Apple-Search-Results",
+    "Music-Library-Search",
+    "Redesign-Library-Dark",
+    "Apple-Quality-Settings",
+    "Music-Library-Data-Settings",
+    "Music-Theme-Settings",
+    "Music-Language-Settings",
+    "Music-Settings-light",
+    "Music-Settings-dark"
+  ],
+  "fixture_note": "Screenshots use local test audio/metadata and editorial artwork. They do not establish live YouTube playback, actual phone latency or pixel identity with Apple Music."
+}
