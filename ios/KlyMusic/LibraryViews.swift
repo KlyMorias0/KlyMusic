@@ -58,11 +58,9 @@ struct LibraryView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { newList = true } label: { Image(systemName: "text.badge.plus") }
-                        .accessibilityLabel("Yeni çalma listesi").accessibilityIdentifier("playlist.create")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button { newList = true } label: { Label("Yeni Çalma Listesi…", systemImage: "text.badge.plus") }.accessibilityIdentifier("playlist.create")
+                        Divider()
                         Button { destination = .favorites } label: { Label("Favoriler", systemImage: "star") }.accessibilityIdentifier("library.favorites")
                         Button { destination = .recent } label: { Label("Son dinlenenler", systemImage: "clock") }.accessibilityIdentifier("library.recent")
                     } label: { Image(systemName: "ellipsis") }.accessibilityLabel("Kütüphane Seçenekleri").accessibilityIdentifier("library.options")

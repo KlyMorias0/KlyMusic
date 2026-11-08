@@ -24,6 +24,22 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.buttons["settings.quality.data"].isSelected)
         app.navigationBars["Ses kalitesi"].buttons.firstMatch.tap()
         shot(app, "Redesign-Settings-Dark")
+        let data = app.buttons["settings.data"]
+        for _ in 0..<2 { if data.isHittable { break }; app.swipeUp() }
+        data.tap()
+        XCTAssertTrue(app.buttons["settings.backup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["settings.restore"].exists)
+        shot(app, "Music-Library-Data-Settings")
+        app.buttons["settings.eraseHistory"].tap()
+        let confirm = app.buttons["Geçmişi temizle"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
+        XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
+        app.navigationBars["Kütüphane ve Veriler"].buttons.firstMatch.tap()
+        let about = app.buttons["settings.about"]
+        XCTAssertTrue(about.waitForExistence(timeout: 5)); about.tap()
+        XCTAssertTrue(app.staticTexts["KlyMusic"].waitForExistence(timeout: 5))
+        shot(app, "Music-About-Settings")
+        app.navigationBars["Hakkında"].buttons.firstMatch.tap()
         app.navigationBars["Ayarlar"].buttons["Bitti"].tap()
         tapTab("nav.search", label: "Ara", in: app)
         let field = app.searchFields.firstMatch
@@ -92,6 +108,8 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Sabah Işığı"].firstMatch.exists)
         app.buttons["player.close"].tap()
         tapTab("nav.home", label: "Dinle", in: app)
+        XCTAssertTrue(app.staticTexts["Senin için"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["track.row.fixture:next"].exists, "Recently played songs remain available in their own shelf")
         let scroll = app.scrollViews.firstMatch
         scroll.swipeUp()
         shot(app, "29-Home-Scrolled-Flat")
@@ -107,6 +125,7 @@ final class NavigationTests: XCTestCase {
         tapTab("nav.library", label: "Kütüphane", in: app)
         XCTAssertTrue(app.buttons["library.playlists"].waitForExistence(timeout: 5))
         shot(app, "Apple-Library")
+        app.buttons["library.options"].tap()
         app.buttons["playlist.create"].tap()
         let name = "Yolculuk \(Int(Date().timeIntervalSince1970))"
         let field = app.textFields["playlist.name"]
@@ -272,14 +291,13 @@ final class NavigationTests: XCTestCase {
         shot(app, "01-Home-Light")
         tapTab("nav.discover", label: "Keşfet", in: app); shot(app, "02-Discover")
         tapTab("nav.library", label: "Kütüphane", in: app)
-        for _ in 0..<3 {
-            if app.buttons["playlist.create"].exists && app.buttons["playlist.create"].isHittable { break }
-            app.swipeUp()
-        }
+        app.buttons["library.options"].tap()
         app.buttons["playlist.create"].tap()
         let name = "Gece Yolculuğu \(Int(Date().timeIntervalSince1970))"
-        app.alerts.textFields.firstMatch.tap(); app.alerts.textFields.firstMatch.typeText(name)
-        app.alerts.buttons["Oluştur"].tap()
+        let nameField = app.textFields["playlist.name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5)); nameField.tap(); nameField.typeText(name)
+        app.navigationBars["Yeni Çalma Listesi"].buttons["Oluştur"].tap()
+        app.buttons["library.playlists"].tap()
         XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 5))
         app.staticTexts[name].tap()
         XCTAssertTrue(app.staticTexts["İlk şarkını ekle"].exists)
@@ -289,7 +307,7 @@ final class NavigationTests: XCTestCase {
         app.buttons["settings.open"].tap()
         XCTAssertTrue(app.staticTexts["Ses kalitesi"].waitForExistence(timeout: 5))
             XCTAssertFalse(app.textFields["settings.server"].exists)
-        XCTAssertTrue(app.staticTexts["KlyMusic"].exists)
+        XCTAssertTrue(app.buttons["settings.about"].exists)
         shot(app, "04-Settings")
         app.terminate()
         let dark = launch(theme: "dark")

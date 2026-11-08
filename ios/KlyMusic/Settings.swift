@@ -40,8 +40,8 @@ struct SettingsView: View {
                 }.pickerStyle(.navigationLink).accessibilityIdentifier("settings.language")
             }
             Section {
-                NavigationLink("Kütüphane ve Veriler") { dataSettings }
-                NavigationLink("Hakkında") { aboutSettings }
+                NavigationLink("Kütüphane ve Veriler") { dataSettings }.accessibilityIdentifier("settings.data")
+                NavigationLink("Hakkında") { aboutSettings }.accessibilityIdentifier("settings.about")
             }
             if let status { Section { Text(status).font(.footnote).accessibilityIdentifier("settings.status") } }
         }.listSectionSpacing(18).scrollContentBackground(.hidden).background(Color.pageBackground)

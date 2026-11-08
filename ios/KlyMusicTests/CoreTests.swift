@@ -26,7 +26,7 @@ final class CoreTests: XCTestCase {
         let page: [String: Any] = ["data": [["data": ["sections": sections]]]]
         let result = NativeCatalog.editorialCategories(page)
         XCTAssertEqual(result.map(\.title), ["Pop", "Hip-Hop/Rap"])
-        XCTAssertEqual(result.first?.artwork, "https://is1-ssl.mzstatic.com/image/thumb/Features/test/640x426cc.jpg")
+        XCTAssertEqual(result.first?.artwork, "https://is1-ssl.mzstatic.com/image/thumb/Features/test/640x426sr.jpg")
     }
 
     @MainActor func testRecentlyAddedSurvivesReloadAndDoesNotFollowPlayHistory() throws {

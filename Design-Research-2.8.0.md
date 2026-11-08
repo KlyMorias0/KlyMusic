@@ -10,7 +10,7 @@
 
 Arama: düz zemin, iki sütun editoryal kategori görselleri, sistem arama alanı/kapsamı, tek filtre satırı, tekrar etmeyen sonuç başlığı, karma sonuçlarda kompakt albüm ve sanatçı satırları.
 
-Ana sayfa: büyük kapak rafı, üçlü kompakt listeler; kayıt kimliğine göre tekrarlar elenir. Dinleme/favori sanatçılarından gerçekten katalog verisi gelirse Senin için gösterilir. Yeni kullanıcıya Öne çıkanlar gösterilir. Son dinlenen parçalar öne çıkanlarda ve listelerde tekrarlanmaz.
+Ana sayfa: büyük kapak rafı, üçlü kompakt listeler; kayıt kimliğine göre tekrarlar elenir. Dinleme/favori sanatçılarından gerçekten katalog verisi gelirse Senin için gösterilir. Yeni kullanıcıya Öne çıkanlar gösterilir. Son dinlenen parçalar öne çıkanlarda ve listelerde tekrarlanmaz. Görünür parçalara ön hazırlık kişisel öneriler de geldikten sonra uygulanır.
 
 Ayarlar: gereksiz logo alanı kaldırıldı. Dinleme, indirilenler ve görünüm kısa native gruplardır. Yedek ve geçmiş işlemleri Kütüphane ve Veriler alt sayfasına; sürüm/lisanslar Hakkında alt sayfasına taşındı. Desteklenmeyen hesap/abonelik özellikleri eklenmedi.
 

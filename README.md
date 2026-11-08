@@ -1,4 +1,4 @@
-# KlyMusic 2.7.0 (14)
+# KlyMusic 2.8.0 (15)
 
 KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygulamasıdır. Katalog, arama, ses bağlantısı çözümleme ve şarkı sözleri doğrudan telefonda çalışır. Kullanıcı hesabı veya müzik sunucusu adresi girmen gerekmez. Favoriler, çalma listeleri ve indirilen şarkılar cihazda saklanır.
 
@@ -8,16 +8,18 @@ KlyMusic, iOS 17 ve sonrası için SwiftUI ile geliştirilmiş bir müzik uygula
 
 Uygulamayı açınca **Dinle**, **Keşfet**, **Kütüphane** ve **Ara** sekmelerini kullanabilirsin. Bir şarkı seçildiğinde mini oynatıcı açılır. Mini oynatıcıya dokunarak tam oynatıcıya, sözlere ve çalma sırasına geçebilirsin. İndirilen şarkılar **Kütüphane → İndirilenler** içinde internet olmadan oynatılır.
 
-## Bu sürüm — 2.7.0
+## Bu sürüm — 2.8.0
 
-- Dinle, Keşfet, Arama, Kütüphane, Ayarlar, çalma listeleri ve albüm/sanatçı sayfaları Apple Music düzenleri referans alınarak yeniden kuruldu. Büyük özel ayar kartları kaldırıldı; sistem ayar listesi ve alt seçim sayfaları kullanılır.
-- Aramada iki sütun kategori kartları, Son Aramalar, KlyMusic/Kitaplığın kapsamı ve şarkı/albüm/sanatçı filtreleri vardır. Kategori görselleri kendi katalog aramalarından gelir; aynı rastgele albüm kapağı tüm kategorilere dağıtılmaz.
-- Kütüphanede liste, sanatçı, albüm, şarkı ve indirme satırları; Son Eklenenler ızgarası bulunur. Liste oluşturma/seçme ayrı sistem sayfalarıdır; liste düzenleme ve indirme işlemleri seçenek menüsünde toplanır.
-- **Onaylanan oynatıcı, tab bar, şarkı sözleri/akışı ve çalma sırası korunur.** Tüm NowPlaying.swift ve native uygulama kabuğu 2.6.0 ile birebir aynıdır. Korunan alanlar `Protected-UI-Current.json` içindedir.
+- Arama yeniden sadeleştirildi: gerçek editoryal kategori görselleri, sistem arama kapsamları, tek filtre satırı, karma sonuçlarda kompakt albüm/sanatçı satırları. Albüm kapaklarını renklendiren kategori kartları ve yinelenen başlık kaldırıldı.
+- Ana sayfada kayıtlar raflar arasında tekrarlanmaz. Dinleme ve favori sanatçılarına dayalı katalog önerileri varsa **Senin için**, yeni kullanıcıda **Öne çıkanlar** gösterilir. Son dinlenenler üçlü kompakt satırlardadır.
+- Kütüphanede beş ana kategori ve yukarı alınan **Son Eklenenler** alanı vardır. Favoriler ve geçmiş **…** menüsündedir; Favoriler ayrıca Çalma Listeleri içinde bulunur. Yeni eklenen bir kaydın sırası tekrar dinlenince değişmez. Eski veritabanları tarih bilgisi içermediği için sıralama bir kez mevcut veriden başlatılır.
+- Ayarlardaki büyük KlyMusic logo alanı kaldırıldı. Dinleme, indirme ve görünüm seçenekleri kısa native gruplardır; yedek/geri yükleme/geçmiş **Kütüphane ve Veriler**, sürüm/lisanslar **Hakkında** alt sayfasındadır.
+- Sanatçı sayfası gerçek portre ve ayrı yayın kartı kullanır. Portre yoksa albüm kapağı yerine kişi yer tutucusu gösterilir. Yayın kartı tarihine göre Son Çıkan, Yakında veya Öne Çıkan adını alır.
+- **Onaylanan oynatıcı, tab bar, şarkı sözleri/akışı, çalma sırası ve oynatıcı menüsü korundu.** NowPlaying.swift, KlyMusicApp.swift, Artwork.swift ve TrackMenu kaynakları 2.7.0 ile birebir aynıdır. Korunan alanlar `Protected-UI-Current.json` içindedir.
 - Mashup/medley adındaki yayımlanmış kayıtları engelleyen kural kaldırıldı. Konuk sanatçının başlık/sanatçı alanı arasında taşınması ve açık kredili ortak sanatçı yüklemeleri eşleştirilebilir. Yanlış kayıt, sanatçı, remix ve birleşik dosyalar için kimlik/süre kontrolleri korunur.
 - Eksik Apple süre bilgisinde genel hata yerine katalog tamamlama ve doğrulanan aday süresi kullanılabilir. Ses süresi URL'de yoksa YouTube ses formatının süre alanı kullanılabilir; çelişen süreler reddedilir.
 - Görünen ilk üç parçanın kimlik eşleştirmesi ve ortak oynatıcı kodu ses indirmeden hazırlanır. Aynı eşleştirmeye gelen eşzamanlı istekler paylaşılır; hızlı istemcilerin bekleme aralığı kısaltıldı. YouTube Music başarısızsa aynı kaydın video kopyaları ve doğrulanan alternatif kaynak denenir.
-- Araştırma kaynakları `Design-Research-2.7.0.md` içindedir. KlyMusic adı ve gerçek işlevler korunur. Test edilmeyen bir “tüm kayıtlar çalışır / bir saniyede duyulur” garantisi verilmez.
+- Araştırma kaynakları `Design-Research-2.8.0.md` içindedir. KlyMusic adı ve gerçek işlevler korunur. Test edilmeyen bir “tüm kayıtlar çalışır / bir saniyede duyulur” garantisi verilmez.
 - Varsayılan **Az veri** modu düşük bit hızlı, cihazda oynatılabilen AAC kopyasını tercih eder. Dengeli adı altında aynı yüksek kaliteyi seçen ayrı bir seçenek sunulmaz. Yüksek kalite isteğe bağlıdır.
 - Az veri modunda ekran taraması sırasında ses ön hazırlığı yapılmaz. Yalnızca sıradaki parça hazırlanır; ikinci sonraki parçanın ön hazırlığı kaldırılır. Diğer modda da tarama ön hazırlığı kısıtlı/pahalı bağlantıda çalışmaz.
 - Daha önce doğrulanan kayıt eşleşmeleri 7 gün saklanır. Tekrar dinlemede başlık/sanatçı eşleştirmesi tekrar aranmaz; süresi dolan CDN bağlantıları kalıcı olarak saklanmaz. Kimlik ve süre değişmişse eşleşme yeniden doğrulanır.
@@ -26,7 +28,7 @@ Uygulamayı açınca **Dinle**, **Keşfet**, **Kütüphane** ve **Ara** sekmeler
 
 Ses tüketimi kaynak bit hızına bağlıdır. Örneğin 48 kbps AAC yaklaşık 21,6 MB/saat, 128 kbps yaklaşık 57,6 MB/saat ses verisidir; bunlar ölçülmüş toplam uygulama trafiği veya üst sınır değildir. Kapak, arama ve protokol trafiği ayrıca oluşur. Veri tercihi indirmelerde ve yedek/geri yüklemede de korunur.
 
-Güncel doğrulama `VALIDATION-2.7.0.md` içinde kaydedilir. Önceki doğrulama belgeleri önceki sürümlere aittir.
+Güncel doğrulama `VALIDATION-2.8.0.md` içinde kaydedilir. Önceki doğrulama belgeleri önceki sürümlere aittir.
 
 ## Xcode ile çalıştırma
 
@@ -42,7 +44,7 @@ XcodeGen yalnızca `ios/project.yml` değiştikten sonra projeyi yeniden oluştu
 
 ## Geliştirme ve testler
 
-Xcode'da **Product → Test** ile birim ve arayüz testlerini çalıştır. Otomatik testler kaynak eşleştirme, söz zamanları, kuyruk, yedekleme, hızlı parça seçimi ve gezinme gibi akışları kapsar. Çevrimiçi testler sağlayıcıların erişilebilir olmasına bağlıdır. Bu teslimatta gerçekten tamamlanan kontroller `VALIDATION-2.7.0.md` içinde kayıtlıdır.
+Xcode'da **Product → Test** ile birim ve arayüz testlerini çalıştır. Otomatik testler kaynak eşleştirme, söz zamanları, kuyruk, yedekleme, hızlı parça seçimi ve gezinme gibi akışları kapsar. Çevrimiçi testler sağlayıcıların erişilebilir olmasına bağlıdır. Bu teslimatta gerçekten tamamlanan kontroller `VALIDATION-2.8.0.md` içinde kayıtlıdır.
 
 `server/`, `compose.yaml` ve `scripts/run-server.sh` eski sunucu mimarisinin geliştirme araçlarıdır. Release IPA bunları kullanmaz. Yalnızca Debug derlemesinde `-serverURL http://127.0.0.1:8787` başlatma argümanı verilirse geliştirme sunucusu devreye girer.
 
@@ -52,4 +54,4 @@ Görsel söz takibi ve satırdan sarma akışını sağlayıcı bağlantısında
 
 Katalog ve kapaklar Apple'ın herkese açık uç noktalarından; oynatılabilir ses öncelikle YouTube Music eşleştirmesinden (gerekirse aynı kaydı doğrulayan alternatif bağlayıcıdan); sözler LRCLIB'den alınır. Aynı kaydın sanatçı, başlık ve süre eşleşmesi kontrol edilir. Uygun tam kayıt bulunamazsa açık bir hata gösterilir; kısa önizleme tam şarkı gibi sunulmaz. Kaynak erişimi bölgeye ve sağlayıcı değişikliklerine göre farklılık gösterebilir.
 
-Cihazdaki veriler ve ağ istekleri için `PRIVACY.md`; doğrulanan ve cihazda henüz denenmeyen davranışlar için `VALIDATION-2.7.0.md` dosyasına bak.
+Cihazdaki veriler ve ağ istekleri için `PRIVACY.md`; doğrulanan ve cihazda henüz denenmeyen davranışlar için `VALIDATION-2.8.0.md` dosyasına bak.

@@ -138,7 +138,7 @@ actor NativeCatalog {
                   seen.insert(id).inserted, let url = at(item, "artwork.dictionary.url") as? String else { return nil }
             // Apple's editorial landscape image is used directly; no album-cover tint.
             let image = url.replacingOccurrences(of: "{w}", with: "640").replacingOccurrences(of: "{h}", with: "426")
-                .replacingOccurrences(of: "{c}", with: "cc").replacingOccurrences(of: "{f}", with: "jpg")
+                .replacingOccurrences(of: "{c}", with: "sr").replacingOccurrences(of: "{f}", with: "jpg")
             return BrowseCategory(id: id, title: title, query: title, artwork: image)
         }
     }

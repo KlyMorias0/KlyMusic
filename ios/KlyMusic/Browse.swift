@@ -46,9 +46,9 @@ struct HomeView: View {
         defer { loading = false }
         do {
             sections = try await API.shared.home().sections
-            player.warm(featured)
             if seeds.isEmpty { personal = [] }
             else { personal = (try? await API.shared.recommendations(for: seeds).sections) ?? [] }
+            player.warm(featured)
         } catch is CancellationError { }
         catch { failure = error.localizedDescription }
     }
