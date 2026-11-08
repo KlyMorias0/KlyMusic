@@ -3,11 +3,10 @@ import SwiftUI
 struct LibraryView: View {
     @EnvironmentObject private var library: LibraryStore
     @State private var newList = false
-    @State private var listName = ""
     @State private var destination: LibraryDestination?
     private var recent: [Track] {
         var seen = Set<String>()
-        return Array((library.recent + library.favorites + library.downloaded).filter {
+        return Array(library.recentlyAdded.filter {
             seen.insert($0.albumID ?? $0.id).inserted
         }.prefix(12))
     }
@@ -19,9 +18,7 @@ struct LibraryView: View {
                     libraryRow("Sanatçılar", symbol: "mic", destination: .artists, identifier: "library.artists")
                     libraryRow("Albümler", symbol: "square.stack", destination: .albums, identifier: "library.albums")
                     libraryRow("Şarkılar", symbol: "music.note", destination: .songs, identifier: "library.songs")
-                    libraryRow("Favoriler", symbol: "star", destination: .favorites, identifier: "library.favorites")
                     libraryRow("İndirilenler", symbol: "arrow.down.circle", destination: .downloads, identifier: "library.downloads")
-                    libraryRow("Son dinlenenler", symbol: "clock", destination: .recent, identifier: "library.recent")
                 }
                 if !recent.isEmpty || !library.playlists.isEmpty {
                     Text("Son Eklenenler").font(.title2.bold()).tracking(-0.5)
@@ -64,6 +61,12 @@ struct LibraryView: View {
                     Button { newList = true } label: { Image(systemName: "text.badge.plus") }
                         .accessibilityLabel("Yeni çalma listesi").accessibilityIdentifier("playlist.create")
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button { destination = .favorites } label: { Label("Favoriler", systemImage: "star") }.accessibilityIdentifier("library.favorites")
+                        Button { destination = .recent } label: { Label("Son dinlenenler", systemImage: "clock") }.accessibilityIdentifier("library.recent")
+                    } label: { Image(systemName: "ellipsis") }.accessibilityLabel("Kütüphane Seçenekleri").accessibilityIdentifier("library.options")
+                }
                 ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
             }
             .sheet(isPresented: $newList) { CreatePlaylistView() }
@@ -94,6 +97,16 @@ struct PlaylistsView: View {
             Button { creating = true } label: {
                 Label("Yeni Çalma Listesi…", systemImage: "plus").frame(minHeight: 44)
             }.accessibilityIdentifier("playlist.create")
+            NavigationLink { TrackListView(title: "Favoriler", tracks: library.favorites) } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "star.fill").font(.title2).foregroundStyle(Color.coral)
+                        .frame(width: 64, height: 64).background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 8))
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Favoriler").font(.body).foregroundStyle(.primary)
+                        Text("\(library.favorites.count) şarkı").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }.padding(.vertical, 4)
+            }.accessibilityIdentifier("library.favorites")
             ForEach(library.playlists) { playlist in
                 NavigationLink { PlaylistDetailView(playlist: playlist) } label: {
                     HStack(spacing: 14) {
@@ -160,7 +173,7 @@ struct LibraryLink: View {
             Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tertiary).accessibilityHidden(true)
         }
-        .frame(minHeight: 50).padding(.vertical, 1).contentShape(Rectangle())
+        .frame(minHeight: 46).padding(.vertical, 1).contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 }
@@ -432,12 +445,7 @@ struct FollowedArtistsView: View {
                 ForEach(artists, id: \.0) { artist in
                     NavigationLink { ArtistDetailView(id: artist.0, name: artist.1) } label: {
                         HStack(spacing: 16) {
-                            if let art = library.saved.compactMap(\.track).first(where: { $0.artistID == artist.0 })?.artwork {
-                                Artwork(url: art, radius: 32).frame(width: 64, height: 64)
-                            } else {
-                                Text(String(artist.1.prefix(1))).font(.system(size: 27, weight: .medium)).frame(width: 64, height: 64)
-                                    .foregroundStyle(Color.coral).overlay { Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1) }
-                            }
+                            ArtistPortrait(url: nil, name: artist.1).frame(width: 64, height: 64)
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(artist.1).font(.headline).foregroundStyle(.primary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                                 Text("Sanatçı").font(.caption).foregroundStyle(.secondary)

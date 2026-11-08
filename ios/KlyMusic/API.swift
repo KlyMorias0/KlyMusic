@@ -230,11 +230,15 @@ actor API {
         if Self.endpoint == "native" { return try await catalog.search(text, source: source) }
         return try await request("v1/search", query: [.init(name: "q", value: text), .init(name: "source", value: source)])
     }
-    func categoryArtwork(_ query: String) async throws -> String? {
-        if Self.endpoint == "native" { return try await catalog.categoryArtwork(query) }
-        struct ArtworkResponse: Decodable { var artwork: String? }
-        let response: ArtworkResponse = try await request("v1/category-artwork", query: [.init(name: "query", value: query)])
-        return response.artwork
+    func categories() async throws -> [BrowseCategory] {
+        if Self.endpoint == "native" { return try await catalog.categories() }
+        struct Response: Decodable { var categories: [BrowseCategory] }
+        let response: Response = try await request("v1/categories")
+        return response.categories
+    }
+    func recommendations(for seeds: [Track]) async throws -> HomeResponse {
+        if Self.endpoint == "native" { return try await catalog.recommendations(for: seeds) }
+        return try await request("v1/recommendations")
     }
     func album(_ id: String) async throws -> AlbumResponse {
         if Self.endpoint == "native" { return try await catalog.album(id) }

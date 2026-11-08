@@ -19,7 +19,7 @@ struct SettingsButton: View {
             Image(systemName: "person.crop.circle").font(.system(size: 26, weight: .regular))
                 .foregroundStyle(Color.primary).frame(width: 32, height: 36).contentShape(Rectangle())
         }.accessibilityLabel("Ayarlar").accessibilityIdentifier("settings.open")
-            .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28) }
+            .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28).presentationBackground(Color.pageBackground) }
     }
 }
 
@@ -249,7 +249,7 @@ struct CollectionPlayButtons: View {
                 if let first = shuffled.first { player.play(first, in: shuffled) }
             } label: { Label("Karıştır", systemImage: "shuffle").frame(maxWidth: .infinity).frame(height: 44) }
         }.font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary)
-            .disabled(tracks.isEmpty)
+            .disabled(tracks.isEmpty).opacity(tracks.isEmpty ? 0.35 : 1)
             .buttonStyle(CollectionButtonStyle())
     }
 }
@@ -258,5 +258,23 @@ private struct CollectionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 10))
             .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+
+struct ArtistPortrait: View {
+    var url: String?
+    var name: String
+    var body: some View {
+        GeometryReader { geometry in
+            if let url {
+                Artwork(url: url, radius: min(geometry.size.width, geometry.size.height) / 2)
+            } else {
+                ZStack {
+                    Circle().fill(Color.musicElevated)
+                    Image(systemName: "person.fill").font(.system(size: min(geometry.size.width, geometry.size.height) * 0.48)).foregroundStyle(.tertiary)
+                }
+            }
+        }.accessibilityLabel(name)
     }
 }

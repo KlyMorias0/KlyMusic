@@ -13,6 +13,8 @@ actor NativeCatalog {
     private var details: [String: (Date, Track)] = [:]
     private var candidateTasks: [String: Task<[Track], Error>] = [:]
     private var candidateCache: [String: (Date, [Track])] = [:]
+    private var categoryTask: (String, Task<[BrowseCategory], Error>)?
+    private var recommendationCache: [String: (Date, HomeResponse)] = [:]
     private let recordingMatches = RecordingMatchStore.shared
 
     init() {
@@ -99,7 +101,7 @@ actor NativeCatalog {
         }
         let people: [MusicArtist] = (artistRows ?? []).compactMap { row in
             guard let id = row["artistId"] as? NSNumber, let name = row["artistName"] as? String else { return nil }
-            return MusicArtist(id: id.stringValue, name: name, artwork: tracks.first(where: { $0.artistID == id.stringValue })?.artwork)
+            return MusicArtist(id: id.stringValue, name: name, artwork: nil)
         }
         let result = SearchResponse(tracks: tracks, albums: collections, artists: people)
         if searches.count > 60 { searches.removeAll() }
@@ -107,16 +109,79 @@ actor NativeCatalog {
         return result
     }
 
-    func categoryArtwork(_ query: String) async throws -> String? {
-        let key = ListeningLocale.current.cacheKey + "|" + query
-        var cache = UserDefaults.standard.dictionary(forKey: "categoryArtwork-v1") ?? [:]
-        if let entry = cache[key] as? [String: Any], let saved = entry["saved"] as? Double,
-           Date().timeIntervalSince1970 - saved < 7 * 86400, let url = entry["url"] as? String { return url }
-        let rows = try await appleSearch(query, entity: "album", limit: 1)
-        guard let image = Self.art(rows.first?["artworkUrl100"] as? String) else { return nil }
-        cache[key] = ["saved": Date().timeIntervalSince1970, "url": image]
-        if cache.count <= 80 { UserDefaults.standard.set(cache, forKey: "categoryArtwork-v1") }
-        return image
+    private struct CategoryCache: Codable { var saved: Date; var categories: [BrowseCategory] }
+    func categories() async throws -> [BrowseCategory] {
+        let locale = ListeningLocale.current
+        let key = "editorialCategories-v2-" + locale.cacheKey
+        if let bytes = UserDefaults.standard.data(forKey: key), let cached = try? JSONDecoder().decode(CategoryCache.self, from: bytes),
+           Date().timeIntervalSince(cached.saved) < 7 * 86400 { return cached.categories }
+        if let pending = categoryTask, pending.0 == locale.cacheKey { return try await pending.1.value }
+        let request = Task<[BrowseCategory], Error> {
+            let page = try await self.publicMusicPage(path: "search", locale: locale)
+            let result = Self.editorialCategories(page)
+            guard !result.isEmpty else { throw APIError.invalidResponse }
+            if let bytes = try? JSONEncoder().encode(CategoryCache(saved: Date(), categories: result)) { UserDefaults.standard.set(bytes, forKey: key) }
+            return result
+        }
+        categoryTask = (locale.cacheKey, request)
+        defer { if categoryTask?.0 == locale.cacheKey { categoryTask = nil } }
+        return try await request.value
+    }
+
+    static func editorialCategories(_ page: [String: Any]) -> [BrowseCategory] {
+        let sections = at(page, "data.0.data.sections") as? [JSON] ?? []
+        let supported = Set(["pop", "hip hop rap", "hip hop", "k pop", "dance", "dans", "electronic", "elektronik", "acoustic", "akustik", "alternative", "alternatif", "rock", "metal", "jazz", "caz", "classical", "klasik", "blues", "r b", "country", "chill", "uyku", "focus", "fokus", "halk muzigi", "sanat muzigi"])
+        var seen = Set<String>()
+        return sections.flatMap { $0["items"] as? [JSON] ?? [] }.compactMap { item in
+            guard let title = item["title"] as? String, supported.contains(normalized(title)),
+                  let id = at(item, "contentDescriptor.identifiers.storeAdamID") as? String,
+                  seen.insert(id).inserted, let url = at(item, "artwork.dictionary.url") as? String else { return nil }
+            // Apple's editorial landscape image is used directly; no album-cover tint.
+            let image = url.replacingOccurrences(of: "{w}", with: "640").replacingOccurrences(of: "{h}", with: "426")
+                .replacingOccurrences(of: "{c}", with: "cc").replacingOccurrences(of: "{f}", with: "jpg")
+            return BrowseCategory(id: id, title: title, query: title, artwork: image)
+        }
+    }
+
+    func recommendations(for seeds: [Track]) async throws -> HomeResponse {
+        var artists = Set<String>()
+        let choices = Array(seeds.filter { !$0.artist.isEmpty && artists.insert(Self.normalized($0.artist)).inserted }.prefix(2))
+        guard !choices.isEmpty else { return HomeResponse(sections: []) }
+        let key = ListeningLocale.current.cacheKey + "|" + choices.map { $0.artist }.joined(separator: "|")
+        let response: HomeResponse
+        if let (date, cached) = recommendationCache[key], Date().timeIntervalSince(date) < 86400 { response = cached }
+        else {
+            var sections: [HomeSection] = []
+            for seed in choices {
+                try Task.checkCancellation()
+                let rows = try await appleSearch(seed.artist, limit: 12)
+                let songs = rows.compactMap(Self.appleTrack).filter { track in
+                    if let id = seed.artistID { return track.artistID == id }
+                    return Self.normalized(track.artist) == Self.normalized(seed.artist)
+                }
+                if !songs.isEmpty { sections.append(.init(id: "artist-" + (seed.artistID ?? Self.normalized(seed.artist)), title: "Senin için", subtitle: seed.artist + " dinlediğin için", tracks: songs)) }
+            }
+            response = HomeResponse(sections: sections)
+            if recommendationCache.count > 12 { recommendationCache.removeAll() }
+            recommendationCache[key] = (Date(), response)
+        }
+        return HomeResponse(sections: HomeFeed.distinct(response.sections, excluding: seeds))
+    }
+
+    private func publicMusicPage(path: String, locale: ListeningLocale) async throws -> JSON {
+        var parts = URLComponents(string: "https://music.apple.com/" + locale.countryCode + "/" + path)!
+        parts.queryItems = [.init(name: "l", value: locale.languageCode)]
+        var request = URLRequest(url: parts.url!, timeoutInterval: 8)
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        let (bytes, response) = try await session.data(for: request)
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), bytes.count < 3_000_000,
+              let html = String(data: bytes, encoding: .utf8),
+              let pattern = try? NSRegularExpression(pattern: #"<script[^>]*id="serialized-server-data"[^>]*>(.*?)</script>"#, options: .dotMatchesLineSeparators),
+              let match = pattern.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+              let range = Range(match.range(at: 1), in: html), let data = String(html[range]).data(using: .utf8),
+              let payload = try JSONSerialization.jsonObject(with: data) as? JSON else { throw APIError.invalidResponse }
+        return payload
     }
 
     func album(_ id: String) async throws -> AlbumResponse {
@@ -124,24 +189,21 @@ actor NativeCatalog {
     }
 
     func artist(_ id: String) async throws -> ArtistResponse {
-        let rows = try await lookup(id)
+        async let songs = lookup(id)
+        async let collections = try? lookup(id, entity: "album")
+        async let page = try? publicMusicPage(path: "artist/" + id, locale: ListeningLocale.current)
+        let (rows, albumRows, website) = try await (songs, collections, page)
         guard let row = rows.first(where: { $0["wrapperType"] as? String == "artist" }), let name = row["artistName"] as? String else { throw APIError.invalidResponse }
-        let tracks = rows.compactMap(Self.appleTrack)
-        let albumRows = (try? await lookup(id, entity: "album")) ?? []
-        let albums = albumRows.compactMap { row -> MusicCollection? in
+        let albums: [MusicCollection] = (albumRows ?? []).compactMap { row in
             guard let id = row["collectionId"] as? NSNumber, let title = row["collectionName"] as? String else { return nil }
-            return .init(id: id.stringValue, title: title, artist: row["artistName"] as? String ?? name, artwork: Self.art(row["artworkUrl100"] as? String))
-        }
-        var image = tracks.first?.artwork
-        if let pageURL = URL(string: "https://music.apple.com/\(ListeningLocale.current.countryCode)/artist/" + id),
-           let (bytes, _) = try? await session.data(from: pageURL), let html = String(data: bytes, encoding: .utf8),
-           let pattern = try? NSRegularExpression(pattern: #"<script[^>]*id="serialized-server-data"[^>]*>(.*?)</script>"#, options: .dotMatchesLineSeparators),
-           let match = pattern.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
-           let range = Range(match.range(at: 1), in: html), let data = String(html[range]).data(using: .utf8),
-           let payload = try? JSONSerialization.jsonObject(with: data) {
-            image = Self.art(Self.at(payload, "data.0.data.sections.0.items.0.circleArtwork.dictionary.url") as? String) ?? image
-        }
-        return ArtistResponse(artist: .init(id: id, name: name, artwork: image), tracks: tracks, albums: albums)
+            return .init(id: id.stringValue, title: title, artist: row["artistName"] as? String ?? name, artwork: Self.art(row["artworkUrl100"] as? String), releaseDate: row["releaseDate"] as? String)
+        }.sorted { ($0.releaseDate ?? "") > ($1.releaseDate ?? "") }
+        let sections = Self.at(website, "data.0.data.sections") as? [JSON] ?? []
+        let header = sections.first(where: { $0["itemKind"] as? String == "artistDetailHeader" })
+        let item = (header?["items"] as? [JSON])?.first
+        let portrait = Self.art(Self.at(item, "circleArtwork.dictionary.url") as? String)
+        let banner = Self.art(Self.at(item, "wideArtwork.dictionary.url") as? String)
+        return ArtistResponse(artist: .init(id: id, name: name, artwork: portrait, banner: banner), tracks: rows.compactMap(Self.appleTrack), albums: albums, featured: albums.first)
     }
 
     func resolve(_ original: Track, provider: String = "auto", quality: String = "auto") async throws -> PlaybackAsset {

@@ -1,74 +1,121 @@
-{
-  "Türkçe Pop": {
+[
+  {
+    "id": "988589172",
+    "title": "Pop",
+    "query": "Pop",
     "file": "category-0.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/f1/95/04/f1950424-2ae5-55ff-580d-d52e8300ec1b/dj.iedkotfi.jpg/320x320bb.jpg",
-    "album": "Ölürüm Sana",
-    "artist": "Tarkan"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/0a/3b/ce/0a3bce8f-8bb2-4230-e6b1-fcdb0cc91122/1fb54fa7-e1fd-4544-80d3-a93f3b1fd2b7.png/640x426cc.jpg"
   },
-  "Türkçe Rap": {
+  {
+    "id": "989061415",
+    "title": "Hip-Hop/Rap",
+    "query": "Hip-Hop/Rap",
     "file": "category-1.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/5a/80/44/5a80447f-5d5e-0a48-c922-9eaa979b6aef/820233494144.jpg/320x320bb.jpg",
-    "album": "Başa Bela - Single",
-    "artist": "Ezhel"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/23/fb/4f/23fb4fe9-d166-6a6e-b2ec-3bc291bb0040/381bc29a-ff85-4b30-83e6-3c4b287802b5.png/640x426cc.jpg"
   },
-  "pop": {
+  {
+    "id": "988658197",
+    "title": "K-Pop",
+    "query": "K-Pop",
     "file": "category-2.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/0e/c1/57/0ec1575f-5153-ac4b-d578-c5fa3a90bfe1/5021732511676.jpg/320x320bb.jpg",
-    "album": "Dua Lipa - Live from the Royal Albert Hall",
-    "artist": "Dua Lipa"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/78/12/3b/78123b85-a4a4-7bf7-ef9b-ad7014d4700e/e301663f-ba1b-4925-be68-5a7cdb51fb3c.png/640x426cc.jpg"
   },
-  "hip hop": {
+  {
+    "id": "1013612740",
+    "title": "Dans",
+    "query": "Dans",
     "file": "category-3.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/94/28/36/94283609-93bb-db1c-e997-44e82c157e90/00602567261216.rgb.jpg/320x320bb.jpg",
-    "album": "DAMN. COLLECTORS EDITION.",
-    "artist": "Kendrick Lamar"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/3b/16/b8/3b16b898-e703-59e7-8194-c138a776a416/aff7265f-2e61-4faf-9320-3ed73eaa21c2.png/640x426cc.jpg"
   },
-  "alternative": {
+  {
+    "id": "1013612753",
+    "title": "Elektronik",
+    "query": "Elektronik",
     "file": "category-4.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/69/9c/b5/699cb5d6-115c-ff73-9d26-e57ea4350d72/887828031795.png/320x320bb.jpg",
-    "album": "AM",
-    "artist": "Arctic Monkeys"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/c9/95/a5/c995a54d-56ba-fe28-a77b-de3ae912280e/5e91f922-4374-41c7-a562-763c00885fe3.png/640x426cc.jpg"
   },
-  "rock": {
+  {
+    "id": "1528869584",
+    "title": "Akustik",
+    "query": "Akustik",
     "file": "category-5.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/15/c7/55/15c755bc-7603-3ce3-e243-e59f1f9863ea/602527724171.jpg/320x320bb.jpg",
-    "album": "The Platinum Collection",
-    "artist": "Queen"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/d4/7a/34/d47a34b0-0a20-dcac-aa17-1c46c93c4116/986ce134-12c9-49dd-baf9-aafc2f5d8408.png/640x426cc.jpg"
   },
-  "acoustic": {
+  {
+    "id": "988574300",
+    "title": "Alternatif",
+    "query": "Alternatif",
     "file": "category-6.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Features124/v4/3e/b8/e1/3eb8e16a-52b8-bce4-6c53-2133684888d7/dj.xnudzdgv.jpg/320x320bb.jpg",
-    "album": "Acoustic Guitar",
-    "artist": "Søren Bødker Madsen"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/dd/ab/8c/ddab8c14-b4cd-57ad-ad4d-734ca32bcd50/c9dd968d-c8eb-4c26-a6eb-2236eca71214.png/640x426cc.jpg"
   },
-  "chill": {
+  {
+    "id": "1013613723",
+    "title": "Rock",
+    "query": "Rock",
     "file": "category-7.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/cb/1b/eb/cb1bebf7-73b9-686a-b032-8c81f47772d7/00792755640258_Cover.jpg/320x320bb.jpg",
-    "album": "Chill",
-    "artist": "The Piano Guys"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/68/a5/f5/68a5f512-b32d-39ff-5e12-5764a9133f62/4351f66e-4a52-43f7-bc0c-b97dea9c5f87.png/640x426cc.jpg"
   },
-  "jazz": {
+  {
+    "id": "976439543",
+    "title": "Metal",
+    "query": "Metal",
     "file": "category-8.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music/7f/9f/d6/mzi.vtnaewef.jpg/320x320bb.jpg",
-    "album": "Kind of Blue",
-    "artist": "Miles Davis"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features221/v4/fc/be/33/fcbe3397-3076-8392-2c64-da8457ec6a22/47a6d6b6-fb01-436f-88ec-9515462e54ab.png/640x426cc.jpg"
   },
-  "classical": {
+  {
+    "id": "989058908",
+    "title": "Caz",
+    "query": "Caz",
     "file": "category-9.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/f7/58/57/f75857a3-0c71-0e66-c5f3-b16495347c5d/192650423930_cover.jpg/320x320bb.jpg",
-    "album": "Beethoven - Fur Elise (Komuz Remix) - Single",
-    "artist": "Komuz"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features221/v4/e5/1c/c1/e51cc120-c0d3-4739-e69f-40d9228178f8/adeea72c-d032-40ca-a97d-57dbbc77276d.png/640x426cc.jpg"
   },
-  "dance": {
+  {
+    "id": "976439528",
+    "title": "Blues",
+    "query": "Blues",
     "file": "category-10.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/81/51/2a/81512a57-c386-bb63-4b80-8afdbbc949e7/0.jpg/320x320bb.jpg",
-    "album": "DANCE - Single",
-    "artist": "CLMD & Tungevaag"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/9f/cb/28/9fcb28ce-d34a-c841-78ec-79dd2067e6e7/1ba54c60-a74e-4511-a925-f7cffb00f6a9.png/640x426cc.jpg"
   },
-  "lofi": {
+  {
+    "id": "976439551",
+    "title": "R&B",
+    "query": "R&B",
     "file": "category-11.jpg",
-    "artworkURL": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/6e/24/8f/6e248f0a-d8c2-9979-d19d-ab9adbaed6a6/859775505650_cover.jpg/320x320bb.jpg",
-    "album": "Lofi - Late Night Sessions",
-    "artist": "Various Artists"
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/86/8c/79/868c79d7-b8a0-ceed-ee5b-9bcda4a30073/dea23936-7168-494f-94bb-a01fdccdd0b1.png/640x426cc.jpg"
+  },
+  {
+    "id": "1013610510",
+    "title": "Klasik",
+    "query": "Klasik",
+    "file": "category-12.jpg",
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/8f/c0/a3/8fc0a3e8-536e-b0e1-8d1d-32962fd10bd0/b3e33153-97e1-4b6c-bb8a-93f06e129683.png/640x426cc.jpg"
+  },
+  {
+    "id": "1558257257",
+    "title": "Uyku",
+    "query": "Uyku",
+    "file": "category-13.jpg",
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features211/v4/66/44/63/6644636a-6134-e464-32e6-a7900d583ce8/bcb74429-1303-4fb0-9c3f-a6f0b87eb86e.png/640x426cc.jpg"
+  },
+  {
+    "id": "982356290",
+    "title": "Sanat Müziği",
+    "query": "Sanat Müziği",
+    "file": "category-14.jpg",
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features126/v4/3d/31/09/3d310971-aff0-5ba2-49cf-d2519654aab2/7023fbf2-44ed-4196-8eda-766f3319804d.png/640x426cc.jpg"
+  },
+  {
+    "id": "982345933",
+    "title": "Halk Müziği",
+    "query": "Halk Müziği",
+    "file": "category-15.jpg",
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features116/v4/70/87/b4/7087b422-72f4-c9fd-cf2e-5467c033d05e/3e8a950d-573e-4ba9-afc8-80de0f4eef35.png/640x426cc.jpg"
+  },
+  {
+    "id": "1558257095",
+    "title": "Fokus",
+    "query": "Fokus",
+    "file": "category-16.jpg",
+    "source": "https://is1-ssl.mzstatic.com/image/thumb/Features211/v4/32/52/4d/32524d36-af28-8bfe-ac7c-66494ee10362/8540fcf4-af4a-4943-af34-1355797f90e1.png/640x426cc.jpg"
   }
-}
+]

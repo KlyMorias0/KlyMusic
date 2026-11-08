@@ -12,7 +12,7 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Türler ve ruh halleri"].waitForExistence(timeout: 5))
         shot(app, "Redesign-Discover-Dark")
         tapTab("nav.library", label: "Kütüphane", in: app)
-        XCTAssertTrue(app.buttons["library.favorites"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["library.playlists"].waitForExistence(timeout: 5))
         shot(app, "Redesign-Library-Dark")
         app.buttons["settings.open"].tap()
         XCTAssertTrue(app.staticTexts["Ses kalitesi"].waitForExistence(timeout: 5))
@@ -119,6 +119,7 @@ final class NavigationTests: XCTestCase {
         shot(app, "Apple-Playlist-Detail")
         tapTab("nav.search", label: "Ara", in: app)
         XCTAssertTrue(app.staticTexts["Kategorilere göz at"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "search.category.")).firstMatch.waitForExistence(timeout: 10))
         shot(app, "Apple-Search-Categories")
         let search = app.searchFields.firstMatch
         search.tap(); search.typeText("Gece Yolu\n")
@@ -135,6 +136,7 @@ final class NavigationTests: XCTestCase {
         let artist = app.buttons["artist.open.9001"]
         XCTAssertTrue(artist.waitForExistence(timeout: 5)); artist.tap()
         XCTAssertTrue(app.buttons["Takip et"].waitForExistence(timeout: 5) || app.buttons["Takibi bırak"].exists)
+        XCTAssertTrue(app.buttons["artist.latest"].waitForExistence(timeout: 10))
         shot(app, "Apple-Artist-Detail")
         app.terminate()
     }
@@ -240,6 +242,7 @@ final class NavigationTests: XCTestCase {
 
             tapTab("nav.library", label: "Kütüphane", in: app)
             XCTAssertTrue(app.navigationBars["Kütüphane"].waitForExistence(timeout: 5))
+            app.buttons["library.options"].tap()
             app.buttons["library.favorites"].tap()
             XCTAssertTrue(app.navigationBars["Favoriler"].waitForExistence(timeout: 5))
             XCTAssertTrue(app.tabBars.firstMatch.exists, "Tab bar should remain visible in a library detail")

@@ -28,7 +28,21 @@ enum MusicFiles {
     @Published var playlists: [SavedPlaylist] = []
     @Published var error: String?
 
-    init(context: ModelContext) { self.context = context; refresh() }
+    private let insertionDefaults: UserDefaults
+    private let insertionKey = "savedTrackInsertionOrder-v1"
+    init(context: ModelContext, insertionDefaults: UserDefaults = .standard) {
+        self.context = context; self.insertionDefaults = insertionDefaults; refresh()
+        // Existing databases have no added-at field. Seed once; replays never reorder it.
+        if insertionDefaults.stringArray(forKey: insertionKey) == nil {
+            insertionDefaults.set(saved.sorted { ($0.lastPlayed ?? .distantPast) > ($1.lastPlayed ?? .distantPast) }.map(\.id), forKey: insertionKey)
+        }
+    }
+    var recentlyAdded: [Track] {
+        let records = Dictionary(saved.compactMap { item in item.track.map { (item.id, $0) } }, uniquingKeysWith: { first, _ in first })
+        let order = insertionDefaults.stringArray(forKey: insertionKey) ?? []
+        let known = Set(order)
+        return order.compactMap { records[$0] } + saved.filter { !known.contains($0.id) }.compactMap(\.track)
+    }
     func refresh() {
         do {
             saved = try context.fetch(FetchDescriptor<SavedTrack>())
@@ -50,6 +64,9 @@ enum MusicFiles {
             return record
         }
         let record = SavedTrack(track); context.insert(record); saved.append(record)
+        var order = insertionDefaults.stringArray(forKey: insertionKey) ?? []
+        order.removeAll { $0 == track.id }; order.insert(track.id, at: 0)
+        insertionDefaults.set(order, forKey: insertionKey)
         return record
     }
     func isFavorite(_ track: Track) -> Bool { saved.first { $0.id == track.id }?.favorite == true }

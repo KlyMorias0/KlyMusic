@@ -6,6 +6,52 @@ import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testHomeShelvesRemoveReissuesAndRecentSongsWithoutHidingDifferentVersions() {
+        let original = Track(id: "apple:1", title: "Kuzu Kuzu", artist: "Tarkan")
+        let reissue = Track(id: "apple:2", title: "Kuzu Kuzu", artist: "Tarkan")
+        let remix = Track(id: "apple:3", title: "Kuzu Kuzu Remix", artist: "Tarkan")
+        let other = Track(id: "apple:4", title: "Dudu", artist: "Tarkan")
+        let sections = [HomeSection(id: "a", title: "A", subtitle: "", tracks: [original, remix]), HomeSection(id: "b", title: "B", subtitle: "", tracks: [reissue, other])]
+        let feed = HomeFeed.distinct(sections)
+        XCTAssertEqual(feed.flatMap(\.tracks).map(\.id), [original.id, remix.id, other.id])
+        XCTAssertEqual(HomeFeed.distinct(sections, excluding: [reissue]).flatMap(\.tracks).map(\.id), [remix.id, other.id])
+    }
+
+    func testEditorialCategoriesUseGenreArtworkAndRejectUnsupportedServices() throws {
+        func item(_ id: String, _ title: String) -> [String: Any] {
+            ["title": title, "contentDescriptor": ["identifiers": ["storeAdamID": id]], "artwork": ["dictionary": ["url": "https://is1-ssl.mzstatic.com/image/thumb/Features/test/{w}x{h}{c}.{f}"]]]
+        }
+        let page: [String: Any] = ["data": [["data": ["sections": [["items": [item("1", "Pop"), item("2", "Hip-Hop/Rap"), item("1", "Pop"), item("3", "Radyo"), item("4", "Uzamsal Ses")]]]]]]
+        let result = NativeCatalog.editorialCategories(page)
+        XCTAssertEqual(result.map(\.title), ["Pop", "Hip-Hop/Rap"])
+        XCTAssertEqual(result.first?.artwork, "https://is1-ssl.mzstatic.com/image/thumb/Features/test/640x426cc.jpg")
+    }
+
+    @MainActor func testRecentlyAddedSurvivesReloadAndDoesNotFollowPlayHistory() throws {
+        let suite = "LibraryOrder-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let store = LibraryStore(context: context, insertionDefaults: defaults)
+        let first = Track(id: "added-first", title: "A", artist: "Test")
+        let second = Track(id: "added-second", title: "B", artist: "Test")
+        store.toggleFavorite(first); store.toggleFavorite(second); store.played(first)
+        XCTAssertEqual(store.recent.map(\.id), [first.id])
+        XCTAssertEqual(store.recentlyAdded.map(\.id), [second.id, first.id])
+        let restored = LibraryStore(context: context, insertionDefaults: defaults)
+        XCTAssertEqual(restored.recentlyAdded.map(\.id), [second.id, first.id])
+    }
+
+    func testLegacyArtistResponseDecodesAndDoesNotInventReleaseDate() throws {
+        let json = #"{"artist":{"id":"1","name":"Test"},"tracks":[],"albums":[{"id":"2","title":"Old Album","artist":"Test","kind":"album"}]}"#
+        let response = try JSONDecoder().decode(ArtistResponse.self, from: Data(json.utf8))
+        XCTAssertNil(response.featured)
+        XCTAssertEqual(response.albums.first?.releaseLabel, "Öne Çıkan")
+        let upcoming = MusicCollection(id: "3", title: "Future", artist: "Test", releaseDate: "2099-01-01T00:00:00Z")
+        XCTAssertEqual(upcoming.releaseLabel, "Yakında")
+    }
+
     @MainActor func testBackupRestoresEconomicalModeAndLegacyQualityConsistently() throws {
         let defaults = UserDefaults.standard
         let previousQuality = defaults.object(forKey: "quality")

@@ -18,17 +18,7 @@ struct SettingsView: View {
     private var selection: String { lowData ? "data" : "high" }
     var body: some View {
         Form {
-            Section {
-                HStack(spacing: 14) {
-                    Image(systemName: "music.note").font(.title2).foregroundStyle(.white)
-                        .frame(width: 52, height: 52).background(Color.coral, in: RoundedRectangle(cornerRadius: 12))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("KlyMusic").font(.headline)
-                        Text("Müzik ayarları").font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }.padding(.vertical, 6)
-            }
-            Section("Ses") {
+            Section("Dinleme") {
                 NavigationLink {
                     AudioQualitySettings(quality: $quality, lowData: $lowData)
                 } label: {
@@ -49,29 +39,14 @@ struct SettingsView: View {
                     Text("Sistem").tag("system"); Text("Türkçe").tag("tr"); Text("English").tag("en")
                 }.pickerStyle(.navigationLink).accessibilityIdentifier("settings.language")
             }
-            Section("Kütüphane") {
-                Button {
-                    do { document = BackupDocument(data: try library.backup()); exporting = true }
-                    catch { status = error.localizedDescription }
-                } label: { Label("Kütüphaneyi Yedekle", systemImage: "square.and.arrow.up") }
-                    .accessibilityIdentifier("settings.backup")
-                Button { importing = true } label: { Label("Yedeği Geri Yükle", systemImage: "square.and.arrow.down") }
-                    .accessibilityIdentifier("settings.restore")
-                Button(role: .destructive) { eraseHistory = true } label: { Text("Dinleme Geçmişini Temizle") }
-                    .accessibilityIdentifier("settings.eraseHistory")
-            }
             Section {
-                NavigationLink("Lisanslar") {
-                    ScrollView {
-                        Text((Bundle.main.url(forResource: "ThirdPartyLicenses", withExtension: "txt")
-                              .flatMap { try? String(contentsOf: $0, encoding: .utf8) }) ?? "")
-                            .font(.footnote).textSelection(.enabled).padding(20)
-                    }.navigationTitle("Lisanslar")
-                }
-                settingValue("Sürüm", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
+                NavigationLink("Kütüphane ve Veriler") { dataSettings }
+                NavigationLink("Hakkında") { aboutSettings }
             }
             if let status { Section { Text(status).font(.footnote).accessibilityIdentifier("settings.status") } }
-        }.navigationTitle("Ayarlar").navigationBarTitleDisplayMode(.inline).tint(.primary)
+        }.listSectionSpacing(18).scrollContentBackground(.hidden).background(Color.pageBackground)
+            .navigationTitle("Ayarlar").navigationBarTitleDisplayMode(.inline).tint(.primary)
+            .toolbarBackground(Color.pageBackground, for: .navigationBar)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { dismiss() } } }
             .onChange(of: selection) { _, _ in player.refreshPreparation() }
             .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "KlyMusic-Backup") { result in
@@ -90,6 +65,34 @@ struct SettingsView: View {
             .confirmationDialog("Dinleme geçmişi temizlensin mi?", isPresented: $eraseHistory, titleVisibility: .visible) {
                 Button("Geçmişi temizle", role: .destructive) { library.removeHistory() }
             }
+    }
+    private var dataSettings: some View {
+        Form {
+            Section {
+                Button {
+                    do { document = BackupDocument(data: try library.backup()); exporting = true }
+                    catch { status = error.localizedDescription }
+                } label: { Text("Kütüphaneyi Yedekle") }.accessibilityIdentifier("settings.backup")
+                Button("Yedeği Geri Yükle") { importing = true }.accessibilityIdentifier("settings.restore")
+            } footer: { Text("Ses dosyaları yedeğe dahil edilmez.") }
+            Section {
+                Button("Dinleme Geçmişini Temizle", role: .destructive) { eraseHistory = true }
+                    .accessibilityIdentifier("settings.eraseHistory")
+            }
+        }.scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle("Kütüphane ve Veriler")
+    }
+    private var aboutSettings: some View {
+        Form {
+            Section { settingValue("Uygulama", value: "KlyMusic"); settingValue("Sürüm", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") }
+            Section {
+                NavigationLink("Lisanslar") {
+                    ScrollView {
+                        Text((Bundle.main.url(forResource: "ThirdPartyLicenses", withExtension: "txt").flatMap { try? String(contentsOf: $0) }) ?? "")
+                            .font(.footnote).textSelection(.enabled).padding(20)
+                    }.navigationTitle("Lisanslar")
+                }
+            }
+        }.scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle("Hakkında")
     }
     private func settingValue(_ title: String, value: String) -> some View {
         HStack {
@@ -116,7 +119,8 @@ private struct AudioQualitySettings: View {
             } footer: {
                 Text("Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır.")
             }
-        }.navigationTitle("Ses kalitesi").navigationBarTitleDisplayMode(.inline)
+        }.scrollContentBackground(.hidden).background(Color.pageBackground)
+            .navigationTitle("Ses kalitesi").navigationBarTitleDisplayMode(.inline)
     }
     private func option(_ title: String, value: String, subtitle: String) -> some View {
         let active = lowData == (value == "data")

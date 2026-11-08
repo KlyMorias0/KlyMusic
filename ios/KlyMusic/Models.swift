@@ -27,6 +27,11 @@ struct MusicCollection: Codable, Identifiable, Hashable {
     var artist: String
     var artwork: String?
     var kind: String = "album"
+    var releaseDate: String? = nil
+    var releaseLabel: String {
+        guard let releaseDate, let date = ISO8601DateFormatter().date(from: releaseDate) else { return "Öne Çıkan" }
+        return date > Date() ? "Yakında" : "Son Çıkan"
+    }
 }
 
 struct MusicArtist: Codable, Identifiable, Hashable {
@@ -34,6 +39,25 @@ struct MusicArtist: Codable, Identifiable, Hashable {
     var name: String
     var artwork: String?
     var banner: String?
+}
+
+struct BrowseCategory: Codable, Identifiable, Hashable, Sendable {
+    var id: String
+    var title: String
+    var query: String
+    var artwork: String?
+}
+
+/// Keep a song's catalogue reissues from occupying several shelves on one page.
+enum HomeFeed {
+    static func identity(_ track: Track) -> String { NativeCatalog.normalized(track.artist) + "|" + NativeCatalog.canonical(track.title) }
+    static func distinct(_ sections: [HomeSection], excluding tracks: [Track] = []) -> [HomeSection] {
+        var seen = Set(tracks.map(identity))
+        return sections.compactMap { section in
+            let unique = section.tracks.filter { seen.insert(identity($0)).inserted }
+            return unique.isEmpty ? nil : HomeSection(id: section.id, title: section.title, subtitle: section.subtitle, tracks: unique)
+        }
+    }
 }
 
 struct HomeSection: Codable, Identifiable {
@@ -55,6 +79,7 @@ struct ArtistResponse: Codable {
     var artist: MusicArtist
     var tracks: [Track]
     var albums: [MusicCollection]
+    var featured: MusicCollection? = nil
 }
 struct PlaybackAsset: Codable, Sendable {
     var id: String
