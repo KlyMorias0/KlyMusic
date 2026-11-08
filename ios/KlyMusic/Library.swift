@@ -92,9 +92,10 @@ enum MusicFiles {
             guard let track = item.track else { return nil }
             return .init(track: track, favorite: item.favorite, lastPlayed: item.lastPlayed, playCount: item.playCount)
         }
-        let settings = ["quality", "theme", "language", "wifiOnly", "followedArtists"].reduce(into: [String:String]()) { result, key in
+        var settings = ["quality", "theme", "language", "wifiOnly", "followedArtists"].reduce(into: [String:String]()) { result, key in
             if let value = UserDefaults.standard.object(forKey: key) { result[key] = String(describing: value) }
         }
+        settings["lowDataMode"] = String(PlaybackPreferences.savesData())
         let payload = LibraryBackup(tracks: tracks, playlists: playlists.map { .init(id: $0.id, name: $0.name, trackIDs: $0.trackIDs) }, settings: settings)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(payload)
@@ -118,6 +119,8 @@ enum MusicFiles {
             if let value = backup.settings[key] { UserDefaults.standard.set(value, forKey: key) }
         }
         if let value = backup.settings["wifiOnly"] { UserDefaults.standard.set(value == "true" || value == "1", forKey: "wifiOnly") }
+        if let value = backup.settings["lowDataMode"] { UserDefaults.standard.set(value == "true" || value == "1", forKey: "lowDataMode") }
+        else if let quality = backup.settings["quality"] { UserDefaults.standard.set(quality == "data", forKey: "lowDataMode") }
         commit()
     }
 }

@@ -6,6 +6,26 @@ import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    @MainActor func testBackupRestoresEconomicalModeAndLegacyQualityConsistently() throws {
+        let defaults = UserDefaults.standard
+        let previousQuality = defaults.object(forKey: "quality")
+        let previousMode = defaults.object(forKey: "lowDataMode")
+        defer {
+            if let previousQuality { defaults.set(previousQuality, forKey: "quality") } else { defaults.removeObject(forKey: "quality") }
+            if let previousMode { defaults.set(previousMode, forKey: "lowDataMode") } else { defaults.removeObject(forKey: "lowDataMode") }
+        }
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = LibraryStore(context: ModelContext(container))
+        defaults.set("high", forKey: "quality"); defaults.set(true, forKey: "lowDataMode")
+        let data = try store.backup()
+        defaults.set(false, forKey: "lowDataMode")
+        try store.restore(data)
+        XCTAssertEqual(PlaybackPreferences.quality(), "data")
+        let legacy = LibraryBackup(tracks: [], playlists: [], settings: ["quality": "high"])
+        try store.restore(JSONEncoder().encode(legacy))
+        XCTAssertEqual(PlaybackPreferences.quality(), "high")
+    }
+
     func testEconomicalPreferenceOverridesPreviousHighQualityWithoutLosingChoice() throws {
         let name = "PlaybackPreferences-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
