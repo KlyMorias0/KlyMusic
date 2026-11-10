@@ -324,7 +324,7 @@ actor NativeCatalog {
         if let (date, rows) = candidateCache[key], Date().timeIntervalSince(date) < 600 { return rows }
         let matches = try await candidateRequests.value(for: key) { [self] in
             let rows = try await (source == "saavn" ? saavnSearch(query) : youtubeSearch(query, videos: videosOnly))
-            trace("search=\(source) query=\(query) rows=\(rows.count)")
+            await trace("search=\(source) query=\(query) rows=\(rows.count)")
             try Task.checkCancellation()
             var seen = Set<String>()
             return Array(rows.filter { Self.validCandidate(track, $0, videosOnly: videosOnly) && seen.insert($0.id).inserted }
