@@ -1,15 +1,19 @@
-# KlyMusic 2.5.0 (12)
+# iPhone'a kurulum — paket durumu
 
-`dist/KlyMusic-unsigned.ipa` ARM64 iPhone/iPad paketidir. iOS 17 ve üzeri gerekir.
+Bu tam teslim ZIP'inde kurulabilir dosya:
 
-1. IPA dosyasını indir.
-2. Kullandığın sideload aracıyla imzala ve yükle.
-3. Gerekirse iPhone Ayarlar'da yükleme aracının istediği geliştirici güvenini tamamla.
+`artifacts/2.12.0/KlyMusic-2.12.0-unsigned.ipa`
 
-Tab bar korunur. Kapak/sözler aynı yeni oynatıcı düzenini kullanır; söz satırlarının animasyonu ve takibi korunur. Kenar ışıkları kapaktan alınır.
+Bu dosya 2.12.0 / build 19'dur. 2.13.0 genel oynatma kaynak değişikliklerini içermez. 2.13.0 için GitHub Mac derlemesi hesap engeli nedeniyle henüz çalışmadı.
 
-Az veri varsayılandır. Yalnızca sıradaki parça hazırlanır; taramadaki toplu ses ön hazırlığı ekonomik modda kapalıdır. Bu tercih indirmelere ve yedeklere de uygulanır. Zaten indirilmiş dosyalar değiştirilmez.
+1. IPA'yı ZIP'ten çıkar.
+2. Kullandığın sideload aracıyla kendi Apple hesabın/sertifikan üzerinden imzala ve yükle.
+3. Gerekirse aracın istediği geliştirici güvenini veya Geliştirici Modu işlemini iPhone'da tamamla.
 
-Hazır kuyruk öğesi yeniden oluşturulmadan kullanılır. İnternetten ilk açılış veya duyulabilir ses geçişi için 1 ms garantisi yoktur.
+Minimum dağıtım hedefi iOS 17.0; paket ARM64 iPhone/iPad Release derlemesidir. KlyMusic içine Apple ID/parola girilmez. App Store/TestFlight yayını değildir.
 
-Doğrulama: VALIDATION-2.5.0.md. Fiziksel iPhone gecikmesi ölçülmedi.
+Son doğrulanan IPA SHA256:
+
+`405e58228e4b05e6ed43f2dea08e04b7d9eff61ceda1888ce740d5008a99cbe9`
+
+Daha sonra kaynaklardan yeni IPA üretildiğinde normal çıktı yolu `dist/KlyMusic-unsigned.ipa` olur. Ayrıntılı derleme, test ve devam bilgisi README.md / DEVAM.md içindedir.

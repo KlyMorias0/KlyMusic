@@ -1,3 +1,5 @@
+2.13.0 kaynak adayı: [kısmi doğrulama ve Mac engeli](VALIDATION-2.13.0.md). Son doğrulanmış iPhone sürümü 2.12.0.
+
 Güncel sürüm: [KlyMusic 2.12.0 doğrulaması](VALIDATION-2.12.0.md). Aşağıdaki kayıt 2.3.0 sürümüne aittir.
 
 # KlyMusic 2.3.0 (8) doğrulama — 6 Kasım 2026

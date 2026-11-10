@@ -1,0 +1,42 @@
+033a5da 2026-11-10T07:41:53Z Keep usable full-extractor responses distinct from login failures
+0815171 2026-11-10T07:40:51Z Verify shared playback components with portable production-code tests
+fa1385b 2026-11-10T07:28:54Z Replace song-specific matching with shared recording identity and source fallback
+ef534c9 2026-11-10T06:56:39Z Document verified multi-source lyrics delivery and cache behavior
+53e738b 2026-11-10T06:44:47Z Give lyric cache lifetime test cases explicit types
+2f650f5 2026-11-10T06:39:15Z Disambiguate app player type in lyric cache test helper
+0607a88 2026-11-10T06:38:12Z Avoid redundant lyric provider payloads in data saver mode
+921924b 2026-11-10T06:34:04Z Add lyric provider fallbacks and refreshable offline lyric cache
+c94192e 2026-11-08T22:24:30Z Document verified playback fixes and live provider limitations
+edc2d5b 2026-11-08T22:12:51Z Use verified catalog ID and duration for Sigma Boy live diagnostic
+ded4a55 2026-11-08T22:12:11Z Fix bilingual recording matches and reduce playback fallback waits
+aa691eb 2026-11-08T21:57:01Z Document verified 2.10.0 delivery and preserved player UI
+ecc5637 2026-11-08T21:45:43Z Complete local library search and refine settings and backup restoration
+cdde4db 2026-11-08T15:59:04Z Document verified 2.9.0 page polish and preserved playback UI
+1bf5afa 2026-11-08T15:48:06Z Finish flat settings rows after simulator review and retain useful recommendation retries
+943a6e8 2026-11-08T15:31:29Z Polish music pages and unify library chronology with persistent layout controls
+9d98458 2026-11-08T12:32:16Z Document verified 2.8.0 page refinements and delivery limits
+fb7bbde 2026-11-08T12:21:00Z Present library data dialogs from their visible settings page
+751007f 2026-11-08T12:11:16Z Finish editorial image framing, compact library actions and settings flow checks
+8ea2145 2026-11-08T12:01:00Z Correct editorial category regression fixture literal
+557a799 2026-11-08T11:57:02Z Refine search, library, home and artist pages around the approved player
+19b532e 2026-11-08T11:20:11Z Record verified 2.7.0 pages and live provider limitations
+6809d7f 2026-11-08T11:09:50Z Match explicitly credited collaborations from official artist uploads
+16b9208 2026-11-08T10:58:17Z Refine Music page layouts and expand validated recording fallbacks
+fafd592 2026-11-08T10:42:31Z Support deployment target in context cache and diagnose reported recordings
+74141d1 2026-11-08T10:40:29Z Rebuild browsing and settings; prepare recording matches and support released mashups
+d49d1e9 2026-11-08T10:19:39Z Document verified 2.6.0 menu and queue delivery
+c2898ff 2026-11-08T10:10:13Z Bound CI simulator startup and retry a stalled service
+af6edc3 2026-11-08T09:12:46Z Select the visible player menu in UI automation
+116de83 2026-11-08T09:05:06Z Refine song menus and upcoming queue; remove browse gradients
+8e6ae9c 2026-11-08T06:57:40Z Document unified player scope, verified data policy and final 2.5.0 delivery
+6e2e59b 2026-11-08T06:47:34Z Keep economical mode consistent across backups and legacy preference restores
+0307beb 2026-11-08T06:45:27Z Preserve individual accessible controls in unified player and simplify streaming choices
+406d7db 2026-11-08T06:40:38Z Apply economical policy to downloads and retain the selected source policy for cached matches
+7af223c 2026-11-08T06:38:29Z Unify player and lyrics shell, derive edge lighting from artwork, rebuild settings and reduce streaming data
+1dfdcd6 2026-11-08T06:19:18Z Align installation guide with the final 2.4.1 IPA
+0bb0316 2026-11-08T06:18:38Z Record verified black design build and hand off current project
+e0e7c82 2026-11-08T06:10:19Z Use pure black and Apple Music player layout per user reference
+286d4da 2026-11-08T05:58:27Z Make player script cache safe for concurrent song resolution
+9ae78bf 2026-11-08T05:57:38Z Avoid duplicate cold player parsing and add live timing diagnostics
+0444d8f 2026-11-08T05:55:08Z Redesign browsing and player while preserving tabs and lyrics; accelerate audio resolution
+d0b6eb0 2026-11-08T05:47:27Z Import original KlyMusic project from user archive

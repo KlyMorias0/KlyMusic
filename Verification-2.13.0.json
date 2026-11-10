@@ -1,0 +1,120 @@
+{
+  "version": "2.13.0",
+  "build_number": "20",
+  "status": "source_candidate_ios_build_blocked",
+  "source_code_commit": "033a5da92b39a254015cb7077e48aa59745e6046",
+  "checked_at": "2026-11-10T07:44:10.517103+00:00",
+  "ci": {
+    "url": "https://github.com/KlyMorias0/KlyMusic/actions/runs/42775580626",
+    "attempted_code_commit": "fa1385b64aeb4b0c33d0022f5a2fd340a717e1b5",
+    "started": false,
+    "provider_annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+  },
+  "device_build": {
+    "result": "not_run",
+    "ipa_generated": false
+  },
+  "full_ios_test_suite": {
+    "result": "not_run"
+  },
+  "portable_tests": {
+    "compiler": "Swift 6.0.3 x86_64 Linux, Swift language 5",
+    "identity": {
+      "passed": 5,
+      "failed": 0
+    },
+    "audio_metadata": {
+      "passed": 7,
+      "failed": 0
+    },
+    "resolver_injected_media": {
+      "passed": 5,
+      "failed": 0
+    },
+    "total_passed": 17,
+    "failed": 0,
+    "generated_metadata_corpus": {
+      "accepted_controls": 480,
+      "rejected_controls": 720,
+      "languages": 12,
+      "real_song_playbacks": 0
+    },
+    "scope": "Production identity/filter/decoder/resolver/race/cache/parser code extracted by committed scripts; actual XCTest cases. Resolver uses injected HTTP/media fixtures; unexercised CDN loaders throw. This is not a full iOS/macOS/package build."
+  },
+  "syntax_parse": {
+    "passed": true,
+    "files": [
+      "ios/KlyMusic/API.swift",
+      "ios/KlyMusic/Models.swift",
+      "ios/KlyMusic/NativeCatalog.swift",
+      "ios/KlyMusicTests/CoreTests.swift",
+      "ios/Packages/YouTubeKit/Sources/YouTubeKit/Errors.swift",
+      "ios/Packages/YouTubeKit/Sources/YouTubeKit/Extraction.swift",
+      "ios/Packages/YouTubeKit/Sources/YouTubeKit/InnerTube.swift",
+      "ios/Packages/YouTubeKit/Sources/YouTubeKit/YouTube.swift",
+      "ios/Packages/YouTubeKit/Tests/YouTubeKitTests/ExtractionTests.swift",
+      "ios/Packages/YouTubeKit/Tests/YouTubeKitTests/FastAudioFallbackTests.swift"
+    ]
+  },
+  "preservation": {
+    "tabBarAndRoot": {
+      "unchanged": true,
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "miniPlayer": {
+      "unchanged": true,
+      "sha256": "7e72982a248b924880831d6de3cb7a249e27a1a65c274e9aa772f415daf2f962"
+    },
+    "lyricsFlowAndAnimation": {
+      "unchanged": true,
+      "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
+    },
+    "scope": "2.13.0 source candidate: approved player UI, lyrics layout/animation, native tabs, artwork and song menus preserved. Shared metadata identity, candidate fallback, stream coalescing and original audio decoding changed. iOS build/real playback pending GitHub billing unblock.",
+    "approvedPlayerAndLyrics": {
+      "unchanged": true,
+      "baselineCommit": "8e6ae9c2481d8b27c6075135d6a03ca6d63bc145",
+      "scope": "NowPlaying.swift before QueueView plus AirPlayControl and VolumeControl. TrackMenu implementation and QueueView are explicitly authorized exceptions.",
+      "sha256BeforeQueue": "7e885b4bbac75797e3aafbe653e3971aad6bbc4fa3f5984b699965d80ff04eba"
+    },
+    "artworkAndPlayerBackdrop": {
+      "unchanged": true,
+      "sha256": "6671ceb380e681a0cbe85aa04d0b8e3f1bafae158e63e4a713c200128b098e3e"
+    },
+    "approvedFullPlayer": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "3a41971e3f77f729225161f4ec94c7aa3631533cc68b48d3f1fc23cee744dfdf"
+    },
+    "nativeTabsAndRoot": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "935490679ec8cace7f4c643c336dba6cfb9eb6ce0c87f05ef9671c73aa4ea2d5"
+    },
+    "approvedSongMenu": {
+      "unchanged": true,
+      "baselineCommit": "19b532e6872980458c33c99fae808aa53fd197d0",
+      "sha256": "ec187711e4d246acfe792b902b5d884ce499f17287d6c5f7ddfbf98abae63fd5"
+    }
+  },
+  "swiftdata_schema_unchanged": true,
+  "playback": {
+    "pipeline_changed": true,
+    "live_audio_tested": false,
+    "one_second_start_verified": false,
+    "all_catalog_playback_verified": false,
+    "authentication_bypass_added": false
+  },
+  "latest_verified_ipa_version": "2.12.0",
+  "source_sha256": {
+    "ios/KlyMusic/API.swift": "d846556648dcbc234bf445842ba12ff4a3fae94bcf250db7ece717068ff9e6df",
+    "ios/KlyMusic/Models.swift": "777e508898ec80d7962eaa6c1fdaf8673dd264ab22f9b3a6f894f4eea8e3ae65",
+    "ios/KlyMusic/NativeCatalog.swift": "1b20bd024e255e14fd899f40aa8482966bab47da5de7b7c8fb6107e85b9cdcc5",
+    "ios/KlyMusicTests/CoreTests.swift": "385ca3af61af6260d6c81e18938dd8a493226acc1d2f9c935a562858df67d00e",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/Errors.swift": "a1ad1ca3189e19811e8c79bed59bcfe15abe9a520431517a20d300932429d982",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/Extraction.swift": "92f6e4aab384329141658e54d77cad6319131cd295e0ea1e3d050d0c3571552f",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/InnerTube.swift": "33f2a98cb5c384750096a81c435c1e318512ec820a0ab54cd3ffe3f7bc317264",
+    "ios/Packages/YouTubeKit/Sources/YouTubeKit/YouTube.swift": "205c3525184e51204914f3a5ada22386ce8f8dd5a1b8144f94e007fa4a424db0",
+    "ios/Packages/YouTubeKit/Tests/YouTubeKitTests/ExtractionTests.swift": "e392230f5fcaacbfec929f74f5455c796592bfeb19e15f69fe489868fc039515",
+    "ios/Packages/YouTubeKit/Tests/YouTubeKitTests/FastAudioFallbackTests.swift": "ed0919c4a4b8dd92a83aa7bacacfb5b8af42fc44c31523612822d2de0ed41ee7"
+  }
+}
