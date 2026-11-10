@@ -124,3 +124,21 @@ private actor FastAudioContextGate {
         continuation?.resume(returning: context); continuation = nil
     }
 }
+
+@available(iOS 15.0, watchOS 8.0, tvOS 15.0, macOS 12.0, *)
+extension FastAudioTests {
+    func testAuthenticationFailureRemainsDistinctAfterAllClientsFail() async {
+        let state = AudioAvailabilityState()
+        await state.record("LOGIN_REQUIRED")
+        await state.record("UNPLAYABLE")
+        let failure = await state.failure()
+        XCTAssertEqual(failure, .authenticationRequired)
+    }
+    func testOneSuccessfulClientDoesNotBecomeAnAuthenticationFailure() async {
+        let state = AudioAvailabilityState()
+        await state.record("LOGIN_REQUIRED")
+        await state.record("OK")
+        let failure = await state.failure()
+        XCTAssertNil(failure)
+    }
+}

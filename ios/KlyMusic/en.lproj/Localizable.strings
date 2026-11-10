@@ -305,3 +305,13 @@
 "Ses dosyaları yedeğe dahil edilmez." = "Audio files are not included in backups.";
 
 "Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır." = "The new setting applies to the next track. Data usage depends on the source and bitrate.";
+
+"Bu şarkıyla eşleşen çalınabilir kayıt bulunamadı." = "No playable recording matching this song was found.";
+
+"Kaynak bu kaydı şu anda sunamıyor. Yeniden dene." = "The source cannot provide this recording right now. Try again.";
+
+"Bu kaydın ses bağlantısı doğrulanamadı. Yeniden dene." = "The audio link for this recording could not be validated. Try again.";
+
+"Müzik kaynağına bağlanılamadı. İnternet bağlantını kontrol edip yeniden dene." = "Could not connect to the music source. Check your internet connection and try again.";
+
+"Kaynak bu kayıt için giriş doğrulaması istiyor. Diğer kaynaklardan da çalınamadı." = "The source requires sign-in verification for this recording. No other source could play it.";

@@ -327,6 +327,8 @@ public class YouTube {
     /// client (and every video rendition) before the caller can start playback.
     public func firstPlayableAudioStream(dataSaver: Bool = false,
                                          validate: @escaping @Sendable (Stream) async throws -> Bool) async throws -> Stream {
+        let availability = AudioAvailabilityState()
+        do {
         return try await AudioExtractionFallback.value(fast: { [self] in
             #if canImport(JavaScriptCore)
             try Task.checkCancellation()
@@ -353,6 +355,9 @@ public class YouTube {
                             }
                             #endif
                             try Task.checkCancellation()
+                            if info.videoDetails?.videoId == nil || info.videoDetails?.videoId == videoID {
+                                await availability.record(info.playabilityStatus?.status)
+                            }
                             guard info.videoDetails?.videoId == videoID,
                                   info.playabilityStatus?.status == "OK", let data = info.streamingData else { return nil }
                             var manifest = Extraction.applyDescrambler(streamData: data)
@@ -395,6 +400,12 @@ public class YouTube {
             }
             throw YouTubeKitError.extractError
         })
+        } catch is CancellationError { throw CancellationError() }
+        catch {
+            try Task.checkCancellation()
+            if let failure = await availability.failure() { throw failure }
+            throw error
+        }
     }
 
     /// Returns a list of live streams - currently only HLS supported
@@ -631,5 +642,22 @@ enum AudioExtractionFallback {
         }
         try Task.checkCancellation()
         return try await fallback()
+    }
+}
+
+@available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
+actor AudioAvailabilityState {
+    private var sawOK = false
+    private var loginRequired = false
+    private var unavailable = false
+    func record(_ status: String?) {
+        if status == "OK" { sawOK = true }
+        if status == "LOGIN_REQUIRED" { loginRequired = true }
+        if status == "UNPLAYABLE" || status == "ERROR" { unavailable = true }
+    }
+    func failure() -> AudioStreamFailure? {
+        guard !sawOK else { return nil }
+        if loginRequired { return .authenticationRequired }
+        return unavailable ? .unavailable : nil
     }
 }

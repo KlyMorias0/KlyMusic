@@ -247,7 +247,7 @@ class InnerTube {
         struct AudioTrack: Decodable {
             let displayName: String
             let id: String
-            let audioIsDefault: Bool
+            let audioIsDefault: Bool?
         }
     }
     

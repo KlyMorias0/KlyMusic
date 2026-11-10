@@ -508,9 +508,21 @@ class Extraction {
     /// Filter out all audio streams that are not original language (i.e. dubbed)
     class func filterOutDubbedAudio(streamManifest: [InnerTube.StreamingData.Format]) -> [InnerTube.StreamingData.Format] {
         streamManifest.filter { stream in
-            if let audioTrack = stream.audioTrack {
-                return audioTrack.displayName.lowercased().hasSuffix("original")
+            guard let audioTrack = stream.audioTrack else { return true }
+            // Presentation labels commonly wrap the original marker in parentheses,
+            // and the marker follows the response language. Punctuation is not identity.
+            let words = audioTrack.displayName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+                .replacingOccurrences(of: #"[^\p{L}\p{N}]+"#, with: " ", options: .regularExpression)
+                .split(separator: " ").map(String.init)
+            let originalMarkers = ["original", "orijinal", "оригинал", "оригинальный", "オリジナル", "원본", "原声", "原始"].map {
+                $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             }
+            guard let marker = words.last, originalMarkers.contains(marker) else { return false }
+            // A default track may be an automatic dub. Keep requiring an explicit
+            // original marker, and reject negated/alternative labels even when default.
+            let alternatives: Set<String> = ["dubbed", "dubbing", "dub", "dublado", "dublaj", "дубляж", "descriptive"]
+            guard alternatives.isDisjoint(with: words) else { return false }
+            if words.count > 1, ["not", "non", "no", "un"].contains(words[words.count - 2]) { return false }
             return true
         }
     }

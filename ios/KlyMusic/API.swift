@@ -1,4 +1,5 @@
 import Foundation
+import YouTubeKit
 
 enum PlaybackRace {
     /// A failing or slow candidate must not block another validated recording.
@@ -17,13 +18,49 @@ enum PlaybackRace {
                     }
                 } catch {
                     try Task.checkCancellation()
-                    failure = error
+                    failure = PlaybackFailure.preferred(failure, error)
                     if next < operations.count { group.addTask(operation: operations[next]); next += 1 }
                 }
             }
             try Task.checkCancellation()
             throw failure
         }
+    }
+}
+
+enum PlaybackFailure: String, LocalizedError {
+    case noMatch, unavailable, invalidMedia, network, authenticationRequired
+    var errorDescription: String? {
+        switch self {
+        case .noMatch: return L("Bu şarkıyla eşleşen çalınabilir kayıt bulunamadı.")
+        case .unavailable: return L("Kaynak bu kaydı şu anda sunamıyor. Yeniden dene.")
+        case .invalidMedia: return L("Bu kaydın ses bağlantısı doğrulanamadı. Yeniden dene.")
+        case .network: return L("Müzik kaynağına bağlanılamadı. İnternet bağlantını kontrol edip yeniden dene.")
+        case .authenticationRequired: return L("Kaynak bu kayıt için giriş doğrulaması istiyor. Diğer kaynaklardan da çalınamadı.")
+        }
+    }
+    private var priority: Int {
+        switch self { case .noMatch: 0; case .unavailable: 1; case .invalidMedia: 2; case .network: 3; case .authenticationRequired: 4 }
+    }
+    static func preferred(_ existing: Error, _ incoming: Error) -> Error {
+        if let old = existing as? Self {
+            guard let next = incoming as? Self, next.priority > old.priority else { return old }
+            return next
+        }
+        return incoming
+    }
+    static func classify(_ error: Error) -> Self {
+        if let failure = error as? Self { return failure }
+        if let failure = error as? AudioStreamFailure {
+            return failure == .authenticationRequired ? .authenticationRequired : .unavailable
+        }
+        if error is URLError { return .network }
+        if let failure = error as? YouTubeKitError {
+            switch failure { case .videoUnavailable, .videoPrivate, .videoRegionBlocked, .membersOnly, .videoAgeRestricted: return .unavailable
+            default: return .invalidMedia }
+        }
+        if let api = error as? APIError, case .server(let text) = api, text.hasPrefix("HTTP ") { return .unavailable }
+        return .invalidMedia
     }
 }
 
@@ -306,7 +343,7 @@ actor API {
         guard Self.endpoint == "native" else { return }
         await catalog.prepareMatches(tracks)
     }
-    func invalidatePlayback() async { await playbackCache.invalidate() }
+    func invalidatePlayback() async { await playbackCache.invalidate(); await catalog.invalidatePlayback() }
     func lyrics(_ track: Track) async throws -> LyricsResponse {
         if Self.endpoint == "native" { return try await catalog.lyrics(track) }
         return try await request("v1/lyrics", body: JSONEncoder().encode(track))

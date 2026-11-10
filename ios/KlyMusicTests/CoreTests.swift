@@ -7,6 +7,117 @@ import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testLiveCatalogMatchingDiagnostic() async throws {
+        guard ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_MATCHING"] == "1" else { throw XCTSkip("Live catalog matching is opt-in") }
+        let catalog = NativeCatalog()
+        let response: HomeResponse
+        do { response = try await catalog.home() }
+        catch { throw XCTSkip("Live catalog unavailable: \(error.localizedDescription)") }
+        var artists = Set<String>()
+        let tracks = Array(response.sections.flatMap(\.tracks).filter { artists.insert(NativeCatalog.normalized($0.artist)).inserted }.prefix(6))
+        guard !tracks.isEmpty else { throw XCTSkip("Live catalog has no sample") }
+        var matched = 0
+        for track in tracks {
+            do {
+                let copies = try await catalog.matchingDiagnostic(track)
+                XCTAssertTrue(copies.allSatisfy { NativeCatalog.sameRecordingIdentity(track, $0) })
+                if !copies.isEmpty { matched += 1 }
+                print("CATALOG_MATCH_SAMPLE id=\(track.id) artist=\(track.artist) matched=\(!copies.isEmpty) candidates=\(copies.count) audio_verified=false")
+            } catch { print("CATALOG_MATCH_SAMPLE id=\(track.id) source_error=\(error.localizedDescription) audio_verified=false") }
+        }
+        print("CATALOG_MATCH_SUMMARY sampled=\(tracks.count) matched=\(matched) audible_verified=0")
+    }
+
+    func testResolverTriesPlayableCopiesBeyondFirstThreeAndReusesVerifiedStream() async throws {
+        let track = Track(id: "test:general-" + UUID().uuidString, title: "Unit Song", artist: "Unit Artist", duration: 180)
+        CatalogResponseProtocol.handler = { _ in Self.catalogRows(["aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc", "ddddddddddd"], title: track.title, artist: track.artist) }
+        defer { CatalogResponseProtocol.handler = nil }
+        let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [CatalogResponseProtocol.self]
+        let calls = PlaybackCallRecorder()
+        let catalog = NativeCatalog(session: URLSession(configuration: configuration)) { candidate, _, _ in
+            await calls.record(candidate.id)
+            guard candidate.id == "youtube:ddddddddddd" else { throw PlaybackFailure.unavailable }
+            return Self.resolverAsset(candidate.id)
+        }
+        let resolved = try await catalog.resolve(track, provider: "youtube", quality: "data")
+        XCTAssertEqual(resolved.id, "youtube:ddddddddddd")
+        let first = await calls.values
+        XCTAssertTrue(first.contains("youtube:ddddddddddd"), "Do not abandon matching copies after three unavailable candidates")
+        _ = try await catalog.resolve(track, provider: "youtube", quality: "data")
+        let cached = await calls.values
+        XCTAssertEqual(cached.filter { $0 == resolved.id }.count, 1)
+        await catalog.invalidatePlayback()
+        _ = try await catalog.resolve(track, provider: "youtube", quality: "data")
+        let renewed = await calls.values
+        XCTAssertEqual(renewed.filter { $0 == resolved.id }.count, 2, "A failed playback must be able to renew a signed media URL")
+    }
+
+    func testResolverContinuesGeneralQueriesAfterFirstMatchedCopyFails() async throws {
+        let track = Track(id: "test:alternate-query-" + UUID().uuidString, title: "Unit Song", artist: "Unit Artist", duration: 180)
+        let queries = NativeCatalog.candidateQueries(track)
+        XCTAssertGreaterThanOrEqual(queries.count, 2)
+        CatalogResponseProtocol.handler = { request in
+            let query = CatalogResponseProtocol.query(request)
+            let id = query == queries.first ? "aaaaaaaaaaa" : "bbbbbbbbbbb"
+            return Self.catalogRows([id], title: track.title, artist: track.artist)
+        }
+        defer { CatalogResponseProtocol.handler = nil }
+        let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [CatalogResponseProtocol.self]
+        let catalog = NativeCatalog(session: URLSession(configuration: configuration)) { candidate, _, _ in
+            if candidate.id == "youtube:aaaaaaaaaaa" { throw PlaybackFailure.unavailable }
+            return Self.resolverAsset(candidate.id)
+        }
+        let resolved = try await catalog.resolve(track, provider: "youtube", quality: "data")
+        XCTAssertEqual(resolved.id, "youtube:bbbbbbbbbbb")
+    }
+
+    func testResolverDistinguishesProviderAuthenticationFromNoMatch() async throws {
+        let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [CatalogResponseProtocol.self]
+        let track = Track(id: "test:reasons-" + UUID().uuidString, title: "Unit Song", artist: "Unit Artist", duration: 180)
+        CatalogResponseProtocol.handler = { _ in Self.catalogRows(["aaaaaaaaaaa"], title: track.title, artist: track.artist) }
+        defer { CatalogResponseProtocol.handler = nil }
+        let blocked = NativeCatalog(session: URLSession(configuration: configuration)) { _, _, _ in throw PlaybackFailure.authenticationRequired }
+        do { _ = try await blocked.resolve(track, provider: "youtube"); XCTFail("Blocked source cannot become a successful playback") }
+        catch let error as PlaybackFailure { XCTAssertEqual(error, .authenticationRequired) }
+        CatalogResponseProtocol.handler = { _ in Self.catalogRows([], title: track.title, artist: track.artist) }
+        let missing = NativeCatalog(session: URLSession(configuration: configuration)) { _, _, _ in XCTFail("No candidate should reach media extraction"); throw PlaybackFailure.invalidMedia }
+        do { _ = try await missing.resolve(track, provider: "youtube"); XCTFail("Expected missing recording") }
+        catch let error as PlaybackFailure { XCTAssertEqual(error, .noMatch) }
+    }
+
+    func testPlaybackRacePreservesActionableProviderFailureAcrossEmptyFallbacks() async {
+        do {
+            let _: String = try await PlaybackRace.first([
+                { throw PlaybackFailure.authenticationRequired },
+                { try await Task.sleep(for: .milliseconds(10)); throw PlaybackFailure.noMatch }
+            ])
+            XCTFail("Expected provider failure")
+        } catch let error as PlaybackFailure { XCTAssertEqual(error, .authenticationRequired) }
+        catch { XCTFail("Unexpected error: \(error)") }
+    }
+
+    func testYouTubeSearchParserRetainsUnlabelledCollaborationCredits() {
+        let root = Self.catalogRows(["aaaaaaaaaaa"], title: "Unit Song", artist: "First Artist & Second Artist", linkedArtists: false)
+        let result = NativeCatalog.youtubeTracks(root)
+        XCTAssertEqual(result.first?.artist, "First Artist & Second Artist")
+        XCTAssertEqual(result.first?.duration, 180)
+    }
+
+    private static func resolverAsset(_ id: String) -> PlaybackAsset {
+        PlaybackAsset(id: id, path: "https://rr1.googlevideo.com/audio?dur=180", provider: "youtube", codec: "aac", bitrate: 48,
+                      expiresAt: Date().timeIntervalSince1970 + 1800, duration: 180)
+    }
+    private static func catalogRows(_ ids: [String], title: String, artist: String, linkedArtists: Bool = true) -> [String: Any] {
+        var artistRun: [String: Any] = ["text": artist]
+        if linkedArtists { artistRun["navigationEndpoint"] = ["browseEndpoint": ["browseId": "UC_unit_artist"]] }
+        let rows = ids.map { id -> [String: Any] in
+            let titleColumn: [String: Any] = ["musicResponsiveListItemFlexColumnRenderer": ["text": ["runs": [["text": title]]]]]
+            let infoColumn: [String: Any] = ["musicResponsiveListItemFlexColumnRenderer": ["text": ["runs": [artistRun, ["text": " • "], ["text": "3:00"]]]]]
+            return ["musicResponsiveListItemRenderer": ["playlistItemData": ["videoId": id], "flexColumns": [titleColumn, infoColumn]]]
+        }
+        return ["contents": rows]
+    }
+
     func testLyricsDataSaverUsesOnlyExactRequestWhenTimedLyricsExist() async throws {
         let resolver = LyricsResolver { request in
             let url = request.url!
@@ -154,7 +265,7 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(NativeCatalog.match(original, cover), 0, "Missing credited collaborators must not be ignored")
         XCTAssertEqual(NativeCatalog.candidateQueries(original).first, "Betsy & Maria Iankovskaia sigma boy")
         XCTAssertTrue(NativeCatalog.candidateQueries(original).contains("sigma boy"))
-        XCTAssertEqual(NativeCatalog.candidateQueries(latin).count, 1)
+        XCTAssertGreaterThanOrEqual(NativeCatalog.candidateQueries(latin).count, 2)
     }
 
     func testDirectYouTubeIDCanEstablishDurationFromVerifiedMedia() {
@@ -1786,5 +1897,146 @@ extension CoreTests {
         let completed = expectation(description: "Lyrics request finished")
         let observation = player.$lyricsLoading.dropFirst().filter { !$0 }.prefix(1).sink { _ in completed.fulfill() }
         return (completed, observation)
+    }
+}
+
+
+extension CoreTests {
+    func testGeneralRecordingIdentityGeneratedMultilingualMetadataCorpus() {
+        // 12 languages x 5 recording versions x 8 presentation styles. These are
+        // generated metadata controls, not live-catalogue playback measurements.
+        let examples: [(String, String, String)] = [
+            ("Gece Yolu", "Sanatçı Bir", "Konuk İki"),
+            ("Étoile du Soir", "Artiste Un", "Invité Deux"),
+            ("Ночной свет", "Артист Один", "Гость Два"),
+            ("Το φως", "Καλλιτέχνης", "Φωνή"),
+            ("青い空", "音楽家", "客演"),
+            ("빛나는 밤", "가수 하나", "가수 둘"),
+            ("نور الليل", "فنان", "ضيف"),
+            ("शाम का गीत", "कलाकार", "अतिथि"),
+            ("Luz do Mar", "Artista", "Convidado"),
+            ("Gecənin Nəğməsi", "Sənətçi", "Qonaq"),
+            ("Hjärtats Sång", "Sångare", "Gäst"),
+            ("Күн нұры", "Әнші", "Қонақ")
+        ]
+        let versions = ["", " (Remix)", " (Live)", " (Acoustic)", " (Instrumental)"]
+        let presentations = [" (Official Audio)", " [Official Music Video]", " (Lyrics)", " (4K)",
+                             " (Official Lyric Video) (HD)", " Official Audio", " Official Video HD", "【Official Audio】"]
+        var accepted = 0, rejected = 0
+        for (title, artist, guest) in examples {
+            for version in versions {
+                let requested = Track(id: "apple:corpus", title: title + " (feat. " + guest + ")" + version, artist: artist, duration: 180)
+                for presentation in presentations {
+                    let candidate = Track(id: "youtube:abcdefghijk", title: title + version + presentation, artist: artist + ", " + guest, duration: 181)
+                    XCTAssertTrue(RecordingIdentity.same(requested, candidate), candidate.title + " / " + artist)
+                    accepted += 1
+                    var wrong = candidate; wrong.artist = artist + ", Uncredited Guest"
+                    XCTAssertFalse(RecordingIdentity.same(requested, wrong), "Missing/replaced collaborators must not match")
+                    rejected += 1
+                }
+                for otherVersion in versions where otherVersion != version {
+                    let wrong = Track(id: "youtube:abcdefghijk", title: title + otherVersion, artist: artist + " & " + guest, duration: 180)
+                    XCTAssertFalse(RecordingIdentity.same(requested, wrong), requested.title + " vs " + wrong.title)
+                    rejected += 1
+                }
+            }
+        }
+        XCTAssertEqual(accepted, 480)
+        XCTAssertEqual(rejected, 720)
+        print("RECORDING_IDENTITY_CORPUS accepted=480 rejected=720 languages=12 (generated metadata controls, not live playback)")
+    }
+
+    func testGeneralFeaturedRemixCreditsCanMoveBeforeOrAfterVersionBrackets() {
+        let requested = Track(id: "apple:remix", title: "PUSH2START (feat. Chris Brown & Sean Paul) (Remix)", artist: "Tyla", duration: 180)
+        let candidate = Track(id: "youtube:abcdefghijk", title: "PUSH2START (Remix) [Official Audio]", artist: "Tyla, Chris Brown, Sean Paul", duration: 181)
+        XCTAssertTrue(RecordingIdentity.same(requested, candidate))
+        var unbracketed = requested; unbracketed.title = "PUSH2START feat. Chris Brown & Sean Paul (Remix)"
+        XCTAssertTrue(RecordingIdentity.same(unbracketed, candidate))
+        var missing = candidate; missing.artist = "Tyla, Sean Paul"
+        XCTAssertFalse(RecordingIdentity.same(requested, missing))
+        var original = candidate; original.title = "PUSH2START (Official Audio)"
+        XCTAssertFalse(RecordingIdentity.same(requested, original))
+        XCTAssertTrue(RecordingIdentity.lookupTitles(requested).contains("PUSH2START (Remix)"))
+        XCTAssertTrue(RecordingIdentity.queries(requested).contains { $0.contains("Chris Brown") && $0.contains("Sean Paul") && $0.contains("remix") })
+    }
+
+    func testGeneralCreditSeparatorsRequireIndependentEvidenceForBandNames() {
+        let requested = Track(id: "apple:collaboration", title: "Midnight", artist: "Alpha & Beta", duration: 180)
+        for artists in ["Alpha, Beta", "Alpha feat. Beta", "Alpha x Beta", "Alpha and Beta", "Beta & Alpha"] {
+            XCTAssertTrue(RecordingIdentity.same(requested, Track(id: "youtube:abcdefghijk", title: "Midnight (Official Video)", artist: artists)), artists)
+        }
+        let band = Track(id: "apple:band", title: "Moon", artist: "Of Mountains and Seas")
+        XCTAssertTrue(RecordingIdentity.same(band, Track(id: "youtube:abcdefghijk", title: "Moon", artist: "Of Mountains and Seas - Topic")))
+        XCTAssertFalse(RecordingIdentity.same(band, Track(id: "youtube:abcdefghijk", title: "Of Mountains and Seas - Moon", artist: "Seas")), "A band-name word is not proof of a credited uploader")
+        XCTAssertFalse(RecordingIdentity.same(Track(id: "apple:x", title: "Moon", artist: "Alpha and Beta"), Track(id: "youtube:abcdefghijk", title: "Moon", artist: "Alpha x Beta")), "Two ambiguous parses must not corroborate each other")
+        let video = Track(id: "youtube:abcdefghijk", title: "Alpha & Beta - Midnight (Official Video)", artist: "Alpha")
+        XCTAssertTrue(RecordingIdentity.same(requested, video))
+        var unrelated = video; unrelated.artist = "Unrelated Uploader"
+        XCTAssertFalse(RecordingIdentity.same(requested, unrelated))
+    }
+
+    func testGeneralUnicodeRomanizationDoesNotUsePerArtistAliasesOrTitleSubstrings() {
+        let original = Track(id: "apple:unicode", title: "Sigma Boy (Сигма Бой)", artist: "Betsy & Maria Iankovskaia")
+        for artists in ["Betsy, Maria Yankovskaya", "Бэтси, Мария Янковская"] {
+            let candidate = Track(id: "youtube:abcdefghijk", title: "Сигма Бой (Official Audio)", artist: artists)
+            XCTAssertTrue(RecordingIdentity.same(original, candidate))
+        }
+        let transliterated = Track(id: "apple:transliterated", title: "Ночной свет", artist: "Ирина")
+        XCTAssertTrue(RecordingIdentity.same(transliterated, Track(id: "youtube:abcdefghijk", title: "Nochnoy svet", artist: "Irina")))
+        let directLatin = Track(id: "apple:latin", title: "Moon", artist: "Daria")
+        XCTAssertFalse(RecordingIdentity.same(directLatin, Track(id: "youtube:abcdefghijk", title: "Moon", artist: "Darya")), "Same-script names must not use unrestricted spelling fuzziness")
+        let unrelatedAlias = Track(id: "apple:alias", title: "Night (День)", artist: "Artist")
+        XCTAssertFalse(RecordingIdentity.same(unrelatedAlias, Track(id: "youtube:abcdefghijk", title: "Night", artist: "Artist")))
+        let exact = Track(id: "apple:exact", title: "Midnight", artist: "Alpha")
+        for title in ["Midnight Sun", "Midnight Medley", "Midnight (Radio Edit)", "Midnight (Sped Up)", "Midnight (Slowed)"] {
+            XCTAssertFalse(RecordingIdentity.same(exact, Track(id: "youtube:abcdefghijk", title: title, artist: "Alpha")), title)
+        }
+    }
+}
+
+private final class CatalogResponseProtocol: URLProtocol, @unchecked Sendable {
+    private static let lock = NSLock()
+    private static var storage: ((URLRequest) -> [String: Any])?
+    static var handler: ((URLRequest) -> [String: Any])? {
+        get { lock.lock(); defer { lock.unlock() }; return storage }
+        set { lock.lock(); storage = newValue; lock.unlock() }
+    }
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    static func query(_ request: URLRequest) -> String? {
+        var data = request.httpBody ?? Data()
+        if data.isEmpty, let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }
+            var buffer = [UInt8](repeating: 0, count: 1024)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }; data.append(contentsOf: buffer.prefix(count))
+            }
+        }
+        return ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["query"] as? String
+    }
+    override func startLoading() {
+        let object = Self.handler?(request) ?? ["contents": []]
+        let data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+
+extension CoreTests {
+    func testGeneralRecordingIdentitySoundtrackAndOriginalVersionPresentationKeepsRealVersions() {
+        let soundtrack = Track(id: "apple:soundtrack", title: "Gece (From \"Film Soundtrack\")", artist: "Artist")
+        for title in ["Gece", "Gece (Original Version)", "Gece Original Version", "Gece [Orijinal Versiyon]", "Gece Orijinal Versiyon (Official Audio)"] {
+            XCTAssertTrue(RecordingIdentity.same(soundtrack, Track(id: "youtube:abcdefghijk", title: title, artist: "Artist")), title)
+        }
+        var remix = soundtrack; remix.title = "Gece (From \"Film Soundtrack\") (Remix)"
+        XCTAssertTrue(RecordingIdentity.same(remix, Track(id: "youtube:abcdefghijk", title: "Gece (Remix) (Original Version)", artist: "Artist")))
+        for title in ["Gece (Remix)", "Gece (Live)", "Gece (Acoustic)", "Gece (Original Remix)"] {
+            XCTAssertFalse(RecordingIdentity.same(soundtrack, Track(id: "youtube:abcdefghijk", title: title, artist: "Artist")), title)
+        }
+        XCTAssertFalse(RecordingIdentity.same(remix, Track(id: "youtube:abcdefghijk", title: "Gece (Original Version)", artist: "Artist")))
+        XCTAssertTrue(RecordingIdentity.lookupTitles(soundtrack).contains("Gece"))
     }
 }

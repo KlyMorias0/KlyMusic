@@ -11,6 +11,59 @@ import XCTest
 @available(iOS 15.0, watchOS 8.0, tvOS 15.0, macOS 12.0, *)
 final class ExtractionTests: XCTestCase {
     
+    func testOriginalAudioMarkerAllowsPresentationPunctuation() throws {
+        for name in ["English (Original)", "English(Original)", "(original)", "English [Original]", "English — Original"] {
+            let stream = try Self.audioTrackFormat(name, isDefault: true)
+            XCTAssertEqual(Extraction.filterOutDubbedAudio(streamManifest: [stream]).count, 1, name)
+        }
+    }
+
+    func testLocalizedOriginalAudioMarkersKeepTheOriginalTrack() throws {
+        for name in ["Türkçe (Orijinal)", "Русский (Оригинал)", "日本語（オリジナル）", "한국어 (원본)", "中文（原声）"] {
+            let stream = try Self.audioTrackFormat(name, isDefault: false)
+            XCTAssertEqual(Extraction.filterOutDubbedAudio(streamManifest: [stream]).count, 1, name)
+        }
+    }
+
+    func testDefaultDubbedAndUnknownAudioTracksAreNotAssumedOriginal() throws {
+        for name in ["English", "English (Dubbed)", "English (not original)", "English (non-original)", "English (Dubbed Original)", "English (Unoriginal)"] {
+            let stream = try Self.audioTrackFormat(name, isDefault: true)
+            XCTAssertTrue(Extraction.filterOutDubbedAudio(streamManifest: [stream]).isEmpty, name)
+        }
+    }
+
+    func testOriginalAudioFilteringKeepsAllItsRenditionsAndUnlabelledAudio() throws {
+        let original = try Self.audioTrackFormat("English (Original)", isDefault: false)
+        let dubbed = try Self.audioTrackFormat("Türkçe (Dubbed)", isDefault: true)
+        let unlabelled = try JSONDecoder().decode(InnerTube.StreamingData.Format.self, from: Data(#"{"itag":139,"url":"https://rr1.googlevideo.com/audio","mimeType":"audio/mp4; codecs=\"mp4a.40.2\""}"#.utf8))
+        let rows = Extraction.filterOutDubbedAudio(streamManifest: [original, original, dubbed, unlabelled])
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertEqual(rows.compactMap { $0.audioTrack?.displayName }, ["English (Original)", "English (Original)"])
+    }
+
+    func testOriginalAudioMetadataMayOmitDefaultFlagWithoutBreakingPlayerDecode() throws {
+        func response(_ label: String) throws -> InnerTube.VideoInfo {
+            let object: [String: Any] = [
+                "playabilityStatus": ["status": "OK"],
+                "streamingData": ["adaptiveFormats": [[
+                    "itag": 140, "url": "https://rr1.googlevideo.com/audio", "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+                    "audioTrack": ["displayName": label, "id": "en.4"]
+                ]]]
+            ]
+            return try JSONDecoder().decode(InnerTube.VideoInfo.self, from: JSONSerialization.data(withJSONObject: object))
+        }
+        let original = try XCTUnwrap(response("English (Original)").streamingData?.adaptiveFormats)
+        XCTAssertNil(original.first?.audioTrack?.audioIsDefault)
+        XCTAssertEqual(Extraction.filterOutDubbedAudio(streamManifest: original).count, 1)
+        let unknown = try XCTUnwrap(response("English").streamingData?.adaptiveFormats)
+        XCTAssertTrue(Extraction.filterOutDubbedAudio(streamManifest: unknown).isEmpty)
+    }
+
+    private static func audioTrackFormat(_ name: String, isDefault: Bool) throws -> InnerTube.StreamingData.Format {
+        let object: [String: Any] = ["itag": 140, "url": "https://rr1.googlevideo.com/audio", "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"", "audioTrack": ["displayName": name, "id": "en.4", "audioIsDefault": isDefault]]
+        return try JSONDecoder().decode(InnerTube.StreamingData.Format.self, from: JSONSerialization.data(withJSONObject: object))
+    }
+
     func testExtractVideoID() {
         let url = "https://www.youtube.com/watch?v=2lAe1cqCOXo"
         let videoID = Extraction.extractVideoID(from: url)

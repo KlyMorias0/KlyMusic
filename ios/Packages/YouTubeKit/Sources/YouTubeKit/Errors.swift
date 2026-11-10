@@ -86,3 +86,8 @@ extension SignatureSolverError: LocalizedError {
 
 }
 #endif
+
+/// Availability after all extraction alternatives failed; never an instruction to bypass authentication.
+public enum AudioStreamFailure: String, Error {
+    case authenticationRequired, unavailable
+}

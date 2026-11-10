@@ -297,3 +297,13 @@
 "Ses dosyaları yedeğe dahil edilmez." = "Ses dosyaları yedeğe dahil edilmez.";
 
 "Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır." = "Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır.";
+
+"Bu şarkıyla eşleşen çalınabilir kayıt bulunamadı." = "Bu şarkıyla eşleşen çalınabilir kayıt bulunamadı.";
+
+"Kaynak bu kaydı şu anda sunamıyor. Yeniden dene." = "Kaynak bu kaydı şu anda sunamıyor. Yeniden dene.";
+
+"Bu kaydın ses bağlantısı doğrulanamadı. Yeniden dene." = "Bu kaydın ses bağlantısı doğrulanamadı. Yeniden dene.";
+
+"Müzik kaynağına bağlanılamadı. İnternet bağlantını kontrol edip yeniden dene." = "Müzik kaynağına bağlanılamadı. İnternet bağlantını kontrol edip yeniden dene.";
+
+"Kaynak bu kayıt için giriş doğrulaması istiyor. Diğer kaynaklardan da çalınamadı." = "Kaynak bu kayıt için giriş doğrulaması istiyor. Diğer kaynaklardan da çalınamadı.";
