@@ -394,6 +394,7 @@ public class YouTube {
             let fallback = try await streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }.sorted {
                 dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
             }
+            if !fallback.isEmpty { await availability.record("OK") }
             for stream in fallback {
                 try Task.checkCancellation()
                 if try await validate(stream) { return stream }
