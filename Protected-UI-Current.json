@@ -11,7 +11,7 @@
     "unchanged": true,
     "sha256": "8d358e551c964547f9d3760fc36e9cfbf1cd7df56cf27ebf4a47043c13704586"
   },
-  "scope": "2.11.0: preserve the entire approved player UI, queue, mini player, lyrics, native tabs, root, artwork rendering and player song menu. Change only audio recording matching, playback resolution scheduling, shared request cancellation and bounded media header probes.",
+  "scope": "2.12.0: preserve approved player UI, queue, mini player, lyrics layout/animation, native tabs, root, artwork rendering and song menu. Change only lyric provider lookup, matching and refreshable offline lyric cache; audio resolution is unchanged from 2.11.0.",
   "approvedPlayerAndLyrics": {
     "unchanged": true,
     "baselineCommit": "8e6ae9c2481d8b27c6075135d6a03ca6d63bc145",
