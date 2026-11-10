@@ -1780,7 +1780,7 @@ extension CoreTests {
         }
     }
 
-    @MainActor private func observeLyricsCompletion(_ player: MusicPlayer) -> (XCTestExpectation, AnyCancellable) {
+    @MainActor private func observeLyricsCompletion(_ player: KlyMusic.MusicPlayer) -> (XCTestExpectation, AnyCancellable) {
         // Call immediately after loadLyrics(), before yielding to its async provider request.
         let completed = expectation(description: "Lyrics request finished")
         let observation = player.$lyricsLoading.dropFirst().filter { !$0 }.prefix(1).sink { _ in completed.fulfill() }
