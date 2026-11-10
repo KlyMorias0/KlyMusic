@@ -7,6 +7,17 @@ import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testLyricsDataSaverUsesOnlyExactRequestWhenTimedLyricsExist() async throws {
+        let resolver = LyricsResolver { request in
+            let url = request.url!
+            XCTAssertEqual(url.path, "/api/get", "Data saver must not download extra search/provider payloads for a successful timed match")
+            let row: [String: Any] = ["trackName": "Gece", "artistName": "Test Artist", "duration": 180, "syncedLyrics": "[00:01]Test verse"]
+            return (try JSONSerialization.data(withJSONObject: row), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let response = try await resolver.resolve(Track(id: "test:single-lyrics-request", title: "Gece", artist: "Test Artist", duration: 180))
+        XCTAssertEqual(response.lines.first?.text, "Test verse")
+    }
+
     func testLyricsSearchFindsSameRecordingFromDifferentAlbumAfterExactMiss() async throws {
         let track = Track(id: "test:lyrics", title: "Gece", artist: "Test Artist", album: "Reissue", duration: 180)
         let resolver = LyricsResolver { request in

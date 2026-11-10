@@ -702,14 +702,16 @@ actor NativeCatalog {
 struct LyricsResolver {
     typealias Fetch = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
     private let fetch: Fetch
-    init(session: URLSession) {
+    private let conserveData: Bool
+    init(session: URLSession, conserveData: Bool = PlaybackPreferences.savesData()) {
+        self.conserveData = conserveData
         fetch = { request in
             let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse else { throw APIError.invalidResponse }
             return (data, response)
         }
     }
-    init(fetch: @escaping Fetch) { self.fetch = fetch }
+    init(conserveData: Bool = true, fetch: @escaping Fetch) { self.fetch = fetch; self.conserveData = conserveData }
 
     private struct Result {
         let lyrics: LyricsResponse?
@@ -719,18 +721,24 @@ struct LyricsResolver {
         try Task.checkCancellation()
         guard !track.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !track.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return LyricsResponse(instrumental: false) }
+        // A successful exact timed result uses one request in data saver mode.
+        let primary = conserveData ? try await attempt { try await exact(track) } : nil
+        if let lyrics = primary?.lyrics, !lyrics.lines.isEmpty { return lyrics }
         return try await withThrowingTaskGroup(of: Result.self) { group in
-            group.addTask { try await attempt { try await exact(track) } }
+            if !conserveData { group.addTask { try await attempt { try await exact(track) } } }
             group.addTask {
-                try await Task.sleep(for: .milliseconds(250))
+                if !conserveData { try await Task.sleep(for: .milliseconds(250)) }
                 return try await attempt { try await search(track) }
             }
             group.addTask {
-                try await Task.sleep(for: .milliseconds(500))
+                if !conserveData { try await Task.sleep(for: .milliseconds(500)) }
                 return try await attempt { try await alternative(track) }
             }
             defer { group.cancelAll() }
-            var plain: LyricsResponse?, instrumental: LyricsResponse?, failure: Error?
+            let first = primary?.lyrics
+            var plain = first?.instrumental == false ? first : nil
+            var instrumental = first?.instrumental == true ? first : nil
+            var failure = primary?.error
             while let result = try await group.next() {
                 try Task.checkCancellation()
                 if let lyrics = result.lyrics {
