@@ -1645,7 +1645,8 @@ extension CoreTests {
         let legacy = try XCTUnwrap(LyricsCacheEntry.decode(try JSONEncoder().encode(plain)))
         XCTAssertTrue(legacy.needsRefresh(at: now))
         XCTAssertEqual(legacy.response.plain, "Saved words")
-        for (response, lifetime) in [(plain, 24.0 * 60 * 60), (timed, 7.0 * 24 * 60 * 60), (instrumental, 6.0 * 60 * 60)] {
+        let cases: [(LyricsResponse, TimeInterval)] = [(plain, 86400), (timed, 604800), (instrumental, 21600)]
+        for (response, lifetime) in cases {
             let entry = LyricsCacheEntry(response: response, fetchedAt: now)
             XCTAssertFalse(entry.needsRefresh(at: now.addingTimeInterval(lifetime - 1)))
             XCTAssertTrue(entry.needsRefresh(at: now.addingTimeInterval(lifetime)))
