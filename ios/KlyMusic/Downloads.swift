@@ -275,8 +275,14 @@ struct DownloadJob {
                     self.jobs[id] = nil; self.tasks[id] = nil; self.requests[id] = nil
                     // Optional metadata must not keep the system's completion handler waiting on the network.
                     Task {
-                        if let lyrics = try? await API.shared.lyrics(track), let data = try? JSONEncoder().encode(lyrics) {
-                            try? data.write(to: MusicFiles.lyrics(id), options: .atomic)
+                        if var lyrics = try? await API.shared.lyrics(track), lyrics.hasContent {
+                            let file = MusicFiles.lyrics(id)
+                            if lyrics.lines.isEmpty, let data = try? Data(contentsOf: file),
+                               let saved = LyricsCacheEntry.decode(data), !saved.response.lines.isEmpty {
+                                lyrics = saved.response
+                            }
+                            let entry = LyricsCacheEntry(response: lyrics, fetchedAt: .now)
+                            if let data = try? JSONEncoder().encode(entry) { try? data.write(to: file, options: .atomic) }
                         }
                         await ArtworkCache.shared.pin(track.artworkURL)
                     }

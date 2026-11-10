@@ -22,6 +22,31 @@ import Network
     @Published var duration: Double = 0
 }
 
+struct LyricsCacheEntry: Codable {
+    static let currentResolverVersion = 1
+    var response: LyricsResponse
+    var fetchedAt: Date
+    var resolverVersion = LyricsCacheEntry.currentResolverVersion
+
+    static func decode(_ data: Data) -> LyricsCacheEntry? {
+        let decoder = JSONDecoder()
+        if let entry = try? decoder.decode(Self.self, from: data), entry.response.hasContent { return entry }
+        // Downloads and earlier releases saved the response without freshness metadata.
+        guard let response = try? decoder.decode(LyricsResponse.self, from: data), response.hasContent else { return nil }
+        return Self(response: response, fetchedAt: .distantPast, resolverVersion: 0)
+    }
+
+    func needsRefresh(at date: Date = .now) -> Bool {
+        guard resolverVersion == Self.currentResolverVersion, response.hasContent else { return true }
+        let lifetime: TimeInterval
+        if !response.lines.isEmpty { lifetime = 7 * 24 * 60 * 60 }
+        else if !(response.plain ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { lifetime = 24 * 60 * 60 }
+        else { lifetime = 6 * 60 * 60 }
+        let age = date.timeIntervalSince(fetchedAt)
+        return age < 0 || age >= lifetime
+    }
+}
+
 @MainActor final class MusicPlayer: ObservableObject {
     enum RepeatMode: String, CaseIterable { case off, all, one }
     @Published var current: Track?
@@ -59,6 +84,7 @@ import Network
     private var lyricTask: Task<Void, Never>?
     private var lyricGeneration = UUID()
     private var lyricsTrackID: String?
+    private var lyricCacheEntry: LyricsCacheEntry?
     private let lyricsLoader: (Track) async throws -> LyricsResponse
     private var observations: [NSKeyValueObservation] = []
     private var itemStatusObservation: NSKeyValueObservation?
@@ -485,8 +511,10 @@ import Network
     }
     private func resetLyrics() {
         lyricTask?.cancel()
+        lyricTask = nil
         lyricGeneration = UUID()
         lyricsTrackID = nil
+        lyricCacheEntry = nil
         lyrics = nil
         lyricsLoading = false
         lyricsError = nil
@@ -494,34 +522,43 @@ import Network
     func loadLyrics(force: Bool = false) {
         guard let track = current else { return }
         if lyricsTrackID != track.id { resetLyrics(); lyricsTrackID = track.id }
-        guard force || (lyrics == nil && !lyricsLoading) else { return }
+        guard force || lyricTask == nil else { return }
+        if lyricCacheEntry == nil,
+           let data = try? Data(contentsOf: MusicFiles.lyrics(track.id)),
+           let saved = LyricsCacheEntry.decode(data) {
+            lyricCacheEntry = saved
+            lyrics = saved.response
+        }
+        if !force, let saved = lyricCacheEntry, !saved.needsRefresh() {
+            lyrics = saved.response; lyricsLoading = false; lyricsError = nil
+            return
+        }
         lyricTask?.cancel()
         lyricGeneration = UUID(); let token = lyricGeneration
-        lyricsLoading = true; lyricsError = nil
-        if force { lyrics = nil }
+        // Keep offline words on screen while looking for newer, timed lyrics.
+        lyricsLoading = lyrics?.hasContent != true; lyricsError = nil
         lyricTask = Task {
             defer {
-                if lyricGeneration == token { lyricsLoading = false }
-            }
-            if !force, let data = try? Data(contentsOf: MusicFiles.lyrics(track.id)),
-               let saved = try? JSONDecoder().decode(LyricsResponse.self, from: data),
-               saved.instrumental || !(saved.plain ?? "").isEmpty || !(saved.synced ?? "").isEmpty {
-                if current?.id == track.id, lyricGeneration == token { lyrics = saved }; return
+                if lyricGeneration == token { lyricsLoading = false; lyricTask = nil }
             }
             do {
                 let fetched = try await lyricsLoader(track)
                 try Task.checkCancellation()
-                if current?.id == track.id, lyricGeneration == token {
-                    lyrics = fetched
-                    if fetched.instrumental || !(fetched.plain ?? "").isEmpty || !(fetched.synced ?? "").isEmpty,
-                       let data = try? JSONEncoder().encode(fetched) {
-                        try? data.write(to: MusicFiles.lyrics(track.id), options: .atomic)
-                    }
+                guard current?.id == track.id, lyricGeneration == token, fetched.hasContent else { return }
+                let response: LyricsResponse
+                if let saved = lyricCacheEntry?.response, !saved.lines.isEmpty, fetched.lines.isEmpty {
+                    response = saved
+                } else { response = fetched }
+                let entry = LyricsCacheEntry(response: response, fetchedAt: .now)
+                lyrics = response
+                lyricCacheEntry = entry
+                if let data = try? JSONEncoder().encode(entry) {
+                    try? data.write(to: MusicFiles.lyrics(track.id), options: .atomic)
                 }
             } catch is CancellationError { }
             catch {
                 guard current?.id == track.id, lyricGeneration == token else { return }
-                lyricsError = L("Şarkı sözleri yüklenemedi. Yeniden dene.")
+                if lyrics?.hasContent != true { lyricsError = L("Şarkı sözleri yüklenemedi. Yeniden dene.") }
             }
         }
     }

@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 import SwiftData
 import AVFoundation
 import MediaPlayer
@@ -6,6 +7,126 @@ import UIKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
+    func testLyricsSearchFindsSameRecordingFromDifferentAlbumAfterExactMiss() async throws {
+        let track = Track(id: "test:lyrics", title: "Gece", artist: "Test Artist", album: "Reissue", duration: 180)
+        let resolver = LyricsResolver { request in
+            let url = try XCTUnwrap(request.url)
+            let object: Any
+            var status = 200
+            if url.path == "/api/get" { status = 404; object = [String: String]() }
+            else if url.path == "/api/search" {
+                object = [["trackName": "Gece", "artistName": "Test Artist", "albumName": "Original", "duration": 181, "plainLyrics": "Test verse", "syncedLyrics": "[00:01.00]Test verse", "instrumental": false]]
+            } else { status = 404; object = [String: String]() }
+            return (try JSONSerialization.data(withJSONObject: object), HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)!)
+        }
+        let result = try await resolver.resolve(track)
+        XCTAssertEqual(result.lines.first?.text, "Test verse")
+        XCTAssertEqual(result.lines.first?.time, 1)
+    }
+
+    func testLyricsMatchingRejectsDifferentArtistsVersionsAndDurations() throws {
+        let requested = Track(id: "test:words", title: "Gece", artist: "Test Artist", duration: 180)
+        func record(_ title: String, _ artist: String, _ duration: Double) throws -> LRCLyricsRecord {
+            let object: [String: Any] = ["trackName": title, "artistName": artist, "duration": duration, "syncedLyrics": "[00:01]Test verse", "plainLyrics": "Test verse"]
+            return try JSONDecoder().decode(LRCLyricsRecord.self, from: JSONSerialization.data(withJSONObject: object))
+        }
+        XCTAssertNotNil(try record("Gece", "Test Artist", 181).matched(to: requested))
+        for (title, artist, duration) in [("Gece Remix", "Test Artist", 180.0), ("Gece", "Other Artist", 180.0), ("Gece", "Test Artist", 350.0), ("Gece", "Test Artist", 0.0)] {
+            XCTAssertNil(try record(title, artist, duration).matched(to: requested))
+        }
+    }
+
+    func testLyricsOVHFallbackHandlesUnicodePathAndDoesNotInventTiming() async throws {
+        let track = Track(id: "test:ovh", title: "Şımarık / Test", artist: "Tarkan / Test", duration: 190)
+        let resolver = LyricsResolver { request in
+            let url = try XCTUnwrap(request.url)
+            let isAlternative = url.host == "api.lyrics.ovh"
+            if isAlternative {
+                let encoded = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? ""
+                XCTAssertTrue(encoded.contains("%2F"), "Each path component must escape slash")
+                XCTAssertTrue(encoded.contains("%C5"), "Turkish characters must be percent encoded")
+            }
+            let object: Any = isAlternative ? ["lyrics": "  Test verse\nNext verse  "] : (url.path == "/api/search" ? [] : [String: String]())
+            let status = isAlternative || url.path == "/api/search" ? 200 : 404
+            return (try JSONSerialization.data(withJSONObject: object), HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)!)
+        }
+        let result = try await resolver.resolve(track)
+        XCTAssertEqual(result.plain, "Test verse\nNext verse")
+        XCTAssertTrue(result.lines.isEmpty)
+        XCTAssertNil(result.synced)
+        XCTAssertFalse(result.instrumental)
+    }
+
+    func testLyricsPreferSyncedSearchOverExactPlainText() async throws {
+        let resolver = LyricsResolver { request in
+            let url = request.url!
+            let base: [String: Any] = ["trackName": "Gece", "artistName": "Test Artist", "duration": 180, "plainLyrics": "Plain exact"]
+            var object: Any = base
+            if url.path == "/api/search" {
+                var row = base; row["syncedLyrics"] = "[00:02]Timed match"; object = [row]
+            } else if url.host == "api.lyrics.ovh" { object = ["lyrics": "Other plain"] }
+            return (try JSONSerialization.data(withJSONObject: object), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let result = try await resolver.resolve(Track(id: "test:priority", title: "Gece", artist: "Test Artist", duration: 180))
+        XCTAssertEqual(result.lines.first?.text, "Timed match")
+    }
+
+    func testLyricsProviderFailureCanFallBackAndMissingIsDifferentFromFailure() async throws {
+        let track = Track(id: "test:availability", title: "Gece", artist: "Test Artist", duration: 180)
+        let fallback = LyricsResolver { request in
+            let url = request.url!
+            if url.host == "lrclib.net" { throw URLError(.timedOut) }
+            return (Data(#"{"lyrics":"Fallback verse"}"#.utf8), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let recovered = try await fallback.resolve(track)
+        XCTAssertEqual(recovered.plain, "Fallback verse")
+        let missing = LyricsResolver { request in (Data(), HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!) }
+        let empty = try await missing.resolve(track)
+        XCTAssertFalse(empty.hasContent)
+        let failed = LyricsResolver { _ in throw URLError(.notConnectedToInternet) }
+        do { _ = try await failed.resolve(track); XCTFail("Unavailable sources must remain retryable errors") } catch is URLError { }
+    }
+
+    func testLyricsUnknownDurationAndInvalidTimingsRemainPlain() throws {
+        func decode(_ object: [String: Any]) throws -> LRCLyricsRecord {
+            try JSONDecoder().decode(LRCLyricsRecord.self, from: JSONSerialization.data(withJSONObject: object))
+        }
+        let requested = Track(id: "test:unknown", title: "Gece", artist: "Test Artist")
+        let value = try XCTUnwrap(decode(["trackName": "Gece", "artistName": "Test Artist", "duration": 180, "syncedLyrics": "[00:02]Test verse"]).matched(to: requested))
+        XCTAssertEqual(value.plain, "Test verse")
+        XCTAssertTrue(value.lines.isEmpty)
+        let malformed = try decode(["trackName": "Gece", "artistName": "Test Artist", "duration": 180, "syncedLyrics": "not timed", "plainLyrics": "   "])
+        XCTAssertNil(malformed.matched(to: requested))
+        let overflow = try XCTUnwrap(decode(["trackName": "Gece", "artistName": "Test Artist", "duration": 180, "syncedLyrics": "[99:00]Test verse"]).matched(to: Track(id: "test:bounded", title: "Gece", artist: "Test Artist", duration: 180)))
+        XCTAssertTrue(overflow.lines.isEmpty)
+        XCTAssertEqual(overflow.plain, "Test verse")
+    }
+
+    func testLyricsCancellationStopsPendingLookupAndDelayedFallbacks() async throws {
+        let started = expectation(description: "Exact lyric lookup started")
+        let resolver = LyricsResolver { request in
+            XCTAssertEqual(request.url?.path, "/api/get", "Cancelled lookup must not start delayed fallbacks")
+            started.fulfill()
+            try await Task.sleep(for: .seconds(30))
+            throw URLError(.timedOut)
+        }
+        let task = Task { try await resolver.resolve(Track(id: "test:cancel-lyrics", title: "Gece", artist: "Test Artist", duration: 180)) }
+        await fulfillment(of: [started], timeout: 2)
+        task.cancel()
+        do { _ = try await task.value; XCTFail("Expected cancellation") } catch is CancellationError { }
+    }
+
+    func testPublicLyricsSourcesDiagnostic() async throws {
+        guard ProcessInfo.processInfo.environment["KLYMUSIC_LIVE_LYRICS"] == "1" else { throw XCTSkip("Live lyric diagnostic is opt-in") }
+        do {
+            let result = try await LyricsResolver(session: URLSession(configuration: .ephemeral)).resolve(Track(id: "lyrics:diagnostic", title: "Şımarık", artist: "Tarkan", duration: 191))
+            guard result.hasContent else { throw APIError.invalidResponse }
+            print("LIVE_LYRICS matched=true timed=\(!result.lines.isEmpty) plain_characters=\(result.plain?.count ?? 0) (no lyric body logged)")
+        } catch {
+            throw XCTSkip("Live lyric provider unavailable from CI: \(error.localizedDescription)")
+        }
+    }
+
     func testBilingualSigmaBoyMatchesLatinAndCyrillicCreditsWithoutAcceptingOtherVersions() {
         let original = Track(id: "apple:sigma", title: "Sigma Boy (Сигма Бой)", artist: "Betsy & Maria Iankovskaia", duration: 161)
         let latin = Track(id: "youtube:abcdefghijk", title: "Sigma Boy", artist: "Betsy, Maria Yankovskaya", duration: 162)
@@ -1484,5 +1605,174 @@ private final class AudioProbeTestProtocol: URLProtocol, @unchecked Sendable {
     }
     override func stopLoading() {
         Self.lock.lock(); Self.stopped.insert(request.url!.path); Self.lock.unlock()
+    }
+}
+
+
+extension CoreTests {
+    func testLyricsCacheRejectsWhitespaceAndMalformedTimedContent() throws {
+        let invalid = [
+            LyricsResponse(plain: " \n\t ", synced: nil, instrumental: false),
+            LyricsResponse(plain: nil, synced: "not timed lyrics", instrumental: false),
+            LyricsResponse(plain: nil, synced: "[ar:Artist]\n[00:01.20]   ", instrumental: false)
+        ]
+        for response in invalid {
+            XCTAssertFalse(response.hasContent)
+            XCTAssertNil(LyricsCacheEntry.decode(try JSONEncoder().encode(response)))
+            let envelope = LyricsCacheEntry(response: response, fetchedAt: .now)
+            XCTAssertNil(LyricsCacheEntry.decode(try JSONEncoder().encode(envelope)))
+        }
+        XCTAssertTrue(LyricsResponse(plain: nil, synced: "[00:01.20]Words", instrumental: false).hasContent)
+        XCTAssertTrue(LyricsResponse(plain: nil, synced: nil, instrumental: true).hasContent)
+    }
+
+    func testLyricsCacheRefreshesLegacyAndExpiresByContentQuality() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let plain = LyricsResponse(plain: "Saved words", instrumental: false)
+        let timed = LyricsResponse(plain: "Saved words", synced: "[00:01.00]Saved words", instrumental: false)
+        let instrumental = LyricsResponse(instrumental: true)
+        let legacy = try XCTUnwrap(LyricsCacheEntry.decode(try JSONEncoder().encode(plain)))
+        XCTAssertTrue(legacy.needsRefresh(at: now))
+        XCTAssertEqual(legacy.response.plain, "Saved words")
+        for (response, lifetime) in [(plain, 24.0 * 60 * 60), (timed, 7.0 * 24 * 60 * 60), (instrumental, 6.0 * 60 * 60)] {
+            let entry = LyricsCacheEntry(response: response, fetchedAt: now)
+            XCTAssertFalse(entry.needsRefresh(at: now.addingTimeInterval(lifetime - 1)))
+            XCTAssertTrue(entry.needsRefresh(at: now.addingTimeInterval(lifetime)))
+            XCTAssertTrue(entry.needsRefresh(at: now.addingTimeInterval(-1)))
+            let obsolete = LyricsCacheEntry(response: response, fetchedAt: now, resolverVersion: 0)
+            XCTAssertTrue(obsolete.needsRefresh(at: now))
+        }
+    }
+
+    @MainActor func testEmptyLyricsAreNotPersistedAndCanRetryWithoutForce() async throws {
+        let track = Track(id: "empty-lyrics-" + UUID().uuidString, title: "Retry", artist: "Test")
+        let file = MusicFiles.lyrics(track.id)
+        defer { try? FileManager.default.removeItem(at: file) }
+        var attempts = 0
+        let player = MusicPlayer { _ in
+            attempts += 1
+            if attempts == 1 { return LyricsResponse(plain: " \n ", synced: "malformed", instrumental: false) }
+            return LyricsResponse(plain: "Recovered", synced: "[00:01.00]Recovered", instrumental: false)
+        }
+        player.current = track
+        player.loadLyrics()
+        let first = observeLyricsCompletion(player)
+        await fulfillment(of: [first.0], timeout: 2)
+        withExtendedLifetime(first.1) {}
+        XCTAssertNil(player.lyrics)
+        XCTAssertNil(player.lyricsError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        player.loadLyrics()
+        let second = observeLyricsCompletion(player)
+        await fulfillment(of: [second.0], timeout: 2)
+        withExtendedLifetime(second.1) {}
+        XCTAssertEqual(attempts, 2)
+        XCTAssertEqual(player.lyrics?.lines.first?.text, "Recovered")
+        let cached = try XCTUnwrap(LyricsCacheEntry.decode(Data(contentsOf: file)))
+        XCTAssertEqual(cached.resolverVersion, LyricsCacheEntry.currentResolverVersion)
+        XCTAssertFalse(cached.needsRefresh())
+    }
+
+    @MainActor func testLegacyPlainLyricsStayVisibleWhileUpgradingToTimedLyrics() async throws {
+        let track = Track(id: "legacy-lyrics-" + UUID().uuidString, title: "Legacy", artist: "Test")
+        let file = MusicFiles.lyrics(track.id)
+        defer { try? FileManager.default.removeItem(at: file) }
+        try JSONEncoder().encode(LyricsResponse(plain: "Offline words", instrumental: false)).write(to: file)
+        var pending: CheckedContinuation<LyricsResponse, Error>?
+        var attempts = 0
+        let started = expectation(description: "Stale lyrics refreshed")
+        let player = MusicPlayer { _ in
+            attempts += 1
+            return try await withCheckedThrowingContinuation { continuation in
+                pending = continuation; started.fulfill()
+            }
+        }
+        player.current = track
+        player.loadLyrics()
+        let completion = observeLyricsCompletion(player)
+        XCTAssertEqual(player.lyrics?.plain, "Offline words")
+        XCTAssertFalse(player.lyricsLoading)
+        await fulfillment(of: [started], timeout: 2)
+        player.loadLyrics() // Reopening the sheet must not duplicate its background request.
+        XCTAssertEqual(attempts, 1)
+        pending?.resume(returning: LyricsResponse(plain: "Offline words", synced: "[00:01.00]Offline words", instrumental: false))
+        await fulfillment(of: [completion.0], timeout: 2)
+        withExtendedLifetime(completion.1) {}
+        XCTAssertEqual(player.lyrics?.lines.first?.text, "Offline words")
+        XCTAssertNil(player.lyricsError)
+        let saved = try XCTUnwrap(LyricsCacheEntry.decode(Data(contentsOf: file)))
+        XCTAssertFalse(saved.needsRefresh())
+        XCTAssertEqual(saved.response.lines.count, 1)
+    }
+
+    @MainActor func testStaleLyricsSurviveOfflineAndEmptyRefreshWithoutAnErrorOverlay() async throws {
+        for offline in [true, false] {
+            let track = Track(id: "offline-lyrics-" + UUID().uuidString, title: "Offline", artist: "Test")
+            let file = MusicFiles.lyrics(track.id)
+            defer { try? FileManager.default.removeItem(at: file) }
+            let cached = LyricsCacheEntry(response: LyricsResponse(plain: "Keep offline words", instrumental: false), fetchedAt: .now.addingTimeInterval(-2 * 24 * 60 * 60))
+            let savedData = try JSONEncoder().encode(cached)
+            try savedData.write(to: file)
+            let player = MusicPlayer { _ in
+                if offline { throw URLError(.notConnectedToInternet) }
+                return LyricsResponse(instrumental: false)
+            }
+            player.current = track
+            player.loadLyrics(force: offline)
+            let completion = observeLyricsCompletion(player)
+            XCTAssertEqual(player.lyrics?.plain, "Keep offline words")
+            XCTAssertFalse(player.lyricsLoading)
+            await fulfillment(of: [completion.0], timeout: 2)
+            withExtendedLifetime(completion.1) {}
+            XCTAssertEqual(player.lyrics?.plain, "Keep offline words")
+            XCTAssertFalse(player.lyricsLoading)
+            XCTAssertNil(player.lyricsError)
+            XCTAssertEqual(try Data(contentsOf: file), savedData)
+        }
+    }
+
+    @MainActor func testFreshTimedLyricsUseCacheWithoutAProviderRequest() throws {
+        let track = Track(id: "fresh-lyrics-" + UUID().uuidString, title: "Fresh", artist: "Test")
+        let file = MusicFiles.lyrics(track.id)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let response = LyricsResponse(plain: "Cached words", synced: "[00:01.00]Cached words", instrumental: false)
+        try JSONEncoder().encode(LyricsCacheEntry(response: response, fetchedAt: .now)).write(to: file)
+        let player = MusicPlayer { _ in
+            XCTFail("Fresh timed lyrics must not request the provider again")
+            return LyricsResponse(instrumental: false)
+        }
+        player.current = track
+        player.loadLyrics()
+        XCTAssertEqual(player.lyrics?.lines.first?.text, "Cached words")
+        XCTAssertFalse(player.lyricsLoading)
+        XCTAssertNil(player.lyricsError)
+    }
+
+    @MainActor func testTimedLyricsAreNotDowngradedByPlainOrInstrumentalRefresh() async throws {
+        for replacement in [LyricsResponse(plain: "Plain replacement", instrumental: false), LyricsResponse(instrumental: true)] {
+            let track = Track(id: "timed-lyrics-" + UUID().uuidString, title: "Timed", artist: "Test")
+            let file = MusicFiles.lyrics(track.id)
+            defer { try? FileManager.default.removeItem(at: file) }
+            let response = LyricsResponse(plain: "Timed words", synced: "[00:01.00]Timed words", instrumental: false)
+            let cached = LyricsCacheEntry(response: response, fetchedAt: .now.addingTimeInterval(-8 * 24 * 60 * 60))
+            try JSONEncoder().encode(cached).write(to: file)
+            let player = MusicPlayer { _ in replacement }
+            player.current = track
+            player.loadLyrics()
+            let completion = observeLyricsCompletion(player)
+            await fulfillment(of: [completion.0], timeout: 2)
+            withExtendedLifetime(completion.1) {}
+            XCTAssertEqual(player.lyrics?.lines.first?.text, "Timed words")
+            let refreshed = try XCTUnwrap(LyricsCacheEntry.decode(Data(contentsOf: file)))
+            XCTAssertFalse(refreshed.needsRefresh())
+            XCTAssertEqual(refreshed.response.lines.first?.text, "Timed words")
+        }
+    }
+
+    @MainActor private func observeLyricsCompletion(_ player: MusicPlayer) -> (XCTestExpectation, AnyCancellable) {
+        // Call immediately after loadLyrics(), before yielding to its async provider request.
+        let completed = expectation(description: "Lyrics request finished")
+        let observation = player.$lyricsLoading.dropFirst().filter { !$0 }.prefix(1).sink { _ in completed.fulfill() }
+        return (completed, observation)
     }
 }

@@ -484,13 +484,12 @@ actor NativeCatalog {
     }
 
     func lyrics(_ track: Track) async throws -> LyricsResponse {
-        var params = ["track_name": track.title, "artist_name": track.artist]
-        if !track.album.isEmpty { params["album_name"] = track.album }
-        if track.duration > 0 { params["duration"] = String(Int(track.duration.rounded())) }
-        do {
-            let root = try await json("https://lrclib.net/api/get", query: params)
-            return LyricsResponse(plain: root["plainLyrics"] as? String, synced: root["syncedLyrics"] as? String, instrumental: root["instrumental"] as? Bool ?? false)
-        } catch let APIError.server(message) where message == "HTTP 404" { return LyricsResponse(instrumental: false) }
+        try await LyricsResolver(session: session).resolve(track)
+    }
+
+    static func lyricLookupTitles(_ track: Track) -> [String] {
+        var seen = Set<String>()
+        return [track.title, bilingualTitleBase(track.title)].filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
     private func trace(_ message: String) {
@@ -696,5 +695,147 @@ actor NativeCatalog {
             return (dictionary[key] as? String).map { [$0] } ?? dictionary.values.flatMap { values($0, key: key) }
         }
         return (object as? [Any] ?? []).flatMap { values($0, key: key) }
+    }
+}
+
+/// Public lyric sources; preserve real timestamps and never synthesize timing for plain text.
+struct LyricsResolver {
+    typealias Fetch = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
+    private let fetch: Fetch
+    init(session: URLSession) {
+        fetch = { request in
+            let (data, response) = try await session.data(for: request)
+            guard let response = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+            return (data, response)
+        }
+    }
+    init(fetch: @escaping Fetch) { self.fetch = fetch }
+
+    private struct Result {
+        let lyrics: LyricsResponse?
+        let error: Error?
+    }
+    func resolve(_ track: Track) async throws -> LyricsResponse {
+        try Task.checkCancellation()
+        guard !track.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !track.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return LyricsResponse(instrumental: false) }
+        return try await withThrowingTaskGroup(of: Result.self) { group in
+            group.addTask { try await attempt { try await exact(track) } }
+            group.addTask {
+                try await Task.sleep(for: .milliseconds(250))
+                return try await attempt { try await search(track) }
+            }
+            group.addTask {
+                try await Task.sleep(for: .milliseconds(500))
+                return try await attempt { try await alternative(track) }
+            }
+            defer { group.cancelAll() }
+            var plain: LyricsResponse?, instrumental: LyricsResponse?, failure: Error?
+            while let result = try await group.next() {
+                try Task.checkCancellation()
+                if let lyrics = result.lyrics {
+                    if !lyrics.lines.isEmpty { return lyrics }
+                    if let text = lyrics.plain, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { plain = plain ?? lyrics }
+                    else if lyrics.instrumental { instrumental = lyrics }
+                }
+                failure = failure ?? result.error
+            }
+            if let plain { return plain }
+            if let instrumental { return instrumental }
+            if let failure { throw failure }
+            return LyricsResponse(instrumental: false)
+        }
+    }
+    private func attempt(_ operation: () async throws -> LyricsResponse?) async throws -> Result {
+        do { return Result(lyrics: try await operation(), error: nil) }
+        catch is CancellationError { throw CancellationError() }
+        catch { try Task.checkCancellation(); return Result(lyrics: nil, error: error) }
+    }
+    private func exact(_ track: Track) async throws -> LyricsResponse? {
+        var params = ["track_name": track.title, "artist_name": track.artist]
+        if !track.album.isEmpty { params["album_name"] = track.album }
+        if track.duration.isFinite, track.duration > 0 { params["duration"] = String(Int(track.duration.rounded())) }
+        guard let data = try await request("https://lrclib.net/api/get", query: params) else { return nil }
+        return try JSONDecoder().decode(LRCLyricsRecord.self, from: data).matched(to: track)
+    }
+    private func search(_ track: Track) async throws -> LyricsResponse? {
+        // Search by title so a reissue album or collaboration spelling cannot hide the result.
+        // Every row is checked locally against title, credited artists and recording duration.
+        var fallback: LyricsResponse?
+        for title in NativeCatalog.lyricLookupTitles(track).reversed() {
+            guard let data = try await request("https://lrclib.net/api/search", query: ["track_name": title]) else { continue }
+            let records = try JSONDecoder().decode([LRCLyricsRecord].self, from: data)
+            let matches = records.compactMap { record -> (LRCLyricsRecord, LyricsResponse)? in
+                guard let value = record.matched(to: track) else { return nil }
+                return (record, value)
+            }.sorted { first, second in
+                if first.1.lines.isEmpty != second.1.lines.isEmpty { return !first.1.lines.isEmpty }
+                let a = NativeCatalog.normalized(first.0.albumName ?? "") == NativeCatalog.normalized(track.album)
+                let b = NativeCatalog.normalized(second.0.albumName ?? "") == NativeCatalog.normalized(track.album)
+                if a != b { return a }
+                return abs((first.0.duration ?? 0) - track.duration) < abs((second.0.duration ?? 0) - track.duration)
+            }
+            if let timed = matches.first(where: { !$0.1.lines.isEmpty }) { return timed.1 }
+            if let value = matches.first?.1 { fallback = fallback ?? value }
+        }
+        return fallback
+    }
+    private func alternative(_ track: Track) async throws -> LyricsResponse? {
+        // This source has no timestamps or identity metadata: query the full credited artist exactly.
+        for title in NativeCatalog.lyricLookupTitles(track) {
+            let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/?#%"))
+            guard let artist = track.artist.addingPercentEncoding(withAllowedCharacters: allowed),
+                  let title = title.addingPercentEncoding(withAllowedCharacters: allowed),
+                  let data = try await request("https://api.lyrics.ovh/v1/" + artist + "/" + title) else { continue }
+            struct Response: Decodable { let lyrics: String? }
+            let text = try JSONDecoder().decode(Response.self, from: data).lyrics?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let text, !text.isEmpty { return LyricsResponse(plain: text, instrumental: false) }
+        }
+        return nil
+    }
+    private func request(_ address: String, query: [String: String] = [:]) async throws -> Data? {
+        try Task.checkCancellation()
+        guard var components = URLComponents(string: address), components.scheme == "https",
+              ["lrclib.net", "api.lyrics.ovh"].contains(components.host ?? "") else { throw APIError.invalidResponse }
+        if !query.isEmpty { components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) } }
+        guard let url = components.url else { throw APIError.invalidResponse }
+        var request = URLRequest(url: url, timeoutInterval: 8)
+        request.setValue("KlyMusic/2.12 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await fetch(request)
+        try Task.checkCancellation()
+        if response.statusCode == 404 { return nil }
+        guard (200..<300).contains(response.statusCode) else { throw APIError.server("HTTP \(response.statusCode)") }
+        guard data.count <= 2_000_000 else { throw APIError.invalidResponse }
+        return data
+    }
+}
+
+struct LRCLyricsRecord: Decodable {
+    let trackName: String?
+    let artistName: String?
+    let albumName: String?
+    let duration: Double?
+    let instrumental: Bool?
+    let plainLyrics: String?
+    let syncedLyrics: String?
+
+    func matched(to requested: Track) -> LyricsResponse? {
+        guard let title = trackName, let artist = artistName else { return nil }
+        let candidate = Track(id: "lyrics", title: title, artist: artist, album: albumName ?? "", duration: duration ?? 0)
+        guard NativeCatalog.sameRecordingIdentity(requested, candidate) else { return nil }
+        let knownRequested = requested.duration.isFinite && requested.duration > 0
+        if knownRequested {
+            guard NativeCatalog.durationCompatible(expected: requested.duration, actual: candidate.duration) else { return nil }
+        }
+        let plain = plainLyrics?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let synced = syncedLyrics?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed = LyricLine.parse(synced ?? "")
+        let sameAlbum = !requested.album.isEmpty && NativeCatalog.normalized(requested.album) == NativeCatalog.normalized(candidate.album)
+        let bounded = candidate.duration.isFinite && candidate.duration > 0 && parsed.allSatisfy { $0.time >= 0 && $0.time <= candidate.duration + 5 }
+        let timed = !parsed.isEmpty && bounded && (knownRequested || sameAlbum)
+        let text = (plain?.isEmpty == false ? plain : (!parsed.isEmpty ? parsed.map(\.text).joined(separator: "\n") : nil))
+        let response = LyricsResponse(plain: text, synced: timed ? synced : nil, instrumental: instrumental == true && text == nil && !timed)
+        return response.hasContent ? response : nil
     }
 }

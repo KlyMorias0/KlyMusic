@@ -96,11 +96,14 @@ struct PlaybackAsset: Codable, Sendable {
     var duration: Double
 }
 
-struct LyricsResponse: Codable {
+struct LyricsResponse: Codable, Sendable {
     var plain: String?
     var synced: String?
     var instrumental: Bool
     var lines: [LyricLine] { LyricLine.parse(synced ?? "") }
+    var hasContent: Bool {
+        instrumental || !(plain ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !lines.isEmpty
+    }
 }
 
 struct LyricLine: Identifiable, Equatable {
