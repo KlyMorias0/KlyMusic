@@ -1,10 +1,10 @@
 {
-  "heroHeight": 180,
-  "heroCornerRadius": 18,
-  "heroTag": "Öne çıkan",
-  "quickLaunchGridCount": 6,
-  "tileCornerRadius": 10,
-  "cardCornerRadius": 10,
-  "sectionSpacing": 30,
+  "heroHeight": 210,
+  "heroCornerRadius": 22,
+  "heroTag": "Günün Hitleri",
+  "quickLaunchGridCount": 10,
+  "tileCornerRadius": 14,
+  "cardCornerRadius": 14,
+  "sectionSpacing": 24,
   "accentHex": "E87D73"
 }
