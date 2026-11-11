@@ -24,11 +24,11 @@ struct LibraryView: View {
                         Text(L(sortValue == LibraryCollectionSort.added.rawValue ? "Son Eklenenler" : "Albümler ve Listeler")).font(.title2.bold()).tracking(-0.5)
                         Spacer()
                         Menu {
-                            Picker("Sırala", selection: $sortValue) {
+                            Picker(L("Sırala"), selection: $sortValue) {
                                 ForEach(LibraryCollectionSort.allCases) { sort in Text(L(sort.title)).tag(sort.rawValue) }
                             }
                         } label: {
-                            Label("Sırala", systemImage: "arrow.up.arrow.down").font(.subheadline)
+                            Label(L("Sırala"), systemImage: "arrow.up.arrow.down").font(.subheadline)
                         }.foregroundStyle(.secondary).accessibilityIdentifier("library.sort")
                     }
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 16)], alignment: .leading, spacing: 24) {
@@ -36,18 +36,18 @@ struct LibraryView: View {
                             recentCard(entry)
                         }
                     }
-                } else {
+                } else if library.saved.isEmpty && library.playlists.isEmpty && library.favorites.isEmpty {
                     VStack(spacing: 14) {
                         Image(systemName: "music.note.list").font(.system(size: 32, weight: .light)).foregroundStyle(.secondary)
-                        Text("Kütüphanen seni bekliyor").font(.title3.weight(.semibold))
-                        Text("Dinlediğin müzikler ve oluşturduğun listeler burada görünür.")
+                        Text(L("Kütüphanen seni bekliyor")).font(.title3.weight(.semibold))
+                        Text(L("Dinlediğin müzikler ve oluşturduğun listeler burada görünür."))
                             .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        Button { newList = true } label: { Label("Yeni Çalma Listesi…", systemImage: "plus") }
+                        Button { newList = true } label: { Label(L("Yeni Çalma Listesi…"), systemImage: "plus") }
                             .buttonStyle(.bordered).tint(.primary).accessibilityIdentifier("library.empty.createPlaylist")
                     }.frame(maxWidth: .infinity).padding(.vertical, 30).accessibilityIdentifier("library.empty")
                 }
             }.padding(.horizontal, 20).padding(.bottom, 28)
-        }.background(Color.pageBackground).navigationTitle("Kütüphane").navigationBarTitleDisplayMode(.large)
+        }.background(Color.pageBackground).navigationTitle(L("Kütüphane")).navigationBarTitleDisplayMode(.large)
             .navigationDestination(item: $destination) { destination in
                 switch destination {
                 case .playlists: PlaylistsView()
@@ -417,26 +417,26 @@ struct PlaylistDetailView: View {
                         Button("Bitti") { editing = .inactive }
                     } else {
                         Menu {
-                            Button { editing = .active } label: { Label("Çalma Listesini Düzenle", systemImage: "pencil") }
-                            Button { newName = playlist.name; rename = true } label: { Label("Yeniden Adlandır", systemImage: "textformat") }
+                            Button { editing = .active } label: { Label(L("Çalma Listesini Düzenle"), systemImage: "pencil") }
+                            Button { newName = playlist.name; rename = true } label: { Label(L("Yeniden Adlandır"), systemImage: "textformat") }
                             Section {
-                                Button { tracks.forEach { downloads.enqueue($0) } } label: { Label("İndir", systemImage: "arrow.down.circle") }
-                                Button(role: .destructive) { deleting = true } label: { Label("Çalma Listesini Sil", systemImage: "trash") }
+                                Button { tracks.forEach { downloads.enqueue($0) } } label: { Label(L("İndir"), systemImage: "arrow.down.circle") }
+                                Button(role: .destructive) { deleting = true } label: { Label(L("Çalma Listesini Sil"), systemImage: "trash") }
                             }
-                        } label: { Image(systemName: "ellipsis") }.accessibilityLabel("Çalma Listesi Seçenekleri")
+                        } label: { Image(systemName: "ellipsis") }.accessibilityLabel(L("Çalma Listesi Seçenekleri"))
                     }
                 }
             }
-            .confirmationDialog("Çalma listesi silinsin mi?", isPresented: $deleting, titleVisibility: .visible) {
-                Button("Çalma Listesini Sil", role: .destructive) { library.deletePlaylist(playlist); dismiss() }
+            .confirmationDialog(L("Çalma listesi silinsin mi?"), isPresented: $deleting, titleVisibility: .visible) {
+                Button(L("Çalma Listesini Sil"), role: .destructive) { library.deletePlaylist(playlist); dismiss() }
             }
-            .alert("Yeniden adlandır", isPresented: $rename) {
-                TextField("Liste adı", text: $newName)
-                Button("Kaydet") {
+            .alert(L("Yeniden Adlandır"), isPresented: $rename) {
+                TextField(L("Liste adı"), text: $newName)
+                Button(L("Kaydet")) {
                     let value = newName.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !value.isEmpty { playlist.name = String(value.prefix(100)); library.commit() }
                 }.disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("Vazgeç", role: .cancel) { }
+                Button(L("Vazgeç"), role: .cancel) { }
             }
     }
 }
@@ -485,13 +485,13 @@ struct DownloadsView: View {
                             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                             .swipeActions { Button("Sil", role: .destructive) { library.removeDownload(track) } }
                     }
-                } header: { Text("Bu cihazda").font(.headline).foregroundStyle(.primary).textCase(nil).padding(.vertical, 8) }
+                } header: { Text(L("Bu cihazda")).font(.headline).foregroundStyle(.primary).textCase(nil).padding(.vertical, 8) }
                     .listRowBackground(Color.clear)
             }
-        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle("İndirilenler")
+        }.listStyle(.plain).scrollContentBackground(.hidden).background(Color.pageBackground).navigationTitle(L("İndirilenler"))
             .overlay {
                 if library.downloaded.isEmpty && downloads.jobs.isEmpty {
-                    EmptyState(symbol: "arrow.down.circle", title: "İndirilen Müzik Yok", message: "İndirdiğin müzikler burada görünür.")
+                    EmptyState(symbol: "arrow.down.circle", title: L("İndirilen Müzik Yok"), message: L("İndirdiğin müzikler burada görünür."))
                 }
             }
             .toolbar {

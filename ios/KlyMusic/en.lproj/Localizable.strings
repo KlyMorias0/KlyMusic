@@ -37,7 +37,7 @@
 "Favorilere ekle" = "Add to favorites";
 "GLOBAL SEÇKİ" = "GLOBAL SELECTION";
 "Geceye eşlik et" = "Into the night";
-"Gerisini müziğe bırak." = "Find your mood.";
+"Gerisini müziğe bırak." = "Leave the rest to music.";
 "Geçmişi temizle" = "Clear history";
 "GÜNÜN RİTMİ" = "TODAY'S RHYTHM";
 "Görünüm" = "Appearance";
@@ -133,7 +133,7 @@
 "Yeniden çal" = "Play it again";
 "Yüksek kalite" = "High quality";
 "Zamansız bir his" = "A timeless feeling";
-"senin anın." = "Right now,";
+"senin anın." = "your moment.";
 "Çal" = "Play";
 "Çalma listelerin" = "Your playlists";
 "Çalma sırası" = "Play queue";
@@ -142,7 +142,7 @@
 "Önceki şarkı" = "Previous song";
 "İlk şarkını ekle" = "Add your first song";
 "İndir" = "Download";
-"İndirilen şarkı" = "Downloaded songs";
+"İndirilen şarkı" = "Downloaded song";
 "İndirilenler" = "Downloads";
 "İndirilenleri sil" = "Delete downloads";
 "İndiriliyor" = "Downloading";
@@ -281,7 +281,7 @@
 "Geçmiş" = "History";
 "Son dinlediğin" = "Last played";
 "Öne çıkan" = "Featured";
-"şarkı" = "tracks";
+"şarkı" = "track";
 
 "Sırala" = "Sort";
 "Başlık" = "Title";
@@ -315,3 +315,55 @@
 "Müzik kaynağına bağlanılamadı. İnternet bağlantını kontrol edip yeniden dene." = "Could not connect to the music source. Check your internet connection and try again.";
 
 "Kaynak bu kayıt için giriş doğrulaması istiyor. Diğer kaynaklardan da çalınamadı." = "The source requires sign-in verification for this recording. No other source could play it.";
+
+// Added in 2.13.0 full release
+"Veri Tasarrufu" = "Data Saver";
+"Yüksek Kalite" = "High Quality";
+"Ağın hızına göre en uygun kaliteyi seçer." = "Selects the best quality based on your network speed.";
+"Kütüphaneyi Yedekle" = "Back Up Library";
+"Yedeği Geri Yükle" = "Restore Backup";
+"Dinleme Geçmişini Temizle" = "Clear Listening History";
+"Son Aramalar" = "Recent Searches";
+"Yeniden Adlandır" = "Rename";
+"Çalma Listesi" = "Playlist";
+"Çalma Listeleri" = "Playlists";
+"Öne çıkanlar" = "Featured";
+"Dinlediklerinden yola çıkarak" = "Based on your listening";
+"Farklı bir arama dene." = "Try a different search.";
+"Kategorilere göz at" = "Browse categories";
+"Sanatçılar, Şarkılar, Sözler ve Daha Fazlası" = "Artists, Songs, Lyrics and More";
+"Kitaplığın" = "Your Library";
+"Kütüphanende ara" = "Search in Library";
+"Kütüphanende eşleşen içerik yok" = "No matching content in your library";
+"Kütüphane ve Veriler" = "Library and Data";
+"Hakkında" = "About";
+"Sürüm" = "Version";
+"Hiçbiri" = "None";
+"Yok" = "None";
+"Takibi bırak" = "Unfollow";
+"Son Eklenenler" = "Recently Added";
+"Yeni Çalma Listesi…" = "New Playlist…";
+"Yeni Çalma Listesi" = "New Playlist";
+"Düzenle" = "Edit";
+"Çalma Listesini Düzenle" = "Edit Playlist";
+"Çalma Listesini Sil" = "Delete Playlist";
+"Çalma listesi silinsin mi?" = "Delete playlist?";
+"İndirilen Müzik Yok" = "No Downloaded Music";
+"İndirdiğin müzikler burada görünür." = "Downloaded music will appear here.";
+"İndirilen Müzikler" = "Downloaded Music";
+"Sanatçı ve albüm" = "Artist and album";
+"Sıra boş" = "Queue is empty";
+"Şarkı menüsünden sıraya ekleyebilirsin." = "You can add to queue from the song menu.";
+"Sıradan kaldır" = "Remove from queue";
+"Sıradaki" = "Playing Next";
+"Sırayı temizle" = "Clear queue";
+"Sıra seçenekleri" = "Queue options";
+"Sıradaki şarkılar kaldırılsın mı?" = "Clear upcoming songs?";
+"Çalan şarkı devam eder." = "Currently playing song will continue.";
+"Tekrar: Kapalı" = "Repeat: Off";
+"Tekrar: Tümü" = "Repeat: All";
+"Tekrar: Bir Şarkı" = "Repeat: One";
+"Şarkı sözleri yüklenemedi." = "Lyrics could not be loaded.";
+"Katalog şu anda yüklenemiyor." = "Catalog could not be loaded.";
+"Beklenmeyen bir yanıt geldi." = "An unexpected response was received.";
+"Müzik bağlantısı şu anda kurulamıyor." = "Music connection cannot be established right now.";

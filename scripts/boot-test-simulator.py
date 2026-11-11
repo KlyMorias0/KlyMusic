@@ -21,11 +21,17 @@ for attempt in range(2):
         subprocess.run(['killall', '-9', 'com.apple.CoreSimulator.CoreSimulatorService'],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
 
-devices = [device for runtime, entries in groups.items() if 'iOS-26-' in runtime
-           for device in entries if device['name'].startswith('iPhone') and device['isAvailable']]
-devices.sort(key=lambda device: (device['name'] != 'iPhone 17 Pro', device['name']))
+ios_runtimes = sorted([r for r in groups.keys() if 'iOS' in r], reverse=True)
+devices = []
+for runtime in ios_runtimes:
+    candidates = [device for device in groups[runtime] if device.get('name', '').startswith('iPhone') and device.get('isAvailable', False)]
+    if candidates:
+        candidates.sort(key=lambda d: (0 if 'Pro' in d.get('name', '') else 1, d.get('name', '')))
+        devices.extend(candidates)
+        break
+
 if not devices:
-    raise SystemExit('An iOS 26 iPhone simulator is required.')
+    raise SystemExit('No available iPhone simulator found.')
 device = devices[0]
 if device['state'] != 'Booted':
     simctl('boot', device['udid'])

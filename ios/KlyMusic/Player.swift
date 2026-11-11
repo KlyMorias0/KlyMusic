@@ -184,6 +184,12 @@ struct LyricsCacheEntry: Codable {
         configureCommands()
     }
 
+    deinit {
+        for obs in observations { obs.invalidate() }
+        if let periodic { engine.removeTimeObserver(periodic) }
+        for note in notifications { NotificationCenter.default.removeObserver(note) }
+    }
+
     private func activateSession() throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playback, mode: .default, policy: .longFormAudio)
@@ -558,7 +564,7 @@ struct LyricsCacheEntry: Codable {
             } catch is CancellationError { }
             catch {
                 guard current?.id == track.id, lyricGeneration == token else { return }
-                if lyrics?.hasContent != true { lyricsError = L("Şarkı sözleri yüklenemedi. Yeniden dene.") }
+                if lyrics?.hasContent != true { lyricsError = L("Şarkı sözleri yüklenemedi.") }
             }
         }
     }

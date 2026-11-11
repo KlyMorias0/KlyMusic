@@ -239,6 +239,7 @@ enum RecordingIdentity {
         var credits = artists
         for feature in features {
             let additions = artistCredits(feature).filter { !$0.ambiguous }
+            guard !additions.isEmpty else { continue }
             credits = credits.flatMap { original in
                 additions.map { extra in
                     var copy = original

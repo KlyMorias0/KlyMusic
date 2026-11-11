@@ -43,11 +43,9 @@ enum PlaybackFailure: String, LocalizedError {
         switch self { case .noMatch: 0; case .unavailable: 1; case .invalidMedia: 2; case .network: 3; case .authenticationRequired: 4 }
     }
     static func preferred(_ existing: Error, _ incoming: Error) -> Error {
-        if let old = existing as? Self {
-            guard let next = incoming as? Self, next.priority > old.priority else { return old }
-            return next
-        }
-        return incoming
+        let old = classify(existing)
+        let next = classify(incoming)
+        return next.priority > old.priority ? next : (existing is Self ? existing : old)
     }
     static func classify(_ error: Error) -> Self {
         if let failure = error as? Self { return failure }

@@ -126,13 +126,16 @@ struct DiscoverView: View {
                 ForEach(HomeFeed.distinct(sections, excluding: Array(sections.first?.tracks.prefix(5) ?? []))) { section in
                     BrowseTrackShelf(title: section.title, tracks: section.tracks)
                 }
-                VStack(alignment: .leading, spacing: 12) {
-                    BrowseShelfHeading(title: "Türler ve ruh halleri")
-                    CategoryGrid()
+                if sections.isEmpty && failure != nil {
+                    ErrorState(message: failure!) { Task { await load() } }.padding(.horizontal, 20)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        BrowseShelfHeading(title: "Türler ve ruh halleri")
+                        CategoryGrid()
+                    }
                 }
-                if let failure, sections.isEmpty { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 20) }
             }.padding(.top, 8).padding(.bottom, 24)
-        }.background(Color.pageBackground).navigationTitle("Keşfet").navigationBarTitleDisplayMode(.large)
+        }.background(Color.pageBackground).navigationTitle(L("Keşfet")).navigationBarTitleDisplayMode(.large)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
             .task(id: ListeningLocale.current.cacheKey) { await load() }.refreshable { await load() }
     }
@@ -158,7 +161,7 @@ private struct CategoryGrid: View {
                     VStack(spacing: 12) {
                         Text(L(failed ? "Kategoriler yüklenemedi" : "Kategoriler şu anda kullanılamıyor"))
                             .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        Button("Yeniden dene") { Task { await load() } }
+                        Button(L("Yeniden dene")) { Task { await load() } }
                             .buttonStyle(.bordered).tint(.primary).accessibilityIdentifier("search.categories.retry")
                     }.frame(maxWidth: .infinity, minHeight: 120).padding(.horizontal, 20)
                 }
@@ -206,7 +209,7 @@ struct QueryView: View {
                 if !result.tracks.isEmpty { CollectionPlayButtons(tracks: result.tracks).padding(.horizontal, 20) }
                 if loading { ProgressView().padding(40) }
                 else if let failure { ErrorState(message: failure) { Task { await load() } } }
-                else if result.tracks.isEmpty { EmptyState(symbol: "music.note", title: "Sonuç bulunamadı", message: "Farklı bir arama dene.") }
+                else if result.tracks.isEmpty { EmptyState(symbol: "music.note", title: L("Sonuç bulunamadı"), message: L("Farklı bir arama dene.")) }
                 trackRows(result.tracks)
             }.padding(.top, 12).padding(.bottom, 24)
         }.background(Color.pageBackground).navigationTitle(title).task { await load() }
@@ -287,7 +290,7 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 22) {
                 if !hasQuery {
                     if scope == "library" {
-                        EmptyState(symbol: "magnifyingglass", title: "Kitaplığında ara", message: "Şarkı, albüm, sanatçı veya çalma listesi bul.")
+                        EmptyState(symbol: "magnifyingglass", title: L("Kütüphanende ara"), message: L("Şarkı, albüm, sanatçı veya çalma listesi bul."))
                             .accessibilityIdentifier("search.library.empty")
                     } else if searchActive && !history.isEmpty { recentSearches.padding(.horizontal, 20) }
                     else {
@@ -304,10 +307,10 @@ struct SearchView: View {
                     }
                 }
             }.padding(.top, 8).padding(.bottom, 28)
-        }.background(Color.pageBackground).navigationTitle("Ara").navigationBarTitleDisplayMode(.large)
-            .searchable(text: $query, isPresented: $searchActive, prompt: "Sanatçılar, Şarkılar, Sözler ve Daha Fazlası")
+        }.background(Color.pageBackground).navigationTitle(L("Ara")).navigationBarTitleDisplayMode(.large)
+            .searchable(text: $query, isPresented: $searchActive, prompt: Text(L("Sanatçılar, Şarkılar, Sözler ve Daha Fazlası")))
             .searchScopes($scope, activation: .onTextEntry) {
-                Text("KlyMusic").tag("catalog"); Text("Kitaplığın").tag("library")
+                Text("KlyMusic").tag("catalog"); Text(L("Kütüphanen")).tag("library")
             }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
             .scrollDismissesKeyboard(.interactively)
@@ -341,9 +344,9 @@ struct SearchView: View {
     private var recentSearches: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Son Aramalar").font(.title2.bold())
+                Text(L("Son Aramalar")).font(.title2.bold())
                 Spacer()
-                Button("Temizle") { historyData = "" }.font(.subheadline).foregroundStyle(.secondary)
+                Button(L("Temizle")) { historyData = "" }.font(.subheadline).foregroundStyle(.secondary)
             }.padding(.bottom, 8)
             ForEach(history.prefix(5), id: \.self) { term in
                 Button { query = term } label: {
@@ -498,10 +501,10 @@ struct AlbumDetailView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
-                CollectionCoverHeader(artwork: collection.artwork, eyebrow: "ALBÜM", title: collection.title, subtitle: collection.artist)
-                CollectionPlayButtons(tracks: tracks).padding(.horizontal, 20)
+                CollectionCoverHeader(artwork: collection.artwork, eyebrow: L("ALBÜM"), title: collection.title, subtitle: collection.artist)
                 if !tracks.isEmpty {
-                    Text("\(tracks.count) şarkı · " + totalDuration).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 20)
+                    CollectionPlayButtons(tracks: tracks).padding(.horizontal, 20)
+                    Text(String(format: L("%lld şarkı · %@"), Int64(tracks.count), totalDuration)).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 20)
                 }
                 if loading { ProgressView().frame(maxWidth: .infinity).padding(30) }
                 if let failure { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 22) }

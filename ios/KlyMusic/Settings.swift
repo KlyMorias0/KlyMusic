@@ -17,7 +17,7 @@ struct SettingsView: View {
     @State private var eraseHistory = false
     private let themeOptions: [SettingsChoice] = [.init(title: "Sistem", value: "system"), .init(title: "Açık", value: "light"), .init(title: "Koyu", value: "dark")]
     private let languageOptions: [SettingsChoice] = [.init(title: "Sistem", value: "system"), .init(title: "Türkçe", value: "tr"), .init(title: "English", value: "en")]
-    private var selection: String { lowData ? "data" : "high" }
+    private var selection: String { lowData ? "data" : (quality == "high" ? "high" : "auto") }
     var body: some View {
         List {
             Group {
@@ -25,7 +25,7 @@ struct SettingsView: View {
                 NavigationLink {
                     AudioQualitySettings(quality: $quality, lowData: $lowData)
                 } label: {
-                    settingValue("Ses kalitesi", value: L(lowData ? "Veri Tasarrufu" : "Yüksek Kalite"))
+                    settingValue("Ses kalitesi", value: L(lowData ? "Veri Tasarrufu" : (quality == "high" ? "Yüksek Kalite" : "Otomatik")))
                 }.accessibilityIdentifier("settings.quality")
                 settingsHeader("İndirilenler")
                 Toggle("Yalnızca Wi-Fi ile indir", isOn: $wifiOnly).tint(.green).frame(minHeight: 52).accessibilityIdentifier("settings.wifiOnly")
@@ -42,8 +42,8 @@ struct SettingsView: View {
                 } label: { settingValue("Dil", value: L(languageOptions.first { $0.value == language }?.title ?? "Sistem")) }
                     .accessibilityIdentifier("settings.language")
                 settingsHeader("Kütüphane")
-                NavigationLink { dataSettings } label: { Text("Kütüphane ve Veriler").frame(minHeight: 52) }.accessibilityIdentifier("settings.data")
-                NavigationLink { aboutSettings } label: { Text("Hakkında").frame(minHeight: 52) }.accessibilityIdentifier("settings.about")
+                NavigationLink { dataSettings } label: { Text(L("Kütüphane ve Veriler")).frame(minHeight: 52) }.accessibilityIdentifier("settings.data")
+                NavigationLink { aboutSettings } label: { Text(L("Hakkında")).frame(minHeight: 52) }.accessibilityIdentifier("settings.about")
                 if let status { Text(status).font(.footnote).accessibilityIdentifier("settings.status") }
             }.listRowBackground(Color.pageBackground)
                 .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
@@ -158,16 +158,17 @@ private struct AudioQualitySettings: View {
     var body: some View {
         List {
             Section {
+                option("Otomatik", value: "auto", subtitle: "Ağın hızına göre en uygun kaliteyi seçer.")
                 option("Veri Tasarrufu", value: "data", subtitle: "Daha az internet kullanır.")
                 option("Yüksek Kalite", value: "high", subtitle: "Kaynağın sunduğu yüksek kaliteli sesi kullanır.")
             } footer: {
                 SettingsNote(text: "Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır.")
             }.listRowBackground(Color.pageBackground).listSectionSeparator(.hidden, edges: .bottom)
         }.musicSettingsList()
-            .navigationTitle("Ses kalitesi").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(L("Ses kalitesi")).navigationBarTitleDisplayMode(.inline)
     }
     private func option(_ title: String, value: String, subtitle: String) -> some View {
-        let active = lowData == (value == "data")
+        let active = (value == "auto" && !lowData && (quality == "auto" || quality.isEmpty)) || (value == "data" && lowData) || (value == "high" && !lowData && quality == "high")
         return Button { quality = value; lowData = value == "data" } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {

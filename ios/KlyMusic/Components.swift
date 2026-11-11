@@ -203,12 +203,23 @@ struct EmptyState: View {
 struct ErrorState: View {
     var message: String
     var retry: () -> Void
+    private var cleanMessage: String {
+        var text = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        for suffix in [". Yeniden dene.", " Yeniden dene.", ". Yeniden dene", " Yeniden dene", ". Try again.", " Try again.", ". Try again", " Try again"] {
+            if text.hasSuffix(suffix) {
+                text = String(text.dropLast(suffix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.hasSuffix(".") { text += "." }
+                break
+            }
+        }
+        return text
+    }
     var body: some View {
         VStack(spacing: 15) {
             Image(systemName: "wifi.exclamationmark").font(.system(size: 28, weight: .light)).foregroundStyle(.secondary)
-            Text("Şu an yüklenemiyor").font(.headline)
-            Text(message).font(.system(size: 13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button("Yeniden dene", action: retry).font(.system(size: 13, weight: .bold)).foregroundStyle(Color.coral)
+            Text(L("Şu an yüklenemiyor")).font(.headline)
+            Text(cleanMessage).font(.system(size: 13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Button(L("Yeniden dene"), action: retry).font(.system(size: 13, weight: .bold)).foregroundStyle(Color.coral)
                 .padding(.horizontal, 22).padding(.vertical, 12).overlay { Capsule().strokeBorder(Color.coral.opacity(0.7), lineWidth: 1) }
         }.frame(maxWidth: .infinity).padding(26)
     }
@@ -242,12 +253,12 @@ struct CollectionPlayButtons: View {
     var body: some View {
         HStack(spacing: 12) {
             Button { if let first = tracks.first { player.play(first, in: tracks) } } label: {
-                Label("Çal", systemImage: "play.fill").frame(maxWidth: .infinity).frame(height: 44)
+                Label(L("Çal"), systemImage: "play.fill").frame(maxWidth: .infinity).frame(height: 44)
             }
             Button {
                 let shuffled = tracks.shuffled()
                 if let first = shuffled.first { player.play(first, in: shuffled) }
-            } label: { Label("Karıştır", systemImage: "shuffle").frame(maxWidth: .infinity).frame(height: 44) }
+            } label: { Label(L("Karıştır"), systemImage: "shuffle").frame(maxWidth: .infinity).frame(height: 44) }
         }.font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary)
             .disabled(tracks.isEmpty).opacity(tracks.isEmpty ? 0.35 : 1)
             .buttonStyle(CollectionButtonStyle())

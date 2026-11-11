@@ -359,8 +359,8 @@ struct QueueView: View {
                 Section {
                     if upcoming.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Sıra boş").font(.subheadline.weight(.medium)).foregroundStyle(.primary)
-                            Text("Şarkı menüsünden sıraya ekleyebilirsin.").font(.footnote).foregroundStyle(.secondary)
+                            Text(L("Sıra boş")).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                            Text(L("Şarkı menüsünden sıraya ekleyebilirsin.")).font(.footnote).foregroundStyle(.secondary)
                         }.padding(.vertical, 14).accessibilityIdentifier("queue.empty")
                     } else {
                         ForEach(upcoming) { track in
@@ -381,18 +381,18 @@ struct QueueView: View {
                         }
                     }
                 } header: {
-                    HStack(spacing: 6) {
-                        Text("Sıradaki").font(.headline).foregroundStyle(.primary)
+                    HStack(spacing: 8) {
+                        Text(L("Sıradaki")).font(.headline).foregroundStyle(.primary)
                         if !upcoming.isEmpty { Text("\(upcoming.count)").font(.subheadline).foregroundStyle(.secondary) }
                         Spacer(minLength: 0)
                         Button { player.toggleShuffle() } label: {
-                            Image(systemName: "shuffle").frame(width: 36, height: 40)
+                            Image(systemName: "shuffle").frame(width: 40, height: 40).contentShape(Rectangle())
                                 .foregroundStyle(player.shuffle ? Color.coral : Color.secondary)
-                        }.accessibilityLabel("Karıştır").accessibilityValue(player.shuffle ? "Açık" : "Kapalı")
+                        }.accessibilityLabel(L("Karıştır")).accessibilityValue(player.shuffle ? L("Açık") : L("Kapalı"))
                         Button { player.cycleRepeat() } label: {
-                            Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat").frame(width: 36, height: 40)
+                            Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat").frame(width: 40, height: 40).contentShape(Rectangle())
                                 .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.coral)
-                        }.accessibilityLabel("Tekrarlama").accessibilityValue(player.repeatMode.rawValue)
+                        }.accessibilityLabel(L("Tekrarlama")).accessibilityValue(player.repeatMode == .off ? L("Kapalı") : (player.repeatMode == .one ? L("Bir Şarkı") : L("Tümü")))
                     }.textCase(nil)
                 }
                 .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -401,36 +401,36 @@ struct QueueView: View {
             .listStyle(.plain).listSectionSpacing(20).scrollContentBackground(.hidden)
             .environment(\.editMode, .constant(.active))
             .background(Color.pageBackground)
-            .navigationTitle("Çalma sırası").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(L("Çalma sırası")).navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.pageBackground, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
-                        .accessibilityLabel("Kapat")
+                        .accessibilityLabel(L("Kapat"))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Menu {
-                            Button("Kapalı") { player.setSleep(minutes: nil) }
-                            Button("Şarkı bitince") { player.setSleepAtEnd() }
+                            Button(L("Kapalı")) { player.setSleep(minutes: nil) }
+                            Button(L("Şarkı bitince")) { player.setSleepAtEnd() }
                             ForEach([15, 30, 60], id: \.self) { minutes in
-                                Button("\(minutes) dakika") { player.setSleep(minutes: minutes) }
+                                Button(String(format: L("%lld dakika"), Int64(minutes))) { player.setSleep(minutes: minutes) }
                             }
-                        } label: { Label("Uyku zamanlayıcısı", systemImage: "moon") }
+                        } label: { Label(L("Uyku zamanlayıcısı"), systemImage: "moon") }
                         if !upcoming.isEmpty {
                             Section {
-                                Button(role: .destructive) { confirmClear = true } label: { Label("Sırayı temizle", systemImage: "trash") }
+                                Button(role: .destructive) { confirmClear = true } label: { Label(L("Sırayı temizle"), systemImage: "trash") }
                                     .accessibilityIdentifier("queue.clear")
                             }
                         }
                     } label: { Image(systemName: "ellipsis") }
-                        .accessibilityLabel("Sıra seçenekleri").accessibilityIdentifier("queue.options")
+                        .accessibilityLabel(L("Sıra seçenekleri")).accessibilityIdentifier("queue.options")
                 }
             }.tint(.primary)
-            .confirmationDialog("Sıradaki şarkılar kaldırılsın mı?", isPresented: $confirmClear, titleVisibility: .visible) {
-                Button("Sırayı temizle", role: .destructive) { player.clearUpcoming() }
-                Button("Vazgeç", role: .cancel) { }
-            } message: { Text("Çalan şarkı devam eder.") }
+            .confirmationDialog(L("Sıradaki şarkılar kaldırılsın mı?"), isPresented: $confirmClear, titleVisibility: .visible) {
+                Button(L("Sırayı temizle"), role: .destructive) { player.clearUpcoming() }
+                Button(L("Vazgeç"), role: .cancel) { }
+            } message: { Text(L("Çalan şarkı devam eder.")) }
         }
         .presentationBackground(Color.pageBackground).presentationDragIndicator(.visible)
     }
