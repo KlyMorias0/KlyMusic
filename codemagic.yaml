@@ -1,0 +1,18 @@
+workflows:
+  ios-release:
+    name: Build KlyMusic Unsigned IPA
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    triggering:
+      events:
+        - push
+    environment:
+      xcode: latest
+    scripts:
+      - name: Build unsigned iPhone IPA
+        script: |
+          set -o pipefail
+          bash scripts/build-ipa.sh
+    artifacts:
+      - dist/KlyMusic-unsigned.ipa
+      - dist/SHA256.txt
