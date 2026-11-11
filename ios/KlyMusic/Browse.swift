@@ -1,8 +1,56 @@
 import SwiftUI
 
+struct DynamicStyle: Codable {
+    var heroHeight: CGFloat = 180
+    var heroCornerRadius: CGFloat = 18
+    var heroTag: String = "Öne çıkan"
+    var quickLaunchGridCount: Int = 6
+    var tileCornerRadius: CGFloat = 10
+    var cardCornerRadius: CGFloat = 10
+    var sectionSpacing: CGFloat = 30
+    var accentHex: String = "E87D73"
+}
+
+final class DynamicUIConfig: ObservableObject {
+    static let shared = DynamicUIConfig()
+    @Published var style = DynamicStyle()
+
+    private let configURL = URL(string: "https://raw.githubusercontent.com/KlyMorias0/KlyMusic/main/config/ui_layout.json")
+
+    init() {
+        loadCached()
+    }
+
+    func fetchRemote() async {
+        guard let configURL else { return }
+        do {
+            var request = URLRequest(url: configURL)
+            request.timeoutInterval = 3
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return }
+            let decoded = try JSONDecoder().decode(DynamicStyle.self, from: data)
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    self.style = decoded
+                }
+                UserDefaults.standard.set(data, forKey: "klymusic_cached_dynamic_style")
+            }
+        } catch { }
+    }
+
+    private func loadCached() {
+        if let data = UserDefaults.standard.data(forKey: "klymusic_cached_dynamic_style"),
+           let cached = try? JSONDecoder().decode(DynamicStyle.self, from: data) {
+            style = cached
+        }
+    }
+}
+
 struct HomeView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var player: MusicPlayer
+    @ObservedObject private var uiConfig = DynamicUIConfig.shared
     @State private var sections: [HomeSection] = []
     @State private var personal: [HomeSection] = []
     @State private var loading = true
@@ -23,23 +71,35 @@ struct HomeView: View {
     private var remaining: [HomeSection] { HomeFeed.distinct(sections, excluding: featured + library.recent) }
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: uiConfig.style.sectionSpacing) {
                 if loading && sections.isEmpty { MusicLoadingView() }
                 if !featured.isEmpty {
-                    BrowseTrackShelf(title: recommendations.isEmpty ? "Öne çıkanlar" : "Senin için",
-                                     subtitle: recommendations.isEmpty ? nil : "Dinlediklerinden yola çıkarak", tracks: featured, large: true)
+                    HomeSpotlightShelf(title: recommendations.isEmpty ? "Öne çıkanlar" : "Senin için",
+                                       subtitle: recommendations.isEmpty ? nil : "Dinlediklerinden yola çıkarak", tracks: featured)
                         .accessibilityIdentifier(recommendations.isEmpty ? "home.featured" : "home.personalized")
                 }
-                if !library.recent.isEmpty { CompactTrackShelf(title: "Son dinlenenler", tracks: Array(library.recent.prefix(9))) }
+                if !library.recent.isEmpty {
+                    HomeQuickLaunchShelf(title: "Son dinlenenler", tracks: Array(library.recent.prefix(uiConfig.style.quickLaunchGridCount)))
+                }
                 ForEach(Array(remaining.enumerated()), id: \.element.id) { index, section in
-                    if index == 0 { CompactTrackShelf(title: section.title, tracks: section.tracks) }
-                    else { BrowseTrackShelf(title: section.title, subtitle: section.subtitle, tracks: section.tracks) }
+                    if index == 0 && section.tracks.count >= 4 {
+                        HomeQuickLaunchShelf(title: section.title, tracks: Array(section.tracks.prefix(uiConfig.style.quickLaunchGridCount)))
+                    } else {
+                        BrowseTrackShelf(title: section.title, subtitle: section.subtitle, tracks: section.tracks)
+                    }
                 }
                 if let failure, sections.isEmpty { ErrorState(message: failure) { Task { await load() } }.padding(.horizontal, 20) }
-            }.padding(.top, 8).padding(.bottom, 24)
+            }.padding(.top, 8).padding(.bottom, 28)
         }.background(Color.pageBackground).navigationTitle("Dinle").navigationBarTitleDisplayMode(.large)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
-            .task(id: ListeningLocale.current.cacheKey + "|" + seedKey) { await load() }.refreshable { await load() }
+            .task(id: ListeningLocale.current.cacheKey + "|" + seedKey) {
+                async let _ = uiConfig.fetchRemote()
+                await load()
+            }
+            .refreshable {
+                async let _ = uiConfig.fetchRemote()
+                await load()
+            }
     }
     private func load() async {
         loading = sections.isEmpty; failure = nil
@@ -51,6 +111,202 @@ struct HomeView: View {
             player.warm(featured)
         } catch is CancellationError { }
         catch { failure = error.localizedDescription }
+    }
+}
+
+private struct HomeSpotlightShelf: View {
+    var title: String
+    var subtitle: String? = nil
+    var tracks: [Track]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            BrowseShelfHeading(title: title, caption: subtitle, tracks: tracks)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 16) {
+                    ForEach(tracks.prefix(6)) { track in
+                        HomeSpotlightCard(track: track, tracks: tracks)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.viewAligned)
+        }
+    }
+}
+
+private struct HomeSpotlightCard: View {
+    var track: Track
+    var tracks: [Track]
+    @EnvironmentObject private var player: MusicPlayer
+    @ObservedObject private var uiConfig = DynamicUIConfig.shared
+    private var isPlayingThis: Bool {
+        (player.current?.id == track.id || player.pendingTrack?.id == track.id) && player.isPlaying
+    }
+
+    var body: some View {
+        Button {
+            player.play(track, in: tracks)
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                RoundedRectangle(cornerRadius: uiConfig.style.heroCornerRadius, style: .continuous)
+                    .fill(Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 1) : UIColor(white: 0.94, alpha: 1) }))
+
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Artwork(url: track.artwork, radius: 0)
+                        .frame(width: 175, height: uiConfig.style.heroHeight)
+                        .clipped()
+                        .mask {
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0.0),
+                                    .init(color: .black.opacity(0.4), location: 0.3),
+                                    .init(color: .black, location: 0.75)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        }
+                }
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(L(uiConfig.style.heroTag).uppercased())
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(Color.coral)
+                        .padding(.bottom, 6)
+
+                    Text(track.title)
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: 160, alignment: .leading)
+
+                    Text(track.artist)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.secondary)
+                        .lineLimit(1)
+                        .padding(.top, 4)
+                        .frame(maxWidth: 160, alignment: .leading)
+
+                    Spacer(minLength: 0)
+
+                    HStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.12))
+                            if player.pendingTrack?.id == track.id {
+                                ProgressView().tint(.white).scaleEffect(0.8)
+                            } else {
+                                Image(systemName: isPlayingThis ? "waveform" : "play.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(isPlayingThis ? Color.coral : .white)
+                            }
+                        }
+                        .frame(width: 38, height: 38)
+
+                        Text(isPlayingThis ? L("Çalıyor") : L("Çal"))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.black.opacity(0.45), in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.8))
+                }
+                .padding(18)
+            }
+            .frame(width: 320, height: uiConfig.style.heroHeight)
+            .clipShape(RoundedRectangle(cornerRadius: uiConfig.style.heroCornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: uiConfig.style.heroCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(track.title), \(track.artist)")
+        .accessibilityHint(L("Çal"))
+    }
+}
+
+private struct HomeQuickLaunchShelf: View {
+    var title: String
+    var tracks: [Track]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            BrowseShelfHeading(title: title, tracks: tracks)
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10)
+                ],
+                spacing: 10
+            ) {
+                ForEach(Array(tracks.prefix(6))) { track in
+                    HomeQuickLaunchTile(track: track, tracks: tracks)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+}
+
+private struct HomeQuickLaunchTile: View {
+    var track: Track
+    var tracks: [Track]
+    @EnvironmentObject private var player: MusicPlayer
+    @ObservedObject private var uiConfig = DynamicUIConfig.shared
+    private var isCurrent: Bool { player.current?.id == track.id || player.pendingTrack?.id == track.id }
+
+    var body: some View {
+        Button {
+            player.play(track, in: tracks)
+        } label: {
+            HStack(spacing: 10) {
+                Artwork(url: track.artwork, radius: uiConfig.style.tileCornerRadius)
+                    .frame(width: 52, height: 52)
+                    .clipped()
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(track.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isCurrent ? Color.coral : Color.primary)
+                        .lineLimit(1)
+
+                    Text(track.artist)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(Color.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                if isCurrent {
+                    Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.coral)
+                        .padding(.trailing, 8)
+                }
+            }
+            .padding(4)
+            .background(
+                Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.085, alpha: 1) : UIColor(white: 0.94, alpha: 1) }),
+                in: RoundedRectangle(cornerRadius: uiConfig.style.tileCornerRadius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: uiConfig.style.tileCornerRadius, style: .continuous)
+                    .stroke(isCurrent ? Color.coral.opacity(0.4) : Color.white.opacity(0.06), lineWidth: 0.8)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(track.title), \(track.artist)")
+        .accessibilityHint(L("Çal"))
     }
 }
 
