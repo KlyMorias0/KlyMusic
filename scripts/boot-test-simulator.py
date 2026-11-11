@@ -36,5 +36,8 @@ device = devices[0]
 if device['state'] != 'Booted':
     simctl('boot', device['udid'])
 simctl('bootstatus', device['udid'], '-b', timeout=120)
-simctl('status_bar', device['udid'], 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', timeout=20)
+try:
+    simctl('status_bar', device['udid'], 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', timeout=20)
+except Exception as e:
+    print(f'Warning: status_bar override ignored: {e}', file=sys.stderr, flush=True)
 print(device['udid'])
