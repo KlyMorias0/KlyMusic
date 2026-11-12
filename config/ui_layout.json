@@ -1,10 +1,12 @@
 {
-  "heroHeight": 280,
-  "heroCornerRadius": 22,
-  "heroTag": "DENEME",
-  "quickLaunchGridCount": 10,
-  "tileCornerRadius": 14,
-  "cardCornerRadius": 14,
-  "sectionSpacing": 24,
+  "heroHeight": 190,
+  "heroCornerRadius": 16,
+  "heroTag": "Öne çıkan",
+  "quickLaunchGridCount": 6,
+  "tileCornerRadius": 12,
+  "cardCornerRadius": 12,
+  "sectionSpacing": 28,
+  "endlessFeedCount": 40,
+  "endlessPageSize": 20,
   "accentHex": "E87D73"
 }
