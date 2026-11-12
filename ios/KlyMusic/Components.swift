@@ -18,7 +18,7 @@ struct SettingsButton: View {
         Button { presented = true } label: {
             Image(systemName: "slider.horizontal.3").font(.system(size: 22, weight: .medium))
                 .foregroundStyle(Color.primary).frame(width: 32, height: 36).contentShape(Rectangle())
-        }.accessibilityLabel("Ayarlar").accessibilityIdentifier("settings.open")
+        }.accessibilityLabel(L("Ayarlar")).accessibilityIdentifier("settings.open")
             .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28).presentationBackground(Color.pageBackground) }
     }
 }
@@ -31,6 +31,15 @@ struct SectionHeading: View {
             Text(L(title)).font(.title2.bold()).tracking(-0.7)
             if let subtitle, !subtitle.isEmpty { Text(L(subtitle)).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2) }
         }
+    }
+}
+
+struct CardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.78 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -57,7 +66,15 @@ struct TrackCard: View {
                     Text(track.artist).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }.frame(width: size, alignment: .leading).contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel("\(track.title), \(track.artist)").accessibilityHint(L("Çal"))
+        }.buttonStyle(CardButtonStyle()).accessibilityLabel("\(track.title), \(track.artist)").accessibilityHint(L("Çal"))
+    }
+}
+
+struct TrackRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -93,7 +110,7 @@ struct TrackRow: View {
                     if player.pendingTrack?.id == track.id { ProgressView().controlSize(.small).tint(Color.coral) }
                     else if current && player.isPlaying { Image(systemName: "waveform").font(.system(size: 14)).foregroundStyle(Color.coral) }
                 }.padding(.vertical, 7).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel("\(track.title), \(track.artist)")
+            }.buttonStyle(TrackRowButtonStyle()).accessibilityLabel("\(track.title), \(track.artist)")
                 .accessibilityHint(L("Çal")).accessibilityIdentifier("track.row.\(track.id)")
             TrackMenu(track: track)
         }
@@ -179,7 +196,7 @@ struct TrackListView: View {
             Artwork(url: first.artwork, radius: 9).frame(width: 238, height: 238).padding(.top, 8)
             VStack(spacing: 5) {
                 Text(title).font(.title2.bold()).multilineTextAlignment(.center)
-                Text("\(tracks.count) " + L("şarkı")).font(.subheadline).foregroundStyle(.secondary)
+                Text(String(format: L("%lld şarkı"), Int64(tracks.count))).font(.subheadline).foregroundStyle(.secondary)
             }
             CollectionPlayButtons(tracks: tracks)
         }.padding(.bottom, 20)
@@ -226,6 +243,7 @@ struct ErrorState: View {
 }
 
 struct MusicLoadingView: View {
+    @State private var isPulsing = false
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             HStack(spacing: 10) {
@@ -234,15 +252,20 @@ struct MusicLoadingView: View {
             }.padding(.vertical, 35)
             ForEach(0..<3) { _ in
                 HStack(spacing: 14) {
-                    RoundedRectangle(cornerRadius: 4).fill(Color.musicElevated).frame(width: 52, height: 52)
+                    RoundedRectangle(cornerRadius: 6).fill(Color.musicElevated).frame(width: 52, height: 52)
                     VStack(alignment: .leading, spacing: 9) {
-                        Capsule().fill(.primary.opacity(0.1)).frame(width: 140, height: 6)
-                        Capsule().fill(.primary.opacity(0.06)).frame(width: 85, height: 5)
+                        Capsule().fill(.primary.opacity(0.12)).frame(width: 140, height: 7)
+                        Capsule().fill(.primary.opacity(0.06)).frame(width: 85, height: 6)
                     }
                     Spacer()
                 }
             }
-        }.padding(.horizontal, 22).accessibilityLabel("Yükleniyor")
+        }
+        .opacity(isPulsing ? 0.45 : 1.0)
+        .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isPulsing)
+        .onAppear { isPulsing = true }
+        .padding(.horizontal, 22)
+        .accessibilityLabel(L("Yükleniyor"))
     }
 }
 

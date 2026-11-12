@@ -209,7 +209,7 @@ struct HomeView: View {
             .padding(.bottom, 28)
         }
         .background(Color.pageBackground)
-        .navigationTitle("Dinle")
+        .navigationTitle(L("Dinle"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
         .task(id: ListeningLocale.current.cacheKey + "|" + seedKey) {
@@ -507,7 +507,7 @@ private struct BrowseShelfHeading: View {
                             .padding(.vertical, 8)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("Tümünü göster")
+                    .accessibilityLabel(L("Tümünü göster"))
                 }
                 Spacer(minLength: 0)
             }
@@ -1625,7 +1625,7 @@ struct ArtistDetailView: View {
                                     } label: {
                                         AlbumCard(collection: album).frame(width: 154)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(CardButtonStyle())
                                     .accessibilityIdentifier("album.open.\(album.id)")
                                 }
                             }
@@ -1663,7 +1663,7 @@ struct ArtistDetailView: View {
                                     } label: {
                                         AlbumCard(collection: album).frame(width: 154)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(CardButtonStyle())
                                     .accessibilityIdentifier("album.open.\(album.id)")
                                 }
                             }

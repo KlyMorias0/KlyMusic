@@ -287,7 +287,7 @@ actor API {
         if !query.isEmpty { parts.queryItems = query }
         guard let url = parts.url else { throw APIError.configuration }
         var request = URLRequest(url: url)
-        request.setValue("KlyMusic-iOS/2.1", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic-iOS/2.13.0", forHTTPHeaderField: "User-Agent")
         if let body {
             request.httpMethod = "POST"; request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

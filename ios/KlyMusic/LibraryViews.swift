@@ -99,10 +99,10 @@ struct LibraryView: View {
         .navigationDestination(item: $destination) { destination in
             switch destination {
             case .playlists: PlaylistsView()
-            case .songs: TrackListView(title: "Şarkılar", tracks: library.saved.compactMap(\.track).sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending })
-            case .favorites: TrackListView(title: "Favoriler", tracks: library.favorites)
+            case .songs: TrackListView(title: L("Şarkılar"), tracks: library.saved.compactMap(\.track).sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending })
+            case .favorites: TrackListView(title: L("Favoriler"), tracks: library.favorites)
             case .downloads: DownloadsView()
-            case .recent: TrackListView(title: "Son dinlenenler", tracks: library.recent)
+            case .recent: TrackListView(title: L("Son dinlenenler"), tracks: library.recent)
             case .albums: SavedAlbumsView()
             case .artists: FollowedArtistsView()
             }
@@ -110,18 +110,18 @@ struct LibraryView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button { newList = true } label: { Label("Yeni Çalma Listesi…", systemImage: "text.badge.plus") }.accessibilityIdentifier("playlist.create")
-                    Button { editingCategories = true } label: { Label("Düzenle", systemImage: "line.3.horizontal") }.accessibilityIdentifier("library.edit")
+                    Button { newList = true } label: { Label(L("Yeni Çalma Listesi…"), systemImage: "text.badge.plus") }.accessibilityIdentifier("playlist.create")
+                    Button { editingCategories = true } label: { Label(L("Düzenle"), systemImage: "line.3.horizontal") }.accessibilityIdentifier("library.edit")
                     Divider()
-                    Button { destination = .favorites } label: { Label("Favoriler", systemImage: "star") }.accessibilityIdentifier("library.favorites")
-                    Button { destination = .recent } label: { Label("Son dinlenenler", systemImage: "clock") }.accessibilityIdentifier("library.recent")
+                    Button { destination = .favorites } label: { Label(L("Favoriler"), systemImage: "star") }.accessibilityIdentifier("library.favorites")
+                    Button { destination = .recent } label: { Label(L("Son dinlenenler"), systemImage: "clock") }.accessibilityIdentifier("library.recent")
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 16, weight: .medium))
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Kütüphane Seçenekleri")
+                .accessibilityLabel(L("Kütüphane Seçenekleri"))
                 .accessibilityIdentifier("library.options")
             }
             ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
@@ -163,7 +163,7 @@ struct LibraryView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardButtonStyle())
         .accessibilityIdentifier("library.recent." + entry.id)
     }
 
@@ -343,7 +343,7 @@ struct PlaylistsView: View {
             .accessibilityIdentifier("playlist.create")
 
             NavigationLink {
-                TrackListView(title: "Favoriler", tracks: library.favorites)
+                TrackListView(title: L("Favoriler"), tracks: library.favorites)
             } label: {
                 HStack(spacing: 14) {
                     Image(systemName: "star.fill")
@@ -936,7 +936,7 @@ struct SavedAlbumsView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CardButtonStyle())
                     }
                 }
             }
