@@ -624,41 +624,8 @@ struct PlaylistDetailView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    HStack(spacing: 12) {
-                        Button {
-                            if let first = tracks.first { player.play(first, in: tracks) }
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "play.fill")
-                                Text(L("Çal"))
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 46)
-                            .background(Color.musicElevated, in: Capsule())
-                        }
-                        .disabled(tracks.isEmpty)
-
-                        Button {
-                            let shuffled = tracks.shuffled()
-                            if let first = shuffled.first { player.play(first, in: shuffled) }
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "shuffle")
-                                Text(L("Karıştır"))
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 46)
-                            .background(Color.musicElevated, in: Capsule())
-                        }
-                        .disabled(tracks.isEmpty)
-                    }
-                    .opacity(tracks.isEmpty ? 0.35 : 1.0)
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
+                    CollectionPlayButtons(tracks: tracks)
+                        .padding(.top, 4)
 
                     Divider()
                         .overlay(Color.primary.opacity(0.08))
@@ -755,41 +722,8 @@ struct DownloadsView: View {
         List {
             if !library.downloaded.isEmpty || !downloads.jobs.isEmpty {
                 Section {
-                    HStack(spacing: 12) {
-                        Button {
-                            if let first = library.downloaded.first { player.play(first, in: library.downloaded) }
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "play.fill")
-                                Text(L("Çal"))
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 46)
-                            .background(Color.musicElevated, in: Capsule())
-                        }
-                        .disabled(library.downloaded.isEmpty)
-
-                        Button {
-                            let shuffled = library.downloaded.shuffled()
-                            if let first = shuffled.first { player.play(first, in: shuffled) }
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "shuffle")
-                                Text(L("Karıştır"))
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 46)
-                            .background(Color.musicElevated, in: Capsule())
-                        }
-                        .disabled(library.downloaded.isEmpty)
-                    }
-                    .opacity(library.downloaded.isEmpty ? 0.35 : 1.0)
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 8)
+                    CollectionPlayButtons(tracks: library.downloaded)
+                        .padding(.vertical, 8)
                 }
                 .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                 .listRowSeparator(.hidden)

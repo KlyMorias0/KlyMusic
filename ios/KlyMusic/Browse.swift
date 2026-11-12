@@ -280,7 +280,7 @@ private struct HomeSpotlightCard: View {
             ZStack(alignment: .bottomLeading) {
                 // OLED deep black surface
                 RoundedRectangle(cornerRadius: uiConfig.style.heroCornerRadius, style: .continuous)
-                    .fill(Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 1) : UIColor(white: 0.95, alpha: 1) }))
+                    .fill(Color.musicElevated)
 
                 // Artwork fading smoothly to dark on the left
                 HStack(spacing: 0) {
@@ -436,7 +436,7 @@ private struct HomeQuickLaunchTile: View {
             }
             .padding(4)
             .background(
-                Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 1) : UIColor(white: 0.94, alpha: 1) }),
+                Color.musicElevated,
                 in: RoundedRectangle(cornerRadius: uiConfig.style.tileCornerRadius, style: .continuous)
             )
             .overlay(
@@ -764,7 +764,7 @@ private struct CategoryCard: View {
         ZStack(alignment: .bottomLeading) {
             // Elevated subtle background
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 1) : UIColor(white: 0.94, alpha: 1) }))
+                .fill(Color.musicElevated)
 
             // Artwork on the right with smooth mask
             HStack(spacing: 0) {
@@ -1499,8 +1499,8 @@ struct ArtistDetailView: View {
                                         .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
                                 )
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isFollowing ? "Takibi bırak" : "Takip et")
+                        .buttonStyle(CardButtonStyle())
+                        .accessibilityLabel(isFollowing ? L("Takibi bırak") : L("Takip et"))
                     }
                     .padding(.horizontal, 20)
                 }
@@ -1530,7 +1530,7 @@ struct ArtistDetailView: View {
                     Image(systemName: isFollowing ? "star.fill" : "star")
                 }
                 .foregroundStyle(isFollowing ? Color.coral : .primary)
-                .accessibilityLabel(isFollowing ? "Takibi bırak" : "Takip et")
+                .accessibilityLabel(isFollowing ? L("Takibi bırak") : L("Takip et"))
             }
         }
         .task { await load() }
