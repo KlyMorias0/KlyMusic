@@ -91,9 +91,9 @@ struct HomeView: View {
     @ObservedObject private var uiConfig = DynamicUIConfig.shared
     @State private var sections: [HomeSection] = []
     @State private var personal: [HomeSection] = []
+    @State private var categories: [BrowseCategory] = []
     @State private var loading = true
     @State private var failure: String?
-    @State private var feedVisibleCount: Int = 20
 
     private var seeds: [Track] {
         var seen = Set<String>()
@@ -110,39 +110,14 @@ struct HomeView: View {
         if !recommendations.isEmpty { return recommendations }
         return Array(HomeFeed.distinct(sections, excluding: library.recent).first?.tracks.prefix(6) ?? [])
     }
-    private var remaining: [HomeSection] {
-        HomeFeed.distinct(sections, excluding: featured + library.recent)
+    private var quickLaunch: [Track] {
+        let count = max(0, uiConfig.style.quickLaunchGridCount)
+        if !library.recent.isEmpty { return Array(library.recent.prefix(count)) }
+        guard let first = sections.first, first.tracks.count >= 4 else { return [] }
+        return Array(first.tracks.prefix(count))
     }
-
-    private var feedTracks: [Track] {
-        var seen = Set<String>()
-        for t in featured { seen.insert(t.id) }
-        if !library.recent.isEmpty {
-            for t in library.recent.prefix(uiConfig.style.quickLaunchGridCount) {
-                seen.insert(t.id)
-            }
-        } else if let first = sections.first {
-            for t in first.tracks.prefix(uiConfig.style.quickLaunchGridCount) {
-                seen.insert(t.id)
-            }
-        }
-
-        var result: [Track] = []
-        for section in remaining {
-            for track in section.tracks {
-                if seen.insert(track.id).inserted {
-                    result.append(track)
-                }
-            }
-        }
-        for section in sections {
-            for track in section.tracks {
-                if seen.insert(track.id).inserted {
-                    result.append(track)
-                }
-            }
-        }
-        return result
+    private var remaining: [HomeSection] {
+        HomeFeed.distinct(sections, excluding: Array(featured.prefix(6)) + quickLaunch + library.recent)
     }
 
     var body: some View {
@@ -152,7 +127,7 @@ struct HomeView: View {
                     MusicLoadingView()
                 }
 
-                // Spotlight hero shelf
+                // Spotlight hero shelf.
                 if !featured.isEmpty {
                     HomeSpotlightShelf(
                         title: recommendations.isEmpty ? "Öne çıkanlar" : "Senin için",
@@ -163,40 +138,28 @@ struct HomeView: View {
                 }
 
                 // Quick-launch "Son dinlenenler" (or regional popular if no recent history)
-                if !library.recent.isEmpty {
+                if !quickLaunch.isEmpty {
                     HomeQuickLaunchShelf(
-                        title: "Son dinlenenler",
-                        tracks: Array(library.recent.prefix(uiConfig.style.quickLaunchGridCount))
-                    )
-                } else if let firstSection = sections.first, firstSection.tracks.count >= 4 {
-                    HomeQuickLaunchShelf(
-                        title: firstSection.title,
-                        tracks: Array(firstSection.tracks.prefix(uiConfig.style.quickLaunchGridCount))
+                        title: library.recent.isEmpty ? (sections.first?.title ?? "Öne çıkanlar") : "Son dinlenenler",
+                        tracks: quickLaunch
                     )
                 }
 
-                // Endless vertical list of songs flowing downwards like Spotify / Apple Music ("Senin için" / "Keşfet")
-                let visibleTracks = Array(feedTracks.prefix(feedVisibleCount))
-                if !visibleTracks.isEmpty {
-                    VStack(alignment: .leading, spacing: 14) {
-                        BrowseShelfHeading(
-                            title: !recommendations.isEmpty ? "Senin için" : (library.recent.isEmpty ? "Senin için" : (sections.first?.title ?? "Keşfet")),
-                            caption: recommendations.isEmpty ? "Öne çıkan şarkılar" : "Dinlediklerinden yola çıkarak",
-                            tracks: feedTracks
-                        )
+                // Genre shortcuts.
+                if !categories.isEmpty {
+                    HomeGenreCapsulesShelf(categories: categories)
+                }
 
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(visibleTracks.enumerated()), id: \.element.id) { index, track in
-                                TrackRow(track: track, tracks: feedTracks)
-                                    .onAppear {
-                                        if index >= visibleTracks.count - 4 && feedVisibleCount < feedTracks.count {
-                                            feedVisibleCount = min(feedVisibleCount + uiConfig.style.endlessPageSize, feedTracks.count)
-                                        }
-                                    }
-                                Divider().padding(.leading, 67)
-                            }
-                        }
-                        .padding(.horizontal, 20)
+                // Keep each catalog category in its own horizontal shelf.
+                ForEach(Array(remaining.enumerated()), id: \.element.id) { index, section in
+                    if index % 2 == 0 {
+                        CompactTrackShelf(title: section.title, tracks: section.tracks)
+                    } else {
+                        BrowseTrackShelf(
+                            title: section.title,
+                            subtitle: section.subtitle.isEmpty ? nil : section.subtitle,
+                            tracks: section.tracks
+                        )
                     }
                 }
 
@@ -227,17 +190,68 @@ struct HomeView: View {
         failure = nil
         defer { loading = false }
         do {
-            sections = try await API.shared.home().sections
+            async let homeCall = API.shared.home()
+            async let catCall = try? API.shared.categories()
+            let homeRes = try await homeCall
+            try Task.checkCancellation()
+            sections = homeRes.sections
+            loading = false
             if seeds.isEmpty {
                 personal = []
             } else {
-                personal = (try? await API.shared.recommendations(for: seeds).sections) ?? []
+                let recommended = (try? await API.shared.recommendations(for: seeds).sections) ?? []
+                try Task.checkCancellation()
+                personal = recommended
             }
-            feedVisibleCount = min(uiConfig.style.endlessPageSize, feedTracks.count)
             player.warm(featured)
+            let cats = await catCall
+            try Task.checkCancellation()
+            categories = cats ?? []
         } catch is CancellationError {
         } catch {
+            guard !Task.isCancelled else { return }
             failure = error.localizedDescription
+        }
+    }
+}
+
+private struct HomeGenreCapsulesShelf: View {
+    var categories: [BrowseCategory]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            BrowseShelfHeading(title: "Türler ve ruh halleri")
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 10) {
+                    ForEach(categories.prefix(12)) { category in
+                        NavigationLink {
+                            QueryView(query: category.query, title: category.title)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Artwork(url: category.artwork, radius: 6)
+                                    .frame(width: 28, height: 28)
+                                    .clipped()
+
+                                Text(category.title)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color.primary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.leading, 6)
+                            .padding(.trailing, 14)
+                            .padding(.vertical, 6)
+                            .background(Color.musicElevated, in: Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+                            )
+                        }
+                        .buttonStyle(TileButtonStyle())
+                        .accessibilityIdentifier("home.category.\(category.id)")
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
         }
     }
 }
@@ -388,7 +402,7 @@ private struct HomeQuickLaunchShelf: View {
                 ],
                 spacing: 10
             ) {
-                ForEach(Array(tracks.prefix(6))) { track in
+                ForEach(tracks) { track in
                     HomeQuickLaunchTile(track: track, tracks: tracks)
                 }
             }
@@ -547,11 +561,16 @@ private struct BrowseTrackShelf: View {
 struct DiscoverView: View {
     @State private var sections: [HomeSection] = []
     @State private var failure: String?
+    @State private var loading = true
     @EnvironmentObject private var player: MusicPlayer
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 28) {
+                if loading && sections.isEmpty {
+                    MusicLoadingView()
+                }
+
                 // Editorial featured hero banners
                 if let first = sections.first, !first.tracks.isEmpty {
                     DiscoverHeroShelf(title: "Öne çıkanlar", tracks: Array(first.tracks.prefix(6)))
@@ -585,7 +604,9 @@ struct DiscoverView: View {
     }
 
     private func load() async {
+        loading = sections.isEmpty
         failure = nil
+        defer { loading = false }
         do {
             sections = try await API.shared.home().sections
             player.warm(sections.first?.tracks ?? [])
@@ -1070,20 +1091,93 @@ struct SearchView: View {
             if songs.isEmpty && visibleResult.artists.isEmpty && visibleResult.albums.isEmpty && playlists.isEmpty {
                 noResults
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(songs.prefix(3))) { track in
-                        TrackRow(track: track, tracks: songs)
-                        Divider().padding(.leading, 67)
+                VStack(alignment: .leading, spacing: 22) {
+                    if !songs.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            BrowseShelfHeading(title: "Şarkılar", tracks: songs)
+                            VStack(spacing: 0) {
+                                ForEach(Array(songs.prefix(5))) { track in
+                                    TrackRow(track: track, tracks: songs)
+                                    Divider().padding(.leading, 67)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
                     }
-                    ForEach(Array(playlists.prefix(2))) { playlistRow($0) }
-                    ForEach(Array(visibleResult.artists.prefix(2))) { artistRow($0) }
-                    ForEach(Array(visibleResult.albums.prefix(2))) { albumRow($0) }
-                    ForEach(Array(songs.dropFirst(3))) { track in
-                        TrackRow(track: track, tracks: songs)
-                        Divider().padding(.leading, 67)
+
+                    if !visibleResult.artists.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            BrowseShelfHeading(title: "Sanatçılar")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: 16) {
+                                    ForEach(visibleResult.artists) { artist in
+                                        NavigationLink {
+                                            artistDestination(artist)
+                                        } label: {
+                                            VStack(spacing: 8) {
+                                                ArtistPortrait(url: artist.artwork, name: artist.name)
+                                                    .frame(width: 80, height: 80)
+                                                    .clipShape(Circle())
+                                                    .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+                                                Text(artist.name)
+                                                    .font(.system(size: 13, weight: .semibold))
+                                                    .foregroundStyle(.primary)
+                                                    .lineLimit(1)
+                                                    .frame(width: 86)
+                                            }
+                                        }
+                                        .buttonStyle(CardButtonStyle())
+                                        .accessibilityIdentifier("artist.open.\(artist.id)")
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                    }
+
+                    if !visibleResult.albums.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            BrowseShelfHeading(title: "Albümler")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(alignment: .top, spacing: 14) {
+                                    ForEach(visibleResult.albums) { album in
+                                        NavigationLink {
+                                            albumDestination(album)
+                                        } label: {
+                                            AlbumCard(collection: album).frame(width: 140)
+                                        }
+                                        .buttonStyle(CardButtonStyle())
+                                        .accessibilityIdentifier("album.open.\(album.id)")
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                    }
+
+                    if !playlists.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            BrowseShelfHeading(title: "Çalma Listeleri")
+                            VStack(spacing: 0) {
+                                ForEach(playlists) { playlistRow($0) }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+
+                    if songs.count > 5 {
+                        VStack(alignment: .leading, spacing: 10) {
+                            BrowseShelfHeading(title: "Şarkılar", tracks: songs)
+                            VStack(spacing: 0) {
+                                ForEach(Array(songs.dropFirst(5))) { track in
+                                    TrackRow(track: track, tracks: songs)
+                                    Divider().padding(.leading, 67)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
                     }
                 }
-                .padding(.horizontal, 20)
             }
         } else if filter == "albums" {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 20) {
@@ -1093,7 +1187,7 @@ struct SearchView: View {
                     } label: {
                         AlbumCard(collection: album)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(CardButtonStyle())
                     .accessibilityIdentifier("album.open.\(album.id)")
                 }
             }
@@ -1150,7 +1244,7 @@ struct SearchView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TrackRowButtonStyle())
             .accessibilityIdentifier("search.playlist." + playlist.id.uuidString)
             Divider().padding(.leading, 66)
         }
@@ -1177,7 +1271,7 @@ struct SearchView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TrackRowButtonStyle())
             .accessibilityIdentifier("artist.open.\(artist.id)")
             Divider().padding(.leading, 66)
         }
@@ -1197,7 +1291,7 @@ struct SearchView: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
-                        Text(L("Albüm") + " · " + album.artist)
+                        Text(album.artist)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -1206,12 +1300,11 @@ struct SearchView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TrackRowButtonStyle())
             .accessibilityIdentifier("album.open.\(album.id)")
             Divider().padding(.leading, 66)
         }
     }
-
     private var noResults: some View {
         EmptyState(
             symbol: "magnifyingglass",
@@ -1300,11 +1393,21 @@ struct AlbumDetailView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .center, spacing: 20) {
-                // Centered artwork with 12pt radius and subtle shadow
-                Artwork(url: collection.artwork, radius: 12)
-                    .frame(width: 220, height: 220)
-                    .shadow(color: .black.opacity(0.35), radius: 16, x: 0, y: 8)
-                    .padding(.top, 16)
+                // Centered artwork with 14pt radius, deep shadow and subtle ambient aura
+                ZStack {
+                    Artwork(url: collection.artwork, radius: 0)
+                        .frame(width: 200, height: 200)
+                        .blur(radius: 40)
+                        .opacity(0.3)
+                    Artwork(url: collection.artwork, radius: 14)
+                        .frame(width: 220, height: 220)
+                        .shadow(color: .black.opacity(0.4), radius: 18, x: 0, y: 9)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                }
+                .padding(.top, 16)
 
                 // Title, Artist and Release Year
                 VStack(spacing: 6) {
@@ -1315,22 +1418,32 @@ struct AlbumDetailView: View {
                         .lineLimit(2)
                         .padding(.horizontal, 20)
 
-                    HStack(spacing: 6) {
-                        Text(collection.artist)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.coral)
-                            .lineLimit(1)
-
-                        if let year = releaseYear {
-                            Text("·")
-                                .font(.system(size: 14))
-                                .foregroundStyle(Color.secondary)
-                            Text(year)
-                                .font(.system(size: 15))
-                                .foregroundStyle(Color.secondary)
+                    NavigationLink {
+                        if let firstTrack = tracks.first, let artistID = firstTrack.artistID {
+                            ArtistDetailView(id: artistID, name: collection.artist)
+                        } else {
+                            QueryView(query: collection.artist, title: collection.artist)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(collection.artist)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.coral)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Color.coral.opacity(0.7))
                         }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("album.artist.\(collection.artist)")
                     .padding(.horizontal, 20)
+
+                    if let year = releaseYear {
+                        Text(year)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.secondary)
+                    }
                 }
 
                 // Play & Shuffle pill buttons (hidden until tracks load!)
@@ -1590,7 +1703,7 @@ struct ArtistDetailView: View {
                             .stroke(Color.white.opacity(0.06), lineWidth: 0.8)
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardButtonStyle())
                 .padding(.horizontal, 20)
                 .accessibilityIdentifier("artist.latest")
             }
@@ -1645,7 +1758,7 @@ struct ArtistDetailView: View {
                                     } label: {
                                         AlbumCard(collection: single).frame(width: 154)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(CardButtonStyle())
                                     .accessibilityIdentifier("album.open.\(single.id)")
                                 }
                             }

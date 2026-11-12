@@ -7,6 +7,7 @@ struct LibraryView: View {
     @State private var editingCategories = false
     @AppStorage("libraryLayout-v1") private var layoutValue = ""
     @AppStorage("librarySort-v1") private var sortValue = LibraryCollectionSort.added.rawValue
+    @AppStorage("followedArtists") private var followedArtists = ""
     private var layout: LibraryLayout { LibraryLayout(storedValue: layoutValue) }
     private var recent: [LibraryRecentEntry] {
         Array((LibraryCollectionSort(rawValue: sortValue) ?? .added).sorted(library.recentlyAddedCollections).prefix(16))
@@ -17,7 +18,14 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(spacing: 0) {
                     ForEach(layout.visible) { category in
-                        libraryRow(category.title, symbol: category.symbol, destination: category.destination, identifier: "library." + category.rawValue)
+                        libraryRow(
+                            category.title,
+                            symbol: category.symbol,
+                            color: category.tileColor,
+                            destination: category.destination,
+                            count: categoryCount(for: category),
+                            identifier: "library." + category.rawValue
+                        )
                     }
                 }
 
@@ -57,7 +65,7 @@ struct LibraryView: View {
                             }
                         }
                     }
-                } else if library.saved.isEmpty && library.playlists.isEmpty && library.favorites.isEmpty {
+                } else if library.saved.isEmpty && library.playlists.isEmpty && categoryCount(for: .artists) == 0 {
                     VStack(spacing: 16) {
                         Image(systemName: "music.note.list")
                             .font(.system(size: 38, weight: .light))
@@ -172,17 +180,43 @@ struct LibraryView: View {
         return library.saved.compactMap(\.track).filter { $0.albumID == id }
     }
 
-    private func libraryRow(_ title: String, symbol: String, destination: LibraryDestination, identifier: String) -> some View {
+    private func categoryCount(for category: LibraryCategory) -> Int {
+        switch category {
+        case .playlists:
+            return library.playlists.count
+        case .artists:
+            let followedIDs = followedArtists.components(separatedBy: "\n").compactMap { value -> String? in
+                let parts = value.split(separator: "|", maxSplits: 1)
+                return parts.count == 2 ? String(parts[0]) : nil
+            }
+            let savedIDs = library.saved.compactMap(\.track).compactMap { track -> String? in
+                guard let id = track.artistID, !id.isEmpty else { return nil }
+                return id
+            }
+            return Set(followedIDs + savedIDs).count
+        case .albums:
+            return Set(library.saved.compactMap(\.track).compactMap { track -> String? in
+                guard let id = track.albumID, !id.isEmpty else { return nil }
+                return id
+            }).count
+        case .songs:
+            return library.saved.compactMap(\.track).count
+        case .downloads:
+            return library.downloaded.count
+        }
+    }
+
+    private func libraryRow(_ title: String, symbol: String, color: Color, destination: LibraryDestination, count: Int, identifier: String) -> some View {
         VStack(spacing: 0) {
             Button { self.destination = destination } label: {
-                LibraryLink(title: L(title), symbol: symbol, count: nil, color: Color.coral)
+                LibraryLink(title: L(title), symbol: symbol, count: count, color: color)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TrackRowButtonStyle())
             .accessibilityIdentifier(identifier)
 
             Divider()
                 .overlay(Color.primary.opacity(0.08))
-                .padding(.leading, 44)
+                .padding(.leading, 54)
         }
     }
 }
@@ -206,6 +240,15 @@ enum LibraryCategory: String, CaseIterable, Codable, Identifiable {
         case .albums: "square.stack"
         case .songs: "music.note"
         case .downloads: "arrow.down.circle"
+        }
+    }
+    var tileColor: Color {
+        switch self {
+        case .playlists: .coral
+        case .artists: .purple
+        case .albums: .orange
+        case .songs: .blue
+        case .downloads: .green
         }
     }
     fileprivate var destination: LibraryDestination {
@@ -451,6 +494,20 @@ struct CreatePlaylistView: View {
     }
 }
 
+private struct CategoryBadgeTile: View {
+    var symbol: String
+    var color: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(color)
+            .frame(width: 38, height: 38)
+            .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
 struct LibraryLink: View {
     var title: String
     var symbol: String
@@ -458,17 +515,13 @@ struct LibraryLink: View {
     var color: Color = Color.coral
     var body: some View {
         HStack(spacing: 16) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(color)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
+            CategoryBadgeTile(symbol: symbol, color: color)
             Text(title)
-                .font(.system(size: 19, weight: .regular))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
-            if let count, count > 0 {
+            if let count {
                 Text("\(count)")
                     .font(.subheadline)
                     .monospacedDigit()
@@ -479,7 +532,7 @@ struct LibraryLink: View {
                 .foregroundStyle(Color(uiColor: .tertiaryLabel))
                 .accessibilityHidden(true)
         }
-        .frame(minHeight: 50)
+        .frame(minHeight: 64)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }

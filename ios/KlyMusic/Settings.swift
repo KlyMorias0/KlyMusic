@@ -53,10 +53,8 @@ struct SettingsView: View {
                         Text(L("Ses kalitesi"))
                             .font(.body)
                             .foregroundStyle(.primary)
-                        Spacer()
-                        Text(currentQualityTitle)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 12)
+                        SettingsValueText(text: currentQualityTitle)
                     }
                     .frame(minHeight: 44)
                 }
@@ -77,7 +75,7 @@ struct SettingsView: View {
                     }
                     .frame(minHeight: 44)
                 }
-                .tint(.green)
+                .tint(Color.coral)
                 .accessibilityIdentifier("settings.wifiOnly")
 
                 NavigationLink {
@@ -95,10 +93,8 @@ struct SettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        Spacer()
-                        Text(storageSize)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 12)
+                        SettingsValueText(text: storageSize)
                     }
                     .frame(minHeight: 44)
                 }
@@ -118,10 +114,8 @@ struct SettingsView: View {
                         Text(L("Görünüm"))
                             .font(.body)
                             .foregroundStyle(.primary)
-                        Spacer()
-                        Text(currentThemeTitle)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 12)
+                        SettingsValueText(text: currentThemeTitle)
                     }
                     .frame(minHeight: 44)
                 }
@@ -136,10 +130,8 @@ struct SettingsView: View {
                         Text(L("Dil"))
                             .font(.body)
                             .foregroundStyle(.primary)
-                        Spacer()
-                        Text(currentLanguageTitle)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 12)
+                        SettingsValueText(text: currentLanguageTitle)
                     }
                     .frame(minHeight: 44)
                 }
@@ -366,14 +358,30 @@ private struct SettingsIconTile: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(color)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+                }
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white)
         }
-        .frame(width: 30, height: 30)
+        .frame(width: 32, height: 32)
         .accessibilityHidden(true)
+    }
+}
+
+private struct SettingsValueText: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.trailing)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -400,16 +408,17 @@ private struct SettingsChoiceView: View {
                                 .font(.body)
                                 .foregroundStyle(.primary)
                             Spacer(minLength: 12)
-                            if selection == option.value {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(Color.coral)
-                            }
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.coral)
+                                .frame(width: 22)
+                                .opacity(selection == option.value ? 1 : 0)
+                                .accessibilityHidden(true)
                         }
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TrackRowButtonStyle())
                     .accessibilityIdentifier(identifier + "." + option.value)
                     .accessibilityAddTraits(selection == option.value ? .isSelected : [])
                 }
@@ -471,27 +480,32 @@ private struct AudioQualitySettings: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
-                if active {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color.coral)
-                }
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color.coral)
+                    .frame(width: 22)
+                    .opacity(active ? 1 : 0)
+                    .accessibilityHidden(true)
             }
             .padding(.vertical, 4)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TrackRowButtonStyle())
         .accessibilityIdentifier("settings.quality." + value)
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 
 private extension View {
-    func musicSettingsList(compactHeaders: Bool = false) -> some View {
+    func musicSettingsList() -> some View {
         self
             .listStyle(.insetGrouped)
+            .listSectionSpacing(20)
             .scrollContentBackground(.hidden)
             .background(Color.pageBackground)
+            .toolbarBackground(Color.pageBackground, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.inline)
             .tint(Color.coral)
     }
 }

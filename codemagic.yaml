@@ -13,10 +13,17 @@ workflows:
     environment:
       xcode: latest
     scripts:
+      - name: Unit tests and UI regression tests
+        script: |
+          set -o pipefail
+          bash scripts/ci-verify.sh 2>&1 | tee verification.log
       - name: Build unsigned iPhone IPA
         script: |
           set -o pipefail
-          bash scripts/build-ipa.sh
+          bash scripts/build-ipa.sh 2>&1 | tee device-build.log
     artifacts:
       - dist/KlyMusic-unsigned.ipa
       - dist/SHA256.txt
+      - verification.log
+      - device-build.log
+      - dist/screenshots/**/*

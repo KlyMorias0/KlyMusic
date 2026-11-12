@@ -51,7 +51,9 @@ struct TrackCard: View {
     var body: some View {
         Button { player.play(track, in: tracks) } label: {
             VStack(alignment: .leading, spacing: 10) {
-                Artwork(url: track.artwork, radius: 7).frame(width: size, height: size)
+                Artwork(url: track.artwork, radius: 10)
+                    .frame(width: size, height: size)
+                    .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 3)
                     .overlay(alignment: .bottomTrailing) {
                         if player.current?.id == track.id || player.pendingTrack?.id == track.id {
                             ZStack {
@@ -62,7 +64,10 @@ struct TrackCard: View {
                         }
                     }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(track.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(track.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                        if track.explicit { Image(systemName: "e.square.fill").font(.system(size: 9)).foregroundStyle(.tertiary) }
+                    }
                     Text(track.artist).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }.frame(width: size, alignment: .leading).contentShape(Rectangle())
@@ -232,12 +237,19 @@ struct ErrorState: View {
         return text
     }
     var body: some View {
-        VStack(spacing: 15) {
-            Image(systemName: "wifi.exclamationmark").font(.system(size: 28, weight: .light)).foregroundStyle(.secondary)
+        VStack(spacing: 16) {
+            Image(systemName: "wifi.exclamationmark").font(.system(size: 32, weight: .light)).foregroundStyle(.secondary)
             Text(L("Şu an yüklenemiyor")).font(.headline)
             Text(cleanMessage).font(.system(size: 13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button(L("Yeniden dene"), action: retry).font(.system(size: 13, weight: .bold)).foregroundStyle(Color.coral)
-                .padding(.horizontal, 22).padding(.vertical, 12).overlay { Capsule().strokeBorder(Color.coral.opacity(0.7), lineWidth: 1) }
+            Button(action: retry) {
+                Text(L("Yeniden dene"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(Color.coral, in: Capsule())
+            }
+            .buttonStyle(CardButtonStyle())
         }.frame(maxWidth: .infinity).padding(26)
     }
 }
@@ -245,17 +257,17 @@ struct ErrorState: View {
 struct MusicLoadingView: View {
     @State private var isPulsing = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 24) {
             HStack(spacing: 10) {
                 ProgressView().tint(Color.coral)
-                Text(L("Müziğin hazırlanıyor")).font(.system(size: 13)).foregroundStyle(.secondary)
-            }.padding(.vertical, 35)
-            ForEach(0..<3) { _ in
+                Text(L("Müziğin hazırlanıyor")).font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+            }.padding(.vertical, 20)
+            ForEach(0..<5) { _ in
                 HStack(spacing: 14) {
-                    RoundedRectangle(cornerRadius: 6).fill(Color.musicElevated).frame(width: 52, height: 52)
-                    VStack(alignment: .leading, spacing: 9) {
-                        Capsule().fill(.primary.opacity(0.12)).frame(width: 140, height: 7)
-                        Capsule().fill(.primary.opacity(0.06)).frame(width: 85, height: 6)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.musicElevated).frame(width: 52, height: 52)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Capsule().fill(.primary.opacity(0.12)).frame(width: 140, height: 10)
+                        Capsule().fill(.primary.opacity(0.06)).frame(width: 85, height: 8)
                     }
                     Spacer()
                 }
@@ -275,23 +287,43 @@ struct CollectionPlayButtons: View {
     @EnvironmentObject private var player: MusicPlayer
     var body: some View {
         HStack(spacing: 12) {
-            Button { if let first = tracks.first { player.play(first, in: tracks) } } label: {
-                Label(L("Çal"), systemImage: "play.fill").frame(maxWidth: .infinity).frame(height: 44)
+            Button {
+                if let first = tracks.first { player.play(first, in: tracks) }
+            } label: {
+                Label(L("Çal"), systemImage: "play.fill")
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
             }
+            .buttonStyle(CollectionButtonStyle())
+
             Button {
                 let shuffled = tracks.shuffled()
                 if let first = shuffled.first { player.play(first, in: shuffled) }
-            } label: { Label(L("Karıştır"), systemImage: "shuffle").frame(maxWidth: .infinity).frame(height: 44) }
-        }.font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary)
-            .disabled(tracks.isEmpty).opacity(tracks.isEmpty ? 0.35 : 1)
+            } label: {
+                Label(L("Karıştır"), systemImage: "shuffle")
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+            }
             .buttonStyle(CollectionButtonStyle())
+        }
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundStyle(Color.coral)
+        .disabled(tracks.isEmpty)
+        .opacity(tracks.isEmpty ? 0.35 : 1)
     }
 }
 
 private struct CollectionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 10))
-            .opacity(configuration.isPressed ? 0.6 : 1)
+        configuration.label
+            .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.8)
+            )
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.75 : 1.0)
+            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -301,14 +333,21 @@ struct ArtistPortrait: View {
     var name: String
     var body: some View {
         GeometryReader { geometry in
-            if let url {
-                Artwork(url: url, radius: min(geometry.size.width, geometry.size.height) / 2)
+            let diameter = min(geometry.size.width, geometry.size.height)
+            if let url, !url.isEmpty {
+                Artwork(url: url, radius: diameter / 2)
+                    .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.8))
             } else {
                 ZStack {
                     Circle().fill(Color.musicElevated)
-                    Image(systemName: "person.fill").font(.system(size: min(geometry.size.width, geometry.size.height) * 0.48)).foregroundStyle(.tertiary)
+                    Image(systemName: "person.fill")
+                        .font(.system(size: diameter * 0.48))
+                        .foregroundStyle(.tertiary)
                 }
+                .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.8))
             }
-        }.accessibilityLabel(name)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityLabel(name)
     }
 }
