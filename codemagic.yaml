@@ -16,6 +16,7 @@ workflows:
       - name: Unit tests and UI regression tests
         script: |
           set -o pipefail
+          python3 scripts/prepare-ci-audio.py
           bash scripts/ci-verify.sh 2>&1 | tee verification.log
       - name: Build unsigned iPhone IPA
         script: |

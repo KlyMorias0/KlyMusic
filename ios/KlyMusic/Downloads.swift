@@ -58,13 +58,16 @@ enum DownloadAudioContainer {
             throw CancellationError()
         } catch {
             try Task.checkCancellation()
+            #if DEBUG
+            print("DOWNLOAD_AUDIOFILE_FALLBACK: \(error)")
+            #endif
             // AudioFile cannot open every fragmented AAC container. Preserve the
             // media reader for those formats, while ordinary files use the fast path.
             return try decodedMediaDuration(asset: asset, track: track)
         }
     }
 
-    private static func decodedFileDuration(at url: URL) throws -> Double {
+    static func decodedFileDuration(at url: URL) throws -> Double {
         // Decode locally through AudioFile instead of the media reader's simulator
         // audio service. Count every decoded frame; container duration is not evidence.
         let audio = try AVAudioFile(forReading: url)

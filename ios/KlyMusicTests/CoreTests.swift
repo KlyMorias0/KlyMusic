@@ -1189,6 +1189,13 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(store.saved.first(where: { $0.id == track.id })?.track?.duration, 153)
     }
 
+    func testAudioFileDecoderMeasuresCompleteAACFrames() throws {
+        let source = try downloadFixture(seconds: 10)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let decoded = try DownloadAudioContainer.decodedFileDuration(at: source)
+        XCTAssertEqual(decoded, 10, accuracy: 0.15)
+    }
+
     func testOrdinaryAACContainerPassesWithoutRewriting() async throws {
         let stage = try downloadFixture()
         defer { try? FileManager.default.removeItem(at: stage) }
