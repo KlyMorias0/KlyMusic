@@ -1,5 +1,6 @@
 """Boot the CI simulator with bounded CoreSimulator startup and diagnostics."""
 import json
+from pathlib import Path
 import subprocess
 import sys
 
@@ -43,6 +44,14 @@ if not devices:
 device = devices[0]
 if device['state'] != 'Booted':
     simctl('boot', device['udid'])
+# Simulator.app hosts the Mac audio route used by media in the simulator.
+# Start the app from the selected Xcode before playback tests use that route.
+developer = subprocess.run(['xcode-select', '-p'], check=True, capture_output=True,
+                           text=True, timeout=10).stdout.strip()
+simulator_app = Path(developer) / 'Applications/Simulator.app'
+print(f'Starting Simulator audio host: {simulator_app}', file=sys.stderr, flush=True)
+subprocess.run(['open', '-a', str(simulator_app), '--args', '-CurrentDeviceUDID', device['udid']],
+               check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=30)
 simctl('bootstatus', device['udid'], '-b', timeout=300)
 try:
     simctl('status_bar', device['udid'], 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', timeout=20)

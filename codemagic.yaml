@@ -11,7 +11,7 @@ workflows:
           include: true
           source: true
     environment:
-      xcode: latest
+      xcode: 26.3
     scripts:
       - name: Unit tests and UI regression tests
         script: |
