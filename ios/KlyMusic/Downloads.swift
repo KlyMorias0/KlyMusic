@@ -76,14 +76,22 @@ enum DownloadAudioContainer {
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 8192) else {
             throw APIError.invalidResponse
         }
+        let length = audio.length
+        guard length > 0 else { throw APIError.invalidResponse }
+        var decodedFrames: AVAudioFramePosition = 0
         var seconds = 0.0
-        while true {
+        while audio.framePosition < length {
             try Task.checkCancellation()
-            try audio.read(into: buffer, frameCount: buffer.frameCapacity)
-            guard buffer.frameLength > 0 else { break }
+            // AudioFile may return false without NSError when asked to read past EOF.
+            // Read the final partial buffer exactly, and require every file frame.
+            let remaining = length - audio.framePosition
+            let count = AVAudioFrameCount(min(AVAudioFramePosition(buffer.frameCapacity), remaining))
+            try audio.read(into: buffer, frameCount: count)
+            guard buffer.frameLength > 0 else { throw APIError.invalidResponse }
+            decodedFrames += AVAudioFramePosition(buffer.frameLength)
             seconds += Double(buffer.frameLength) / format.sampleRate
         }
-        guard seconds.isFinite, seconds > 0 else { throw APIError.invalidResponse }
+        guard decodedFrames == length, seconds.isFinite, seconds > 0 else { throw APIError.invalidResponse }
         return seconds
     }
 

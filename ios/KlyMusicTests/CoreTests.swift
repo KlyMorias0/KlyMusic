@@ -1179,6 +1179,7 @@ final class CoreTests: XCTestCase {
         let completed = expectation(description: "Wrong-duration file rejected before background completion")
         manager.backgroundCompletion = {
             XCTAssertEqual(manager.jobs[track.id]?.failed, true)
+            XCTAssertEqual(manager.jobs[track.id]?.status, L("İndirilen dosya bu şarkının süresiyle eşleşmiyor. Yeniden indir."))
             XCTAssertNil(store.localURL(track.id))
             XCTAssertNil(store.saved.first(where: { $0.id == track.id })?.downloadFile)
             completed.fulfill()
@@ -1213,6 +1214,11 @@ final class CoreTests: XCTestCase {
             _ = try await DownloadAudioContainer.verifiedDuration(at: stage, expected: 5)
             XCTFail("A genuinely longer recording must be rejected.")
         } catch {
+            guard case APIError.server(let message) = error else {
+                XCTFail("Expected duration mismatch, got \(error)")
+                return
+            }
+            XCTAssertEqual(message, L("İndirilen dosya bu şarkının süresiyle eşleşmiyor. Yeniden indir."))
             XCTAssertEqual(try Data(contentsOf: stage), originalBytes)
             let duration = try await AVURLAsset(url: stage).load(.duration).seconds
             XCTAssertEqual(duration, 10, accuracy: 0.15)
