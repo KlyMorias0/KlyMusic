@@ -51,7 +51,20 @@ enum DownloadAudioContainer {
         try Task.checkCancellation()
         let asset = AVURLAsset(url: url)
         let tracks = try await asset.loadTracks(withMediaType: .audio)
-        guard tracks.count == 1 else { throw APIError.invalidResponse }
+        guard tracks.count == 1, let track = tracks.first else { throw APIError.invalidResponse }
+        do {
+            return try decodedFileDuration(at: url)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            try Task.checkCancellation()
+            // AudioFile cannot open every fragmented AAC container. Preserve the
+            // media reader for those formats, while ordinary files use the fast path.
+            return try decodedMediaDuration(asset: asset, track: track)
+        }
+    }
+
+    private static func decodedFileDuration(at url: URL) throws -> Double {
         // Decode locally through AudioFile instead of the media reader's simulator
         // audio service. Count every decoded frame; container duration is not evidence.
         let audio = try AVAudioFile(forReading: url)
@@ -68,6 +81,35 @@ enum DownloadAudioContainer {
             seconds += Double(buffer.frameLength) / format.sampleRate
         }
         guard seconds.isFinite, seconds > 0 else { throw APIError.invalidResponse }
+        return seconds
+    }
+
+    private static func decodedMediaDuration(asset: AVAsset, track: AVAssetTrack) throws -> Double {
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ])
+        output.alwaysCopiesSampleData = false
+        guard reader.canAdd(output) else { throw APIError.invalidResponse }
+        reader.add(output)
+        guard reader.startReading() else { throw reader.error ?? APIError.invalidResponse }
+        defer { if reader.status == .reading { reader.cancelReading() } }
+        var seconds = 0.0
+        while let buffer = output.copyNextSampleBuffer() {
+            try Task.checkCancellation()
+            guard let format = CMSampleBufferGetFormatDescription(buffer),
+                  let description = CMAudioFormatDescriptionGetStreamBasicDescription(format),
+                  description.pointee.mSampleRate.isFinite, description.pointee.mSampleRate > 0 else {
+                throw APIError.invalidResponse
+            }
+            seconds += Double(CMSampleBufferGetNumSamples(buffer)) / description.pointee.mSampleRate
+        }
+        guard reader.status == .completed, seconds.isFinite, seconds > 0 else {
+            throw reader.error ?? APIError.invalidResponse
+        }
         return seconds
     }
 }
