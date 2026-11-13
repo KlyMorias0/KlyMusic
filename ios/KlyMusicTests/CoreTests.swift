@@ -856,12 +856,18 @@ final class CoreTests: XCTestCase {
         }
         player.play(track, in: [track])
         for _ in 0..<100 {
-            if player.pendingTrack == nil, player.engine.currentItem?.status == .readyToPlay { break }
+            if player.pendingTrack == nil, player.engine.currentItem != nil { break }
             try await Task.sleep(for: .milliseconds(20))
         }
         let firstItem = try XCTUnwrap(player.engine.currentItem)
-        XCTAssertEqual(firstItem.status, .readyToPlay)
         player.engine.pause()
+        // Readiness is asynchronous; pause the short fixture before waiting so it
+        // cannot finish while a slow simulator is still delivering status changes.
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            firstItem.status != .unknown
+        }, object: nil)
+        await fulfillment(of: [ready], timeout: 10)
+        XCTAssertEqual(firstItem.status, .readyToPlay)
         player.loadLyrics(force: true)
         for _ in 0..<100 {
             if !player.lyricsLoading { break }

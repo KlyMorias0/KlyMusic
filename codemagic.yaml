@@ -27,4 +27,6 @@ workflows:
       - dist/SHA256.txt
       - verification.log
       - device-build.log
+      - build-tests/playback.log
+      - build-tests/samples/**/*
       - dist/screenshots/**/*
