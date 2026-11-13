@@ -15,12 +15,13 @@ workflows:
     scripts:
       - name: Unit tests and UI regression tests
         script: |
-          set -o pipefail
+          set -euo pipefail
           python3 scripts/prepare-ci-audio.py
+          export KLY_CI_VIRTUAL_AUDIO=1
           bash scripts/ci-verify.sh 2>&1 | tee verification.log
       - name: Build unsigned iPhone IPA
         script: |
-          set -o pipefail
+          set -euo pipefail
           bash scripts/build-ipa.sh 2>&1 | tee device-build.log
     artifacts:
       - dist/KlyMusic-unsigned.ipa

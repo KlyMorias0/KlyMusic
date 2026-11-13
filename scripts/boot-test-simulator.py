@@ -1,5 +1,6 @@
 """Boot the CI simulator with bounded CoreSimulator startup and diagnostics."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -53,6 +54,12 @@ print(f'Starting Simulator audio host: {simulator_app}', file=sys.stderr, flush=
 subprocess.run(['open', '-a', str(simulator_app), '--args', '-CurrentDeviceUDID', device['udid']],
                check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=30)
 simctl('bootstatus', device['udid'], '-b', timeout=300)
+if os.environ.get('KLY_CI_VIRTUAL_AUDIO') == '1':
+    subprocess.run(['clang', '-fobjc-arc', '-fblocks', '-framework', 'Foundation',
+                    'scripts/route-simulator-audio.m', '-o', 'build-tests/route-simulator-audio'],
+                   check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=60)
+    subprocess.run(['build-tests/route-simulator-audio', developer, device['udid']],
+                   check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=45)
 try:
     simctl('status_bar', device['udid'], 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', timeout=20)
 except Exception as e:
