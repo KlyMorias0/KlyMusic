@@ -834,16 +834,13 @@ final class CoreTests: XCTestCase {
         let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let store = LibraryStore(context: ModelContext(container))
         let track = Track(id: "replay-lyrics-" + UUID().uuidString, title: "Replay", artist: "Test", duration: 4)
-        var wave = Data()
-        func text(_ value: String) { wave.append(contentsOf: value.utf8) }
-        func number<T: FixedWidthInteger>(_ value: T) { var little = value.littleEndian; withUnsafeBytes(of: &little) { wave.append(contentsOf: $0) } }
-        let byteCount = 4 * 44100 * 2
-        text("RIFF"); number(UInt32(36 + byteCount)); text("WAVEfmt "); number(UInt32(16)); number(UInt16(1)); number(UInt16(1))
-        number(UInt32(44100)); number(UInt32(88200)); number(UInt16(2)); number(UInt16(16)); text("data"); number(UInt32(byteCount))
-        wave.append(Data(repeating: 0, count: byteCount))
-        let filename = UUID().uuidString + ".wav"
+        // Exercise the AAC format written by downloads, using the same real encoder
+        // fixture as the queue-transition and download-validation regressions.
+        let source = try downloadFixture(seconds: 4)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let filename = UUID().uuidString + ".m4a"
         let file = MusicFiles.downloads.appendingPathComponent(filename)
-        try wave.write(to: file)
+        try FileManager.default.moveItem(at: source, to: file)
         store.markDownloaded(track, filename: filename)
         var lyricRequests = 0
         let player = MusicPlayer { _ in
@@ -853,6 +850,7 @@ final class CoreTests: XCTestCase {
         player.library = store
         defer {
             player.engine.pause()
+            player.engine.removeAllItems()
             try? FileManager.default.removeItem(at: file)
             try? FileManager.default.removeItem(at: MusicFiles.lyrics(track.id))
         }

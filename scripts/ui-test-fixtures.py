@@ -1,11 +1,9 @@
-import http.server, json, io, wave, math, struct, urllib.parse
+import http.server, json, urllib.parse
 from pathlib import Path
 cover=(Path(__file__).parent/'fixtures'/'cover.jpg').read_bytes()
-buf=io.BytesIO()
-with wave.open(buf,'wb') as out:
-    out.setnchannels(1); out.setsampwidth(2); out.setframerate(8000)
-    out.writeframes(b''.join(struct.pack('<h',int(900*math.sin(2*math.pi*220*i/8000))) for i in range(8000*90)))
-audio=buf.getvalue()
+# Use the AAC container exercised by real playback and downloads. This fixture is
+# a generated 90-second tone, with the MP4 index before media for HTTP streaming.
+audio=(Path(__file__).parent/'fixtures'/'audio.m4a').read_bytes()
 track={'id':'fixture:lyrics','title':'Gece Yolu','artist':'KlyMusic Test','album':'Arayüz Kontrolü','duration':90,'artwork':'http://127.0.0.1:8879/fixture-cover.jpg','explicit':False,'source':'test','artistID':'9001','albumID':'9002'}
 tracks=[track]+[dict(track, id=f'fixture:{key}', title=title) for key,title in [('next','Sabah Işığı'),('third','Bir Adım'),('last','Son Durak')]]
 
@@ -35,12 +33,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     a,b=self.headers['Range'].removeprefix('bytes=').split('-'); start=int(a); end=int(b) if b else end; status=206
                 except ValueError: pass
             end=min(end,len(data)-1); body=data[start:end+1]
-            self.send_response(status); self.send_header('Content-Type','audio/wav'); self.send_header('Accept-Ranges','bytes')
+            self.send_response(status); self.send_header('Content-Type','audio/mp4'); self.send_header('Accept-Ranges','bytes')
             if status==206: self.send_header('Content-Range',f'bytes {start}-{end}/{len(data)}')
         else:
             if self.path.startswith('/v1/home'): result={'sections':[{'id':'tr','title':'Türkiye’de şimdi','subtitle':'','tracks':home_tracks}]}
             elif self.path.startswith('/v1/search'): result={'tracks':tracks,'albums':[album],'artists':[artist],'warnings':[]}
-            elif self.path.startswith('/v1/resolve'): result={'id':request.get('track',track)['id'],'path':'v1/media/fixture','provider':'test','codec':'wav','bitrate':128,'expiresAt':9999999999,'duration':90}
+            elif self.path.startswith('/v1/resolve'): result={'id':request.get('track',track)['id'],'path':'v1/media/fixture','provider':'test','codec':'aac','bitrate':64,'expiresAt':9999999999,'duration':90}
             elif self.path.startswith('/v1/categories'):
                 result={'categories':[{key:item[key] for key in ['id','title','query']} | {'artwork':'http://127.0.0.1:8879/fixture-category/'+item['file']} for item in category_sources]}
             elif self.path.startswith('/v1/recommendations'):
