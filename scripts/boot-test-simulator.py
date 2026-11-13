@@ -6,8 +6,16 @@ import sys
 
 def simctl(*arguments, timeout=75):
     print('Simulator: ' + ' '.join(arguments), file=sys.stderr, flush=True)
-    return subprocess.run(['xcrun', 'simctl', *arguments], check=True, capture_output=True,
-                          text=True, timeout=timeout).stdout
+    try:
+        return subprocess.run(['xcrun', 'simctl', *arguments], check=True, capture_output=True,
+                              text=True, timeout=timeout).stdout
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        for output in (error.stdout, error.stderr):
+            if output:
+                if isinstance(output, bytes):
+                    output = output.decode('utf-8', errors='replace')
+                print(output, file=sys.stderr, end='' if output.endswith('\n') else '\n', flush=True)
+        raise
 
 
 for attempt in range(2):
@@ -35,7 +43,7 @@ if not devices:
 device = devices[0]
 if device['state'] != 'Booted':
     simctl('boot', device['udid'])
-simctl('bootstatus', device['udid'], '-b', timeout=120)
+simctl('bootstatus', device['udid'], '-b', timeout=300)
 try:
     simctl('status_bar', device['udid'], 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', timeout=20)
 except Exception as e:
