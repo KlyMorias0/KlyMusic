@@ -173,7 +173,7 @@ final class NavigationTests: XCTestCase {
         shot(app, "Apple-Search-Categories")
         let search = app.searchFields.firstMatch
         search.tap(); search.typeText(name)
-        let libraryScope = app.buttons["Kitaplığın"]
+        let libraryScope = app.buttons["Kütüphanen"]
         XCTAssertTrue(libraryScope.waitForExistence(timeout: 5)); libraryScope.tap()
         app.scrollViews["search.filters"].swipeLeft()
         let listsFilter = app.buttons["search.filter.playlists"]

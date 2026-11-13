@@ -51,32 +51,23 @@ enum DownloadAudioContainer {
         try Task.checkCancellation()
         let asset = AVURLAsset(url: url)
         let tracks = try await asset.loadTracks(withMediaType: .audio)
-        guard tracks.count == 1, let track = tracks.first else { throw APIError.invalidResponse }
-        let reader = try AVAssetReader(asset: asset)
-        let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
-            AVFormatIDKey: kAudioFormatLinearPCM,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsNonInterleaved: false
-        ])
-        output.alwaysCopiesSampleData = false
-        guard reader.canAdd(output) else { throw APIError.invalidResponse }
-        reader.add(output)
-        guard reader.startReading() else { throw reader.error ?? APIError.invalidResponse }
-        defer { if reader.status == .reading { reader.cancelReading() } }
+        guard tracks.count == 1 else { throw APIError.invalidResponse }
+        // Decode locally through AudioFile instead of the media reader's simulator
+        // audio service. Count every decoded frame; container duration is not evidence.
+        let audio = try AVAudioFile(forReading: url)
+        let format = audio.processingFormat
+        guard format.sampleRate.isFinite, format.sampleRate > 0, format.channelCount > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 8192) else {
+            throw APIError.invalidResponse
+        }
         var seconds = 0.0
-        while let buffer = output.copyNextSampleBuffer() {
+        while true {
             try Task.checkCancellation()
-            guard let format = CMSampleBufferGetFormatDescription(buffer),
-                  let description = CMAudioFormatDescriptionGetStreamBasicDescription(format),
-                  description.pointee.mSampleRate.isFinite, description.pointee.mSampleRate > 0 else {
-                throw APIError.invalidResponse
-            }
-            seconds += Double(CMSampleBufferGetNumSamples(buffer)) / description.pointee.mSampleRate
+            try audio.read(into: buffer, frameCount: buffer.frameCapacity)
+            guard buffer.frameLength > 0 else { break }
+            seconds += Double(buffer.frameLength) / format.sampleRate
         }
-        guard reader.status == .completed, seconds.isFinite, seconds > 0 else {
-            throw reader.error ?? APIError.invalidResponse
-        }
+        guard seconds.isFinite, seconds > 0 else { throw APIError.invalidResponse }
         return seconds
     }
 }

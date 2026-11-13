@@ -96,6 +96,14 @@ final class CoreTests: XCTestCase {
         catch { XCTFail("Unexpected error: \(error)") }
     }
 
+    func testEmptyPlaybackRaceReportsNoMatch() async {
+        do {
+            let _: String = try await PlaybackRace.first([])
+            XCTFail("An empty candidate list cannot produce a recording")
+        } catch let error as PlaybackFailure { XCTAssertEqual(error, .noMatch) }
+        catch { XCTFail("Unexpected error: \(error)") }
+    }
+
     func testYouTubeSearchParserRetainsUnlabelledCollaborationCredits() {
         let root = Self.catalogRows(["aaaaaaaaaaa"], title: "Unit Song", artist: "First Artist & Second Artist", linkedArtists: false)
         let result = NativeCatalog.youtubeTracks(root)
@@ -646,7 +654,8 @@ final class CoreTests: XCTestCase {
                 { throw APIError.server("no valid audio") }
             ])
             XCTFail("Invalid candidates cannot become a playable recording")
-        } catch { XCTAssertTrue(error is APIError) }
+        } catch let error as PlaybackFailure { XCTAssertEqual(error, .invalidMedia) }
+        catch { XCTFail("Unexpected error: \(error)") }
     }
 
     func testCancelingPlaybackRaceCancelsAllCandidates() async throws {

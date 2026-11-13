@@ -9,7 +9,7 @@ enum PlaybackRace {
             let width = min(operations.count, max(1, limit))
             for _ in 0..<width { group.addTask(operation: operations[next]); next += 1 }
             defer { group.cancelAll() }
-            var failure: Error = APIError.invalidResponse
+            var failure: Error = PlaybackFailure.noMatch
             while !group.isEmpty {
                 do {
                     if let result = try await group.next() {
