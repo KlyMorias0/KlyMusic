@@ -171,13 +171,11 @@ struct AlbumBackdrop: View {
 }
 
 extension Color {
-    static let coral = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(red: 0.91, green: 0.49, blue: 0.45, alpha: 1) : UIColor(red: 0.73, green: 0.27, blue: 0.24, alpha: 1)
-    })
+    static let coral = Color(red: 250.0 / 255.0, green: 35.0 / 255.0, blue: 59.0 / 255.0)
     static let musicBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
     static let musicSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.035, alpha: 1) : UIColor(white: 0.97, alpha: 1) })
     static let musicElevated = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 1) : UIColor(white: 0.93, alpha: 1) })
-    static let musicAccent = Color(red: 1, green: 0.176, blue: 0.333)
+    static let musicAccent = coral
     static let playerBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.075, green: 0.08, blue: 0.09, alpha: 1) : UIColor(red: 0.965, green: 0.96, blue: 0.95, alpha: 1) })
     static let playerSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.12, green: 0.128, blue: 0.14, alpha: 1) : UIColor(red: 0.925, green: 0.92, blue: 0.91, alpha: 1) })
     static let playerPrimary = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.91, green: 0.92, blue: 0.935, alpha: 1) : UIColor(red: 0.13, green: 0.14, blue: 0.16, alpha: 1) })

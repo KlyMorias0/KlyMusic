@@ -133,6 +133,8 @@ final class NavigationTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-theme", "light", "-language", "tr", "-serverURL", "http://127.0.0.1:8879"]
         app.launch()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "home.spotlight.")).firstMatch.waitForExistence(timeout: 15))
+        shot(app, "Music-Home-Light")
         tapTab("nav.library", label: "Kütüphane", in: app)
         XCTAssertTrue(app.buttons["library.playlists"].waitForExistence(timeout: 5))
         shot(app, "Apple-Library")
