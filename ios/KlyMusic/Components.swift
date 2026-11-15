@@ -16,7 +16,7 @@ struct SettingsButton: View {
     @State private var presented = false
     var body: some View {
         Button { presented = true } label: {
-            Image(systemName: "slider.horizontal.3").font(.system(size: 22, weight: .medium))
+            Image(systemName: "gearshape").font(.system(size: 22, weight: .regular))
                 .foregroundStyle(Color.primary).frame(width: 32, height: 36).contentShape(Rectangle())
         }.accessibilityLabel(L("Ayarlar")).accessibilityIdentifier("settings.open")
             .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28).presentationBackground(Color.pageBackground) }
@@ -50,10 +50,10 @@ struct TrackCard: View {
     @EnvironmentObject private var player: MusicPlayer
     var body: some View {
         Button { player.play(track, in: tracks) } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                Artwork(url: track.artwork, radius: 10)
+            VStack(alignment: .leading, spacing: 7) {
+                Artwork(url: track.artwork, radius: 7)
                     .frame(width: size, height: size)
-                    .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 3)
+                    .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 2)
                     .overlay(alignment: .bottomTrailing) {
                         if player.current?.id == track.id || player.pendingTrack?.id == track.id {
                             ZStack {
@@ -63,12 +63,12 @@ struct TrackCard: View {
                             }.frame(width: 30, height: 30).padding(8)
                         }
                     }
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(track.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                        Text(track.title).font(.system(size: 15)).foregroundStyle(.primary).lineLimit(1)
                         if track.explicit { Image(systemName: "e.square.fill").font(.system(size: 9)).foregroundStyle(.tertiary) }
                     }
-                    Text(track.artist).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(track.artist).font(.system(size: 15)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }.frame(width: size, alignment: .leading).contentShape(Rectangle())
         }.buttonStyle(CardButtonStyle()).accessibilityLabel("\(track.title), \(track.artist)").accessibilityHint(L("Çal"))

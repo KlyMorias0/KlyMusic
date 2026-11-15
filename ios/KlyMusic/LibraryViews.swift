@@ -21,7 +21,6 @@ struct LibraryView: View {
                         libraryRow(
                             category.title,
                             symbol: category.symbol,
-                            color: category.tileColor,
                             destination: category.destination,
                             count: categoryCount(for: category),
                             identifier: "library." + category.rawValue
@@ -50,16 +49,14 @@ struct LibraryView: View {
                                     Text(L("Sırala"))
                                         .font(.subheadline.weight(.medium))
                                 }
-                                .foregroundStyle(Color.coral)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Color.musicElevated, in: Capsule())
+                                .foregroundStyle(Color.musicAccent)
+                                .frame(minHeight: 44)
                             }
                             .accessibilityIdentifier("library.sort")
                         }
                         .padding(.top, 4)
 
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], alignment: .leading, spacing: 22) {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], alignment: .leading, spacing: 22) {
                             ForEach(recent) { entry in
                                 recentCard(entry)
                             }
@@ -99,11 +96,13 @@ struct LibraryView: View {
                 }
             }
             .padding(.horizontal, 20)
+            .padding(.top, 8)
             .padding(.bottom, 32)
         }
         .background(Color.pageBackground)
+        .tint(Color.musicAccent)
         .navigationTitle(L("Kütüphane"))
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(item: $destination) { destination in
             switch destination {
             case .playlists: PlaylistsView()
@@ -149,22 +148,21 @@ struct LibraryView: View {
                 Group {
                     switch entry.content {
                     case .playlist(let list):
-                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 12)
+                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 6)
                     case .album(let track):
-                        Artwork(url: track.artwork, radius: 12)
+                        Artwork(url: track.artwork, radius: 6)
                     }
                 }
                 .aspectRatio(1, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: .black.opacity(0.22), radius: 8, x: 0, y: 4)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 15))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(entry.artist.isEmpty ? L("Çalma Listesi") : entry.artist)
-                        .font(.system(size: 13))
+                        .font(.system(size: 15))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -206,17 +204,16 @@ struct LibraryView: View {
         }
     }
 
-    private func libraryRow(_ title: String, symbol: String, color: Color, destination: LibraryDestination, count: Int, identifier: String) -> some View {
+    private func libraryRow(_ title: String, symbol: String, destination: LibraryDestination, count: Int, identifier: String) -> some View {
         VStack(spacing: 0) {
             Button { self.destination = destination } label: {
-                LibraryLink(title: L(title), symbol: symbol, count: count, color: color)
+                LibraryLink(title: L(title), symbol: symbol, count: count)
             }
             .buttonStyle(TrackRowButtonStyle())
             .accessibilityIdentifier(identifier)
 
             Divider()
-                .overlay(Color.primary.opacity(0.08))
-                .padding(.leading, 54)
+                .padding(.leading, 42)
         }
     }
 }
@@ -240,15 +237,6 @@ enum LibraryCategory: String, CaseIterable, Codable, Identifiable {
         case .albums: "square.stack"
         case .songs: "music.note"
         case .downloads: "arrow.down.circle"
-        }
-    }
-    var tileColor: Color {
-        switch self {
-        case .playlists: .coral
-        case .artists: .purple
-        case .albums: .orange
-        case .songs: .blue
-        case .downloads: .green
         }
     }
     fileprivate var destination: LibraryDestination {
@@ -494,47 +482,31 @@ struct CreatePlaylistView: View {
     }
 }
 
-private struct CategoryBadgeTile: View {
-    var symbol: String
-    var color: Color
-
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 18, weight: .semibold))
-            .foregroundStyle(color)
-            .frame(width: 38, height: 38)
-            .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .accessibilityHidden(true)
-    }
-}
-
 struct LibraryLink: View {
     var title: String
     var symbol: String
     var count: Int?
-    var color: Color = Color.coral
     var body: some View {
         HStack(spacing: 16) {
-            CategoryBadgeTile(symbol: symbol, color: color)
+            Image(systemName: symbol)
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(Color.musicAccent)
+                .frame(width: 26)
+                .accessibilityHidden(true)
             Text(title)
-                .font(.system(size: 18, weight: .medium))
+                .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
-            if let count {
-                Text("\(count)")
-                    .font(.subheadline)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color(uiColor: .tertiaryLabel))
                 .accessibilityHidden(true)
         }
-        .frame(minHeight: 64)
+        .frame(minHeight: 54)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityValue(count.map { String($0) } ?? "")
     }
 }
 

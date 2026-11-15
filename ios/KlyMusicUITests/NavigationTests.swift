@@ -131,7 +131,7 @@ final class NavigationTests: XCTestCase {
 
     func testAppleStylePagesAndLibrary() {
         let app = XCUIApplication()
-        app.launchArguments = ["-theme", "dark", "-language", "tr", "-serverURL", "http://127.0.0.1:8879"]
+        app.launchArguments = ["-theme", "light", "-language", "tr", "-serverURL", "http://127.0.0.1:8879"]
         app.launch()
         tapTab("nav.library", label: "Kütüphane", in: app)
         XCTAssertTrue(app.buttons["library.playlists"].waitForExistence(timeout: 5))
@@ -168,7 +168,6 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["İlk şarkını ekle"].waitForExistence(timeout: 5))
         shot(app, "Apple-Playlist-Detail")
         tapTab("nav.search", label: "Ara", in: app)
-        XCTAssertTrue(app.staticTexts["Kategorilere göz at"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "search.category.")).firstMatch.waitForExistence(timeout: 10))
         shot(app, "Apple-Search-Categories")
         let search = app.searchFields.firstMatch

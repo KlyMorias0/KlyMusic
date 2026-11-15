@@ -91,7 +91,6 @@ struct HomeView: View {
     @ObservedObject private var uiConfig = DynamicUIConfig.shared
     @State private var sections: [HomeSection] = []
     @State private var personal: [HomeSection] = []
-    @State private var categories: [BrowseCategory] = []
     @State private var loading = true
     @State private var failure: String?
 
@@ -122,7 +121,7 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: uiConfig.style.sectionSpacing) {
+            VStack(alignment: .leading, spacing: 32) {
                 if loading && sections.isEmpty {
                     MusicLoadingView()
                 }
@@ -131,7 +130,6 @@ struct HomeView: View {
                 if !featured.isEmpty {
                     HomeSpotlightShelf(
                         title: recommendations.isEmpty ? "Öne çıkanlar" : "Senin için",
-                        subtitle: recommendations.isEmpty ? nil : "Dinlediklerinden yola çıkarak",
                         tracks: featured
                     )
                     .accessibilityIdentifier(recommendations.isEmpty ? "home.featured" : "home.personalized")
@@ -143,11 +141,6 @@ struct HomeView: View {
                         title: library.recent.isEmpty ? (sections.first?.title ?? "Öne çıkanlar") : "Son dinlenenler",
                         tracks: quickLaunch
                     )
-                }
-
-                // Genre shortcuts.
-                if !categories.isEmpty {
-                    HomeGenreCapsulesShelf(categories: categories)
                 }
 
                 // Keep each catalog category in its own horizontal shelf.
@@ -173,7 +166,7 @@ struct HomeView: View {
         }
         .background(Color.pageBackground)
         .navigationTitle(L("Dinle"))
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
         .task(id: ListeningLocale.current.cacheKey + "|" + seedKey) {
             async let _ = uiConfig.fetchRemote()
@@ -190,9 +183,7 @@ struct HomeView: View {
         failure = nil
         defer { loading = false }
         do {
-            async let homeCall = API.shared.home()
-            async let catCall = try? API.shared.categories()
-            let homeRes = try await homeCall
+            let homeRes = try await API.shared.home()
             try Task.checkCancellation()
             sections = homeRes.sections
             loading = false
@@ -204,9 +195,6 @@ struct HomeView: View {
                 personal = recommended
             }
             player.warm(featured)
-            let cats = await catCall
-            try Task.checkCancellation()
-            categories = cats ?? []
         } catch is CancellationError {
         } catch {
             guard !Task.isCancelled else { return }
@@ -215,55 +203,13 @@ struct HomeView: View {
     }
 }
 
-private struct HomeGenreCapsulesShelf: View {
-    var categories: [BrowseCategory]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            BrowseShelfHeading(title: "Türler ve ruh halleri")
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(categories.prefix(12)) { category in
-                        NavigationLink {
-                            QueryView(query: category.query, title: category.title)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Artwork(url: category.artwork, radius: 6)
-                                    .frame(width: 28, height: 28)
-                                    .clipped()
-
-                                Text(category.title)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(Color.primary)
-                                    .lineLimit(1)
-                            }
-                            .padding(.leading, 6)
-                            .padding(.trailing, 14)
-                            .padding(.vertical, 6)
-                            .background(Color.musicElevated, in: Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
-                            )
-                        }
-                        .buttonStyle(TileButtonStyle())
-                        .accessibilityIdentifier("home.category.\(category.id)")
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-}
-
 private struct HomeSpotlightShelf: View {
     var title: String
-    var subtitle: String? = nil
     var tracks: [Track]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            BrowseShelfHeading(title: title, caption: subtitle, tracks: tracks)
+            BrowseShelfHeading(title: title, tracks: tracks)
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 16) {
                     ForEach(tracks.prefix(6)) { track in
@@ -278,105 +224,56 @@ private struct HomeSpotlightShelf: View {
     }
 }
 
+
 private struct HomeSpotlightCard: View {
     var track: Track
     var tracks: [Track]
     @EnvironmentObject private var player: MusicPlayer
-    @ObservedObject private var uiConfig = DynamicUIConfig.shared
-    private var isPlayingThis: Bool {
-        (player.current?.id == track.id || player.pendingTrack?.id == track.id) && player.isPlaying
-    }
 
     var body: some View {
-        Button {
-            player.play(track, in: tracks)
-        } label: {
-            ZStack(alignment: .bottomLeading) {
-                // OLED deep black surface
-                RoundedRectangle(cornerRadius: uiConfig.style.heroCornerRadius, style: .continuous)
-                    .fill(Color.musicElevated)
-
-                // Artwork fading smoothly to dark on the left
-                HStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    Artwork(url: track.artwork, radius: 0)
-                        .frame(width: 175, height: uiConfig.style.heroHeight)
-                        .clipped()
-                        .mask {
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0.0),
-                                    .init(color: .black.opacity(0.35), location: 0.3),
-                                    .init(color: .black, location: 0.75)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        }
+        Button { player.play(track, in: tracks) } label: {
+            Color.clear
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                .overlay { Artwork(url: track.artwork, radius: 0) }
+                .overlay {
+                    LinearGradient(colors: [.clear, .black.opacity(0.08), .black.opacity(0.8)],
+                                   startPoint: .center, endPoint: .bottom)
                 }
-
-                // Typography & tactile play pill
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(L(uiConfig.style.heroTag).uppercased())
-                        .font(.system(size: 11, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(Color.coral)
-                        .padding(.bottom, 6)
-
-                    Text(track.title)
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundStyle(Color.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: 165, alignment: .leading)
-
-                    Text(track.artist)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.secondary)
-                        .lineLimit(1)
-                        .padding(.top, 4)
-                        .frame(maxWidth: 165, alignment: .leading)
-
-                    Spacer(minLength: 0)
-
-                    // Tactile play pill
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.12))
-                            if player.pendingTrack?.id == track.id {
-                                ProgressView().tint(.white).scaleEffect(0.75)
-                            } else {
-                                Image(systemName: isPlayingThis ? "waveform" : "play.fill")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(isPlayingThis ? Color.coral : .white)
-                            }
-                        }
-                        .frame(width: 32, height: 32)
-
-                        Text(isPlayingThis ? L("Çalıyor") : L("Çal"))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.primary)
+                .overlay(alignment: .bottomLeading) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(track.artist)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(2)
+                        Text(track.title)
+                            .font(.title2.bold())
+                            .foregroundStyle(.white)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
                     }
-                    .padding(.leading, 4)
-                    .padding(.trailing, 12)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.55), in: Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.8))
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(18)
-            }
-            .frame(width: 320, height: uiConfig.style.heroHeight)
-            .clipShape(RoundedRectangle(cornerRadius: uiConfig.style.heroCornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: uiConfig.style.heroCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                .overlay(alignment: .topTrailing) {
+                    if player.pendingTrack?.id == track.id {
+                        ProgressView().tint(.white).padding(14)
+                    } else if player.current?.id == track.id && player.isPlaying {
+                        Image(systemName: "waveform")
+                            .font(.body.weight(.semibold)).foregroundStyle(.white)
+                            .padding(10).background(.black.opacity(0.35), in: Circle()).padding(10)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 5)
+                .containerRelativeFrame(.horizontal) { width, _ in
+                    min(320, max(220, (width - 40) * 0.68))
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(SpotlightButtonStyle())
         .accessibilityLabel("\(track.title), \(track.artist)")
         .accessibilityHint(L("Çal"))
+        .accessibilityIdentifier("home.spotlight.\(track.id)")
     }
 }
 
@@ -388,6 +285,7 @@ private struct SpotlightButtonStyle: ButtonStyle {
     }
 }
 
+
 private struct HomeQuickLaunchShelf: View {
     var title: String
     var tracks: [Track]
@@ -395,74 +293,18 @@ private struct HomeQuickLaunchShelf: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             BrowseShelfHeading(title: title, tracks: tracks)
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 10),
-                    GridItem(.flexible(), spacing: 10)
-                ],
-                spacing: 10
-            ) {
-                ForEach(tracks) { track in
-                    HomeQuickLaunchTile(track: track, tracks: tracks)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 12) {
+                    ForEach(tracks) { track in
+                        TrackCard(track: track, tracks: tracks, size: 152)
+                            .accessibilityIdentifier("track.row.\(track.id)")
+                    }
                 }
+                .padding(.horizontal, 20)
+                .scrollTargetLayout()
             }
-            .padding(.horizontal, 20)
+            .scrollTargetBehavior(.viewAligned)
         }
-    }
-}
-
-private struct HomeQuickLaunchTile: View {
-    var track: Track
-    var tracks: [Track]
-    @EnvironmentObject private var player: MusicPlayer
-    @ObservedObject private var uiConfig = DynamicUIConfig.shared
-    private var isCurrent: Bool { player.current?.id == track.id || player.pendingTrack?.id == track.id }
-
-    var body: some View {
-        Button {
-            player.play(track, in: tracks)
-        } label: {
-            HStack(spacing: 10) {
-                Artwork(url: track.artwork, radius: uiConfig.style.tileCornerRadius)
-                    .frame(width: 52, height: 52)
-                    .clipped()
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(track.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isCurrent ? Color.coral : Color.primary)
-                        .lineLimit(1)
-
-                    Text(track.artist)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(Color.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-
-                if isCurrent {
-                    Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color.coral)
-                        .padding(.trailing, 8)
-                }
-            }
-            .padding(4)
-            .background(
-                Color.musicElevated,
-                in: RoundedRectangle(cornerRadius: uiConfig.style.tileCornerRadius, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: uiConfig.style.tileCornerRadius, style: .continuous)
-                    .stroke(isCurrent ? Color.coral.opacity(0.4) : Color.white.opacity(0.06), lineWidth: 0.8)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(TileButtonStyle())
-        .accessibilityLabel("\(track.title), \(track.artist)")
-        .accessibilityHint(L("Çal"))
-        .accessibilityIdentifier("track.row.\(track.id)")
     }
 }
 
@@ -478,14 +320,15 @@ private struct TileButtonStyle: ButtonStyle {
 private struct CompactTrackShelf: View {
     var title: String
     var tracks: [Track]
+    var rows = 3
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             BrowseShelfHeading(title: title, tracks: tracks)
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 24) {
-                    ForEach(0..<((min(tracks.count, 12) + 2) / 3), id: \.self) { column in
+                    ForEach(0..<((min(tracks.count, 12) + rows - 1) / rows), id: \.self) { column in
                         VStack(spacing: 0) {
-                            ForEach(Array(tracks.dropFirst(column * 3).prefix(3))) { track in
+                            ForEach(Array(tracks.dropFirst(column * rows).prefix(rows))) { track in
                                 TrackRow(track: track, tracks: tracks)
                                 Divider().padding(.leading, 67)
                             }
@@ -497,6 +340,7 @@ private struct CompactTrackShelf: View {
     }
 }
 
+
 private struct BrowseShelfHeading: View {
     var title: String
     var caption: String? = nil
@@ -504,34 +348,33 @@ private struct BrowseShelfHeading: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(L(title))
-                    .font(.title2.bold())
-                    .tracking(-0.5)
-                    .foregroundStyle(Color.primary)
-
-                if let tracks, !tracks.isEmpty {
-                    NavigationLink {
-                        TrackListView(title: title, tracks: tracks)
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.tertiary)
-                            .padding(.trailing, 14)
-                            .padding(.vertical, 8)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel(L("Tümünü göster"))
+            if let tracks, !tracks.isEmpty {
+                NavigationLink { TrackListView(title: title, tracks: tracks) } label: {
+                    heading(showChevron: true)
                 }
-                Spacer(minLength: 0)
+                .buttonStyle(.plain)
+                .accessibilityHint(L("Tümünü göster"))
+            } else {
+                heading(showChevron: false)
             }
             if let caption, !caption.isEmpty {
-                Text(L(caption))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text(L(caption)).font(.subheadline).foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 20)
+    }
+
+    private func heading(showChevron: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(L(title)).font(.title2.bold()).tracking(-0.5).foregroundStyle(Color.primary)
+            if showChevron {
+                Image(systemName: "chevron.right").font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.secondary).accessibilityHidden(true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
     }
 }
 
@@ -576,9 +419,13 @@ struct DiscoverView: View {
                     DiscoverHeroShelf(title: "Öne çıkanlar", tracks: Array(first.tracks.prefix(6)))
                 }
 
-                // Curated shelves
-                ForEach(HomeFeed.distinct(sections, excluding: Array(sections.first?.tracks.prefix(6) ?? []))) { section in
-                    BrowseTrackShelf(title: section.title, subtitle: section.subtitle, tracks: section.tracks)
+                // Four-row song shelves alternate with square-cover collections.
+                ForEach(Array(HomeFeed.distinct(sections, excluding: Array(sections.first?.tracks.prefix(6) ?? [])).enumerated()), id: \.element.id) { index, section in
+                    if index == 0 {
+                        CompactTrackShelf(title: section.title, tracks: section.tracks, rows: 4)
+                    } else {
+                        BrowseTrackShelf(title: section.title, subtitle: section.subtitle, tracks: section.tracks)
+                    }
                 }
 
                 // Unified error handling or Categories grid
@@ -597,7 +444,7 @@ struct DiscoverView: View {
         }
         .background(Color.pageBackground)
         .navigationTitle(L("Keşfet"))
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
         .task(id: ListeningLocale.current.cacheKey) { await load() }
         .refreshable { await load() }
@@ -617,91 +464,50 @@ struct DiscoverView: View {
     }
 }
 
+
 private struct DiscoverHeroShelf: View {
     var title: String
     var tracks: [Track]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            BrowseShelfHeading(title: title, tracks: tracks)
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 16) {
-                    ForEach(tracks) { track in
-                        DiscoverHeroCard(track: track, tracks: tracks)
-                    }
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: 14) {
+                ForEach(tracks) { track in
+                    DiscoverHeroCard(track: track, tracks: tracks, eyebrow: title)
                 }
-                .padding(.horizontal, 20)
-                .scrollTargetLayout()
             }
-            .scrollTargetBehavior(.viewAligned)
+            .padding(.horizontal, 20)
+            .scrollTargetLayout()
         }
+        .scrollTargetBehavior(.viewAligned)
     }
 }
 
 private struct DiscoverHeroCard: View {
     var track: Track
     var tracks: [Track]
+    var eyebrow: String
     @EnvironmentObject private var player: MusicPlayer
-    private var isPlayingThis: Bool {
-        (player.current?.id == track.id || player.pendingTrack?.id == track.id) && player.isPlaying
-    }
 
     var body: some View {
-        Button {
-            player.play(track, in: tracks)
-        } label: {
-            ZStack(alignment: .bottomLeading) {
-                Artwork(url: track.artwork, radius: 0)
-                    .frame(width: 290, height: 180)
-                    .clipped()
-
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.2),
-                        .init(color: Color.black.opacity(0.5), location: 0.6),
-                        .init(color: Color.black.opacity(0.9), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("Öne çıkan").uppercased())
-                        .font(.system(size: 11, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(Color.coral)
-
-                    Text(track.title)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-
-                    HStack {
-                        Text(track.artist)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.8))
-                            .lineLimit(1)
-
-                        Spacer(minLength: 0)
-
-                        ZStack {
-                            Circle().fill(Color.white.opacity(0.2))
-                            Image(systemName: isPlayingThis ? "waveform" : "play.fill")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(isPlayingThis ? Color.coral : .white)
-                        }
-                        .frame(width: 30, height: 30)
-                    }
+        Button { player.play(track, in: tracks) } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L(eyebrow).uppercased())
+                        .font(.caption2.weight(.medium)).foregroundStyle(.secondary).tracking(0.4)
+                    Text(track.title).font(.title3).foregroundStyle(.primary).lineLimit(1)
+                    Text(track.artist).font(.title3).foregroundStyle(.secondary).lineLimit(1)
                 }
-                .padding(16)
+                Color.clear
+                    .aspectRatio(3.0 / 2.0, contentMode: .fit)
+                    .overlay { Artwork(url: track.artwork, radius: 0) }
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
             }
-            .frame(width: 290, height: 180)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
+            .containerRelativeFrame(.horizontal) { width, _ in
+                min(460, max(280, width - 64))
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(SpotlightButtonStyle())
         .accessibilityLabel("\(track.title), \(track.artist)")
@@ -778,52 +584,27 @@ private struct CategoryGrid: View {
     }
 }
 
+
 private struct CategoryCard: View {
     var category: BrowseCategory
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            // Elevated subtle background
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.musicElevated)
-
-            // Artwork on the right with smooth mask
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                Artwork(url: category.artwork, radius: 0)
-                    .frame(width: 80, height: 104)
-                    .clipped()
-                    .mask {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.0),
-                                .init(color: .black.opacity(0.4), location: 0.35),
-                                .init(color: .black, location: 0.8)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    }
+        Color.musicElevated
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
+            .overlay { Artwork(url: category.artwork, radius: 0) }
+            .overlay {
+                LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: .center, endPoint: .bottom)
             }
-
-            // Category title
-            VStack(alignment: .leading, spacing: 0) {
+            .overlay(alignment: .bottomLeading) {
                 Text(category.title)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color.primary)
+                    .font(.headline)
+                    .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                    .frame(maxWidth: 100, alignment: .leading)
-                Spacer(minLength: 0)
+                    .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+                    .padding(12)
             }
-            .padding(14)
-        }
-        .frame(height: 104)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 0.8)
-        )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -947,8 +728,7 @@ struct SearchView: View {
                     } else if searchActive && !history.isEmpty {
                         recentSearches.padding(.horizontal, 20)
                     } else {
-                        BrowseShelfHeading(title: "Kategorilere göz at")
-                        CategoryGrid()
+                        CategoryGrid().accessibilityIdentifier("search.categories")
                     }
                 } else {
                     filters
@@ -973,7 +753,7 @@ struct SearchView: View {
         }
         .background(Color.pageBackground)
         .navigationTitle(L("Ara"))
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .searchable(text: $query, isPresented: $searchActive, prompt: Text(L("Sanatçılar, Şarkılar, Sözler ve Daha Fazlası")))
         .searchScopes($scope, activation: .onTextEntry) {
             Text("KlyMusic").tag("catalog")
@@ -1029,9 +809,9 @@ struct SearchView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .foregroundStyle(filter == value ? Color.white : Color.primary)
+                .foregroundStyle(filter == value ? Color.pageBackground : Color.primary)
                 .background(
-                    filter == value ? Color.coral : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.12, alpha: 1) : UIColor(white: 0.92, alpha: 1) }),
+                    filter == value ? Color.primary : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.12, alpha: 1) : UIColor(white: 0.92, alpha: 1) }),
                     in: Capsule()
                 )
                 .overlay(
