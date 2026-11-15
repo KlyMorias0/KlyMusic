@@ -5,6 +5,16 @@ func checked(_ status: OSStatus, _ operation: String) {
     guard status == noErr else { fatalError("\(operation): CoreAudio error \(status)") }
 }
 
+func stringProperty(_ device: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String {
+    var address = AudioObjectPropertyAddress(mSelector: selector,
+        mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    var value: Unmanaged<CFString>?
+    var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    checked(AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value), "Read audio string property")
+    guard let value else { fatalError("Missing audio string property") }
+    return value.takeRetainedValue() as String
+}
+
 var devicesAddress = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
     mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
 var byteCount: UInt32 = 0
@@ -15,13 +25,9 @@ checked(devices.withUnsafeMutableBytes {
 }, "List devices")
 var selected: AudioObjectID?
 for device in devices {
-    var address = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyName,
-        mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
-    var name: CFString = "" as CFString
-    var size = UInt32(MemoryLayout<CFString>.size)
-    checked(AudioObjectGetPropertyData(device, &address, 0, nil, &size, &name), "Read name")
+    let name = stringProperty(device, kAudioObjectPropertyName)
     print("Audio device \(device): \(name)")
-    if (name as String) == "BlackHole 2ch" { selected = device }
+    if name == "BlackHole 2ch" { selected = device }
 }
 guard var device = selected else { fatalError("BlackHole 2ch is not registered") }
 for selector in [kAudioHardwarePropertyDefaultInputDevice, kAudioHardwarePropertyDefaultOutputDevice,
@@ -31,4 +37,7 @@ for selector in [kAudioHardwarePropertyDefaultInputDevice, kAudioHardwarePropert
     checked(AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil,
                                       UInt32(MemoryLayout<AudioObjectID>.size), &device), "Set default route")
 }
+let uid = stringProperty(device, kAudioDevicePropertyDeviceUID)
+guard !uid.isEmpty else { fatalError("BlackHole device UID is empty") }
+try uid.write(toFile: "build-tests/ci-audio-device-uid.txt", atomically: true, encoding: .utf8)
 print("CI input, output and system audio routed through BlackHole 2ch")

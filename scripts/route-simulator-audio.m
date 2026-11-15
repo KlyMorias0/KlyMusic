@@ -13,9 +13,11 @@
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc != 3) return 2;
+        if (argc != 4) return 2;
         NSString *developer = @(argv[1]);
         NSString *udid = @(argv[2]);
+        NSString *uid = @(argv[3]);
+        if (!uid.length) return 2;
         if (!dlopen("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator", RTLD_NOW | RTLD_GLOBAL) ||
             !dlopen([[developer stringByAppendingPathComponent:@"Library/PrivateFrameworks/SimulatorKit.framework/SimulatorKit"] UTF8String], RTLD_NOW | RTLD_GLOBAL)) {
             fprintf(stderr, "Simulator framework load failed: %s\n", dlerror()); return 1;
@@ -34,13 +36,8 @@ int main(int argc, const char *argv[]) {
         if (!client || error) { NSLog(@"Audio client failed: %@", error); return 1; }
         for (NSInteger scope = 0; scope < 2; scope++) {
             NSString *key = scope == 0 ? @"inputDevices" : @"outputDevices";
-            id state = [client valueForKey:@"currentState"];
-            NSString *uid = nil;
-            for (id device in [state valueForKey:key]) {
-                NSLog(@"Simulator %@ candidate: %@ (%@)", key, [device valueForKey:@"name"], [device valueForKey:@"UID"]);
-                if ([[device valueForKey:@"name"] isEqualToString:@"BlackHole 2ch"]) uid = [device valueForKey:@"UID"];
-            }
-            if (!uid) { NSLog(@"BlackHole missing from simulator %@", key); return 1; }
+            // Read the UID through public CoreAudio APIs in select-ci-audio.swift.
+            // SimulatorKit's private device proxies differ between Xcode versions.
             __block BOOL done = NO;
             __block NSError *routeError = nil;
             [client routeGuestWithScope:scope to:uid completionQueue:dispatch_get_main_queue() completionHandler:^(NSError *failure) {

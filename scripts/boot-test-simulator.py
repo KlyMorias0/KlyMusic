@@ -58,7 +58,10 @@ if os.environ.get('KLY_CI_VIRTUAL_AUDIO') == '1':
     subprocess.run(['clang', '-fobjc-arc', '-fblocks', '-framework', 'Foundation',
                     'scripts/route-simulator-audio.m', '-o', 'build-tests/route-simulator-audio'],
                    check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=60)
-    subprocess.run(['build-tests/route-simulator-audio', developer, device['udid']],
+    audio_uid = Path('build-tests/ci-audio-device-uid.txt').read_text(encoding='utf-8').strip()
+    if not audio_uid:
+        raise SystemExit('CI audio device UID is empty.')
+    subprocess.run(['build-tests/route-simulator-audio', developer, device['udid'], audio_uid],
                    check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=45)
 try:
     simctl('status_bar', device['udid'], 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', timeout=20)
