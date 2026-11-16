@@ -29,5 +29,8 @@ workflows:
       - verification.log
       - device-build.log
       - build-tests/playback.log
+      - build-tests/host-audio.log
+      - build-tests/simulator-audio.log
+      - build-tests/sample.log
       - build-tests/samples/**/*
       - dist/screenshots/**/*
