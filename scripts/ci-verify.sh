@@ -23,7 +23,7 @@ trap finish EXIT
 
 # Keep audio diagnostics separate from the app's playback metrics. Capture the
 # host before boot so Simulator's audio route initialization is included.
-KLY_AUDIO_PREDICATE='process == "coreaudiod" OR process == "audiomxd" OR process == "mediaserverd" OR process == "Simulator" OR subsystem CONTAINS[c] "audio" OR subsystem CONTAINS[c] "CoreMedia" OR subsystem CONTAINS[c] "MediaToolbox"'
+KLY_AUDIO_PREDICATE='process == "coreaudiod" OR process == "audiomxd" OR process == "mediaserverd" OR process == "Simulator" OR process == "tccd" OR subsystem == "com.apple.TCC" OR subsystem CONTAINS[c] "audio" OR subsystem CONTAINS[c] "CoreMedia" OR subsystem CONTAINS[c] "MediaToolbox"'
 /usr/bin/log stream --style compact --level info --predicate "$KLY_AUDIO_PREDICATE" > build-tests/host-audio.log 2>&1 &
 KLY_HOST_AUDIO_LOG_PID=$!
 KLY_DEVICE=$(python3 scripts/boot-test-simulator.py)

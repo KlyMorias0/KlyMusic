@@ -77,4 +77,3 @@ try:
 except Exception as e:
     print(f'Warning: status_bar override ignored: {e}', file=sys.stderr, flush=True)
 print(device['udid'])
-

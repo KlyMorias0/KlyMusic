@@ -14,7 +14,7 @@ OUTPUT = Path('build-tests/samples')
 APP_NAMES = {'KlyMusic'}
 # Include both host and simulator services when present. Their executable paths
 # and parent PIDs in processes.jsonl distinguish the two environments.
-SERVICE_NAMES = {'Simulator', 'coreaudiod', 'audiomxd', 'mediaserverd'}
+SERVICE_NAMES = {'Simulator', 'coreaudiod', 'audiomxd', 'mediaserverd', 'tccd'}
 APP_INTERVAL = 20
 SERVICE_INTERVAL = 60
 

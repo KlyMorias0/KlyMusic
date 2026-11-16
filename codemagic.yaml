@@ -16,6 +16,7 @@ workflows:
       - name: Unit tests and UI regression tests
         script: |
           set -euo pipefail
+          python3 scripts/prepare-ci-privacy.py
           python3 scripts/prepare-ci-audio.py
           export KLY_CI_VIRTUAL_AUDIO=1
           bash scripts/ci-verify.sh 2>&1 | tee verification.log
@@ -32,5 +33,6 @@ workflows:
       - build-tests/host-audio.log
       - build-tests/simulator-audio.log
       - build-tests/sample.log
+      - build-tests/ci-privacy-*.json
       - build-tests/samples/**/*
       - dist/screenshots/**/*
