@@ -54,6 +54,15 @@ print(f'Starting Simulator audio host: {simulator_app}', file=sys.stderr, flush=
 subprocess.run(['open', '-a', str(simulator_app), '--args', '-CurrentDeviceUDID', device['udid']],
                check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=30)
 simctl('bootstatus', device['udid'], '-b', timeout=300)
+# UIKit's first-use QuickPath video can initialize an unrelated audio player and
+# stall the simulator's media services during keyboard automation. Suppress only
+# that OS onboarding in the disposable CI device; real app playback stays tested.
+# Appium's iOS simulator setup uses DidShowContinuousPathIntroduction on iOS 15+.
+# https://github.com/appium/appium-ios-simulator/pull/315
+simctl('spawn', device['udid'], 'defaults', 'write', 'com.apple.keyboard.ContinuousPath',
+       'KeyboardContinuousPathEnabled', '-bool', 'false', timeout=20)
+simctl('spawn', device['udid'], 'defaults', 'write', 'com.apple.keyboard.preferences',
+       'DidShowContinuousPathIntroduction', '-bool', 'true', timeout=20)
 if os.environ.get('KLY_CI_VIRTUAL_AUDIO') == '1':
     subprocess.run(['clang', '-fobjc-arc', '-fblocks', '-framework', 'Foundation',
                     'scripts/route-simulator-audio.m', '-o', 'build-tests/route-simulator-audio'],
@@ -68,3 +77,4 @@ try:
 except Exception as e:
     print(f'Warning: status_bar override ignored: {e}', file=sys.stderr, flush=True)
 print(device['udid'])
+
