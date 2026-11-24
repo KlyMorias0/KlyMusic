@@ -1024,10 +1024,11 @@ struct QueryView: View {
                 } else {
                     if !result.tracks.isEmpty {
                         DiscoverHeroShelf(title: "Öne çıkan", tracks: Array(result.tracks.prefix(4)))
-                    }
-
-                    if result.tracks.count > 4 {
-                        CompactTrackShelf(title: "Popüler Şarkılar", tracks: Array(result.tracks.prefix(12)), rows: 4)
+                        CompactTrackShelf(
+                            title: "Popüler Şarkılar",
+                            tracks: Array(result.tracks.prefix(12)),
+                            rows: min(4, max(1, result.tracks.count))
+                        )
                     }
 
                     if !result.albums.isEmpty {

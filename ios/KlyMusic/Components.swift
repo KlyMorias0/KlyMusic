@@ -336,7 +336,7 @@ struct TrackListView: View {
                     if visibleTracks.isEmpty {
                         EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: "Farklı bir arama dene.")
                     } else {
-                        Divider().padding(.leading, 64)
+                        Divider().overlay(Color.primary.opacity(0.08))
                         ForEach(visibleTracks) { track in
                             TrackRow(track: track, tracks: visibleTracks, showFavoriteDot: true)
                             Divider().padding(.leading, 64)

@@ -644,16 +644,21 @@ struct CreatePlaylistView: View {
                         .shadow(color: .black.opacity(0.22), radius: 14, y: 7)
                         Spacer()
                     }
-                    .listRowBackground(Color.clear)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 6)
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
+                Section {
                     TextField(L("Liste adı"), text: $name)
                         .font(.body.weight(.medium))
                         .multilineTextAlignment(.center)
+                        .autocorrectionDisabled()
                         .accessibilityIdentifier("playlist.name")
                 }
                 .listRowBackground(Color.musicElevated)
             }
+            .listSectionSpacing(12)
             .scrollContentBackground(.hidden)
             .background(Color.pageBackground)
             .navigationTitle(L("Yeni Çalma Listesi"))
@@ -900,10 +905,11 @@ struct PlaylistDetailView: View {
                     CollectionPlayButtons(tracks: visibleTracks)
                         .padding(.top, 4)
 
-                    Divider()
-                        .overlay(Color.primary.opacity(0.08))
-                        .padding(.leading, 64)
-                        .padding(.top, 6)
+                    if !tracks.isEmpty {
+                        Divider()
+                            .overlay(Color.primary.opacity(0.08))
+                            .padding(.top, 6)
+                    }
                 }
                 .padding(.bottom, 4)
             }
