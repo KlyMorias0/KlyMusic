@@ -126,7 +126,14 @@ struct LibraryRecentEntry: Identifiable {
         return record
     }
     func isFavorite(_ track: Track) -> Bool { saved.first { $0.id == track.id }?.favorite == true }
-    func toggleFavorite(_ track: Track) { let item = record(track); item.favorite.toggle(); commit() }
+    func toggleFavorite(_ track: Track) {
+        let item = record(track)
+        item.favorite.toggle()
+        commit()
+        if UserDefaults.standard.bool(forKey: "autoDownloadFavorites") && isFavorite(track) && localURL(track.id) == nil {
+            DownloadManager.shared.enqueue(track)
+        }
+    }
     func played(_ track: Track) {
         let item = record(track); item.lastPlayed = .now; item.playCount += 1; commit()
     }

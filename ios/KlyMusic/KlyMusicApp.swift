@@ -37,7 +37,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             _library = StateObject(wrappedValue: store)
             DownloadManager.shared.library = store
         }
-        UserDefaults.standard.register(defaults: ["wifiOnly": true, "quality": "auto", "theme": "dark", "language": "system"])
+        UserDefaults.standard.register(defaults: [
+            "wifiOnly": true,
+            "quality": "auto",
+            "theme": "dark",
+            "language": "system",
+            "liveActivityEnabled": true,
+            "inAppIslandEnabled": false,
+            "infiniteAutoplay": true,
+            "useListeningHistory": true,
+            "soundCheckEnabled": true,
+            "animatedArtwork": true,
+            "dolbyAtmosMode": "auto",
+            "islandTrailingStyle": "waveform",
+            "crossfadeEnabled": false,
+            "crossfadeSeconds": 4.0,
+            "losslessEnabled": true,
+            "autoDownloadFavorites": false
+        ])
     }
 
     var body: some Scene {
@@ -57,13 +74,45 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                 .task {
                     player.library = library; downloads.library = library; downloads.reconnect()
                 }
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { listeningLocale = ListeningLocale.current }
+                    if phase == .active {
+                        listeningLocale = ListeningLocale.current
+                        LiveActivityManager.shared.sync(player: player)
+                    }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in
                     listeningLocale = ListeningLocale.current
                 }
         }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "klymusic",
+              url.host?.lowercased() == "player" else { return }
+        if player.library == nil { player.library = library }
+        let action = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        switch action {
+        case "open", "":
+            if player.current != nil || player.pendingTrack != nil {
+                player.isPresented = true
+            }
+        case "toggle":
+            player.toggle()
+        case "next":
+            player.next()
+        case "previous":
+            player.previous()
+        case "favorite":
+            if let track = player.current ?? player.pendingTrack {
+                library.toggleFavorite(track)
+            }
+        default:
+            break
+        }
+        LiveActivityManager.shared.sync(player: player, force: true)
     }
 }
 
@@ -74,6 +123,9 @@ struct RootView: View {
     var body: some View {
         tabs
         .modifier(NativePlayerAccessory(isVisible: player.current != nil || player.pendingTrack != nil))
+        .overlay(alignment: .top) {
+            InAppDynamicIslandOverlay()
+        }
         .sheet(isPresented: $player.isPresented) {
             NavigationStack { NowPlayingView().toolbar(.hidden, for: .navigationBar) }
                 .presentationDragIndicator(.hidden).presentationCornerRadius(30)

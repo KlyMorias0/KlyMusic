@@ -76,6 +76,10 @@ struct LyricsCacheEntry: Codable {
     private var originalQueue: [Track] = []
     private var activeStationQuery: String? = nil
     private var stationReplenishTask: Task<Void, Never>? = nil
+    private var autoplayReplenishTask: Task<Void, Never>? = nil
+    private var autoplayAttemptedTrackID: String?
+    private var nowPlayingArtwork: (id: String, artwork: MPMediaItemArtwork)?
+    private var lastPeriodicLiveSync: Date = .distantPast
     private var itemTracks: [ObjectIdentifier: (Track, PlaybackAsset?)] = [:]
     private var matchingTask: Task<Void, Never>?
     private var matchingIDs: [String] = []
@@ -147,6 +151,10 @@ struct LyricsCacheEntry: Codable {
                 if self.isPlaying, let current = self.current, Int(nextPosition) % 5 == 0 {
                     UserDefaults.standard.set(current.id, forKey: "resumeTrackID")
                     UserDefaults.standard.set(nextPosition, forKey: "resumePosition")
+                }
+                if self.isPlaying, self.current != nil, Date().timeIntervalSince(self.lastPeriodicLiveSync) >= 5.0 {
+                    self.lastPeriodicLiveSync = .now
+                    LiveActivityManager.shared.sync(player: self)
                 }
                 let liveDuration = Self.playbackDuration(liveItem)
                 if liveDuration > 0, abs(self.duration - liveDuration) > 0.1 { self.duration = liveDuration }
@@ -305,6 +313,9 @@ struct LyricsCacheEntry: Codable {
             activeStationTitle = nil
             activeStationQuery = nil
         }
+        autoplayReplenishTask?.cancel()
+        autoplayReplenishTask = nil
+        autoplayAttemptedTrackID = nil
         selectionTask?.cancel(); nextTask?.cancel()
         generation = UUID(); let token = generation
         if let tracks {
@@ -369,16 +380,24 @@ struct LyricsCacheEntry: Codable {
                 self.error = L("Bu şarkı şu anda çalınamıyor. Yeniden dene.")
             }
         }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        library?.played(track)
+        if trackChanged || nowPlayingArtwork?.id != track.id {
+            nowPlayingArtwork = nil
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        }
+        if trackChanged {
+            autoplayAttemptedTrackID = nil
+            resetLyrics()
+        }
+        if UserDefaults.standard.object(forKey: "useListeningHistory") as? Bool ?? true {
+            library?.played(track)
+        }
         UserDefaults.standard.set(try? JSONEncoder().encode(track), forKey: "lastTrack")
-        if trackChanged { resetLyrics() }
         updateNowPlaying()
         Task {
             if let image = await ArtworkCache.shared.image(ArtworkRequest.sized(track.artworkURL, pixels: 640), fallback: track.artworkURL), current?.id == track.id {
-                var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+                let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                self.nowPlayingArtwork = (track.id, artwork)
+                self.updateNowPlaying()
             }
         }
         prepareNext()
@@ -408,6 +427,42 @@ struct LyricsCacheEntry: Codable {
         }
     }
 
+    private func replenishAutoplayIfNeeded() {
+        guard !CommandLine.arguments.contains("-serverURL"),
+              UserDefaults.standard.object(forKey: "infiniteAutoplay") as? Bool ?? true,
+              repeatMode == .off,
+              activeStationQuery == nil,
+              index + 1 >= queue.count,
+              let seed = current,
+              !seed.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              autoplayAttemptedTrackID != seed.id,
+              autoplayReplenishTask == nil else { return }
+        autoplayAttemptedTrackID = seed.id
+        let token = generation
+        let existingIDs = Set(queue.map(\.id))
+        let existingIdentities = Set(queue.map(HomeFeed.identity))
+        autoplayReplenishTask = Task(priority: .utility) { [weak self] in
+            defer { Task { @MainActor in self?.autoplayReplenishTask = nil } }
+            guard let response = try? await API.shared.search(seed.artist) else { return }
+            try? Task.checkCancellation()
+            await MainActor.run {
+                guard let self,
+                      self.generation == token,
+                      self.repeatMode == .off,
+                      self.activeStationQuery == nil,
+                      self.current?.id == seed.id,
+                      UserDefaults.standard.object(forKey: "infiniteAutoplay") as? Bool ?? true else { return }
+                let additions = Array(response.tracks.filter {
+                    !existingIDs.contains($0.id) && !existingIdentities.contains(HomeFeed.identity($0))
+                }.prefix(8))
+                guard !additions.isEmpty else { return }
+                self.queue.append(contentsOf: additions)
+                self.originalQueue.append(contentsOf: additions)
+                if self.engine.items().count <= 1 { self.prepareNext() }
+            }
+        }
+    }
+
     func prepareNext() {
         nextTask?.cancel()
         guard !queue.isEmpty, engine.currentItem != nil else { return }
@@ -415,7 +470,10 @@ struct LyricsCacheEntry: Codable {
         if repeatMode == .one { nextIndex = index }
         else if index + 1 < queue.count { nextIndex = index + 1 }
         else if repeatMode == .all { nextIndex = 0 }
-        else { return }
+        else {
+            replenishAutoplayIfNeeded()
+            return
+        }
         let next = queue[nextIndex]
         let token = generation
         if engine.items().count > 1 { return }
@@ -478,10 +536,12 @@ struct LyricsCacheEntry: Codable {
         if shuffle, let current { queue = [current] + queue.filter { $0.id != current.id }.shuffled(); index = 0 }
         else { queue = originalQueue; index = queue.firstIndex { $0.id == current?.id } ?? 0 }
         resetUpcoming()
+        LiveActivityManager.shared.sync(player: self)
     }
     func cycleRepeat() {
         repeatMode = repeatMode == .off ? .all : repeatMode == .all ? .one : .off
         resetUpcoming()
+        LiveActivityManager.shared.sync(player: self)
     }
     private var activeQueueIndex: Int? {
         guard let id = (pendingTrack ?? current)?.id else { return nil }
@@ -524,6 +584,7 @@ struct LyricsCacheEntry: Codable {
         if let activeQueueIndex { queue = Array(queue.prefix(activeQueueIndex + 1)) }
         else { queue = [] }
         if repeatMode == .all { repeatMode = .off }
+        autoplayAttemptedTrackID = current?.id
         finishQueueEdit()
     }
 
@@ -617,7 +678,13 @@ struct LyricsCacheEntry: Codable {
     func setSleep(minutes: Int?) { sleepAtEnd = false; sleepEndItem = nil; sleepUntil = minutes.map { Date().addingTimeInterval(Double($0 * 60)) } }
     func setSleepAtEnd() { sleepUntil = nil; sleepEndItem = engine.currentItem; sleepAtEnd = sleepEndItem != nil }
     private func updateNowPlaying() {
-        guard let track = current else { return }
+        guard let track = current else {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            MPNowPlayingInfoCenter.default().playbackState = .stopped
+            MPRemoteCommandCenter.shared().likeCommand.isActive = false
+            LiveActivityManager.shared.sync(player: self)
+            return
+        }
         var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
         info[MPMediaItemPropertyTitle] = track.title
         info[MPMediaItemPropertyArtist] = track.artist
@@ -625,7 +692,13 @@ struct LyricsCacheEntry: Codable {
         info[MPMediaItemPropertyPlaybackDuration] = duration
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position
         info[MPNowPlayingInfoPropertyPlaybackRate] = engine.rate
+        if let nowPlayingArtwork, nowPlayingArtwork.id == track.id {
+            info[MPMediaItemPropertyArtwork] = nowPlayingArtwork.artwork
+        }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
+        MPRemoteCommandCenter.shared().likeCommand.isActive = library?.isFavorite(track) ?? false
+        LiveActivityManager.shared.sync(player: self)
     }
     private func configureCommands() {
         let commands = MPRemoteCommandCenter.shared()
@@ -634,6 +707,15 @@ struct LyricsCacheEntry: Codable {
         commands.togglePlayPauseCommand.addTarget { [weak self] _ in Task { @MainActor in self?.toggle() }; return .success }
         commands.nextTrackCommand.addTarget { [weak self] _ in Task { @MainActor in self?.next() }; return .success }
         commands.previousTrackCommand.addTarget { [weak self] _ in Task { @MainActor in self?.previous() }; return .success }
+        commands.likeCommand.isEnabled = true
+        commands.likeCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let current = self.current else { return }
+                self.library?.toggleFavorite(current)
+                self.updateNowPlaying()
+            }
+            return .success
+        }
         commands.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             Task { @MainActor in self?.seek(event.positionTime) }; return .success
