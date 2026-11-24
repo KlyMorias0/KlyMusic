@@ -360,7 +360,7 @@ struct TrackListView: View {
         }
         .background(Color.pageBackground)
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(style == .songs && !tracks.isEmpty ? .inlineLarge : .inline)
+        .toolbarTitleDisplayMode(style == .songs && !tracks.isEmpty ? .inlineLarge : .inline)
         .optionalSearchable(!tracks.isEmpty, text: $searchText, prompt: "Şarkılarda ara")
         .toolbar {
             if !tracks.isEmpty {
