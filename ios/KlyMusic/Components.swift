@@ -33,17 +33,25 @@ struct NowPlayingBars: View {
     var size: CGFloat = 13
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private func barHeights(at date: Date) -> [CGFloat] {
+        guard isPlaying && !reduceMotion else { return [0.46, 0.78, 0.38] }
+        let t: Double = date.timeIntervalSinceReferenceDate * 5.2
+        let h0 = CGFloat(0.42 + 0.55 * abs(Foundation.sin(t)))
+        let h1 = CGFloat(0.35 + 0.62 * abs(Foundation.sin(t * 1.3 + 1.1)))
+        let h2 = CGFloat(0.45 + 0.50 * abs(Foundation.sin(t * 0.9 + 2.3)))
+        return [h0, h1, h2]
+    }
+
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !isPlaying || reduceMotion)) { timeline in
-            let t = isPlaying && !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 5.2 : 0.0
-            let heights: [CGFloat] = isPlaying && !reduceMotion
-                ? [0.42 + 0.55 * abs(sin(t)), 0.35 + 0.62 * abs(sin(t * 1.3 + 1.1)), 0.45 + 0.50 * abs(sin(t * 0.9 + 2.3))]
-                : [0.46, 0.78, 0.38]
-            HStack(alignment: .bottom, spacing: max(1.5, size * 0.16)) {
+            let heights = barHeights(at: timeline.date)
+            let barWidth: CGFloat = max(2, size * 0.2)
+            let barSpacing: CGFloat = max(1.5, size * 0.16)
+            HStack(alignment: .bottom, spacing: barSpacing) {
                 ForEach(0..<3, id: \.self) { index in
                     Capsule()
                         .fill(color)
-                        .frame(width: max(2, size * 0.2), height: max(3, size * heights[index]))
+                        .frame(width: barWidth, height: max(3, size * heights[index]))
                 }
             }
             .frame(width: size, height: size, alignment: .bottom)
