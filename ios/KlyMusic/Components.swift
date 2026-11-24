@@ -124,6 +124,7 @@ struct TrackRow: View {
     var track: Track
     var tracks: [Track] = []
     var number: Int? = nil
+    var showFavoriteDot: Bool = false
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var library: LibraryStore
     private var current: Bool { player.current?.id == track.id }
@@ -137,6 +138,12 @@ struct TrackRow: View {
                     if let number {
                         Text(String(number)).font(.system(size: 13, weight: .regular)).monospacedDigit()
                             .foregroundStyle(current ? Color.coral : Color.secondary).frame(width: 20, alignment: .leading)
+                    } else if showFavoriteDot && library.isFavorite(track) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(Color.coral)
+                            .frame(width: 10, alignment: .center)
+                            .accessibilityHidden(true)
                     }
                     Artwork(url: track.artwork, radius: 7).frame(width: 52, height: 52)
                         .overlay {
@@ -224,10 +231,10 @@ struct TrackMenu: View {
             if pill {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(Color.playerPrimary)
                     .frame(width: 32, height: 32)
-                    .background(.primary.opacity(0.08), in: Circle())
-                    .frame(width: 44, height: 44)
+                    .background(Color.playerPrimary.opacity(0.11), in: Circle())
+                    .frame(width: 34, height: 44, alignment: .trailing)
                     .contentShape(Rectangle())
             } else {
                 Image(systemName: "ellipsis").font(.system(size: 18, weight: .medium)).foregroundStyle(.secondary)
@@ -240,30 +247,192 @@ struct TrackMenu: View {
     }
 }
 
+enum TrackListSort: String, CaseIterable, Identifiable {
+    case standard
+    case title
+    case artist
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .standard: "Varsayılan"
+        case .title: "Başlık"
+        case .artist: "Sanatçı"
+        }
+    }
+
+    static func apply(_ sort: TrackListSort, query: String, to tracks: [Track]) -> [Track] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filtered: [Track]
+        if trimmed.isEmpty {
+            filtered = tracks
+        } else {
+            let needle = NativeCatalog.normalized(trimmed)
+            filtered = tracks.filter {
+                NativeCatalog.normalized($0.title).contains(needle) ||
+                NativeCatalog.normalized($0.artist).contains(needle) ||
+                NativeCatalog.normalized($0.album).contains(needle)
+            }
+        }
+        switch sort {
+        case .standard:
+            return filtered
+        case .title:
+            return filtered.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .artist:
+            return filtered.sorted {
+                let cmp = $0.artist.localizedStandardCompare($1.artist)
+                return cmp == .orderedSame ? ($0.title.localizedStandardCompare($1.title) == .orderedAscending) : (cmp == .orderedAscending)
+            }
+        }
+    }
+}
+
 struct TrackListView: View {
+    enum Style {
+        case collection
+        case songs
+    }
+
     var title: String
     var tracks: [Track]
+    var subtitle: String? = nil
+    var style: Style = .collection
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var downloads: DownloadManager
+    @State private var searchText = ""
+    @State private var sort: TrackListSort = .standard
+
+    private var visibleTracks: [Track] {
+        TrackListSort.apply(sort, query: searchText, to: tracks)
+    }
+
+    private var totalMinutes: Int64 {
+        Int64(max(0, Int(visibleTracks.reduce(0.0) { $0 + ($1.duration.isFinite && $1.duration > 0 ? $1.duration : 0.0) } / 60)))
+    }
+
+    private var summaryText: String {
+        let count = Int64(visibleTracks.count)
+        return totalMinutes > 0
+            ? String(format: L("%lld şarkı, %lld dakika"), count, totalMinutes)
+            : String(format: L("%lld şarkı"), count)
+    }
+
+    private var resolvedSubtitle: String? {
+        if let subtitle, !subtitle.isEmpty { return subtitle }
+        let artists = Set(tracks.map(\.artist).filter { !$0.isEmpty })
+        return artists.count == 1 ? artists.first : nil
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if let first = tracks.first {
-                    collectionHeader(first)
-                    ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in TrackRow(track: track, tracks: tracks, number: index + 1) }
-                } else { EmptyState(symbol: "music.note.list", title: "Henüz şarkı yok", message: "Kaydettiğin şarkılar burada görünecek.") }
-            }.padding(.horizontal, 22).padding(.top, 16).padding(.bottom, 28).frame(maxWidth: 760).frame(maxWidth: .infinity)
-        }.background(Color.pageBackground).navigationTitle(title).navigationBarTitleDisplayMode(.inline)
-    }
-    private func collectionHeader(_ first: Track) -> some View {
-        VStack(spacing: 16) {
-            Artwork(url: first.artwork, radius: 9).frame(width: 238, height: 238).padding(.top, 8)
-            VStack(spacing: 5) {
-                Text(title).font(.title2.bold()).multilineTextAlignment(.center)
-                Text(String(format: L("%lld şarkı"), Int64(tracks.count))).font(.subheadline).foregroundStyle(.secondary)
+                if !tracks.isEmpty {
+                    if style == .songs {
+                        songsHeader
+                    } else {
+                        collectionHeader
+                    }
+                    if visibleTracks.isEmpty {
+                        EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: "Farklı bir arama dene.")
+                    } else {
+                        Divider().padding(.leading, 64)
+                        ForEach(visibleTracks) { track in
+                            TrackRow(track: track, tracks: visibleTracks, showFavoriteDot: true)
+                            Divider().padding(.leading, 64)
+                        }
+                        if style == .collection {
+                            Text(summaryText)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 14)
+                        }
+                    }
+                } else {
+                    EmptyState(symbol: "music.note.list", title: "Henüz şarkı yok", message: "Kaydettiğin şarkılar burada görünecek.")
+                }
             }
-            CollectionPlayButtons(tracks: tracks)
-        }.padding(.bottom, 20)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 32)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Color.pageBackground)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(style == .songs && !tracks.isEmpty ? .inlineLarge : .inline)
+        .optionalSearchable(!tracks.isEmpty, text: $searchText, prompt: "Şarkılarda ara")
+        .toolbar {
+            if !tracks.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker(L("Sırala"), selection: $sort) {
+                            ForEach(TrackListSort.allCases) { option in
+                                Text(L(option.title)).tag(option)
+                            }
+                        }
+                        Section {
+                            Button { tracks.forEach { downloads.enqueue($0) } } label: {
+                                Label(L("Tümünü indir"), systemImage: "arrow.down.circle")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .medium))
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .foregroundStyle(Color.primary)
+                }
+            }
+        }
+    }
+
+    private var songsHeader: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CollectionPlayButtons(tracks: visibleTracks)
+            Text(summaryText)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.bottom, 12)
+    }
+
+    private var collectionHeader: some View {
+        VStack(spacing: 16) {
+            PlaylistArtwork(tracks: tracks, radius: 14)
+                .frame(width: 236, height: 236)
+                .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 9)
+                .padding(.top, 8)
+            VStack(spacing: 5) {
+                Text(title)
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
+                if let resolvedSubtitle {
+                    Text(resolvedSubtitle)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.coral)
+                }
+                Text(summaryText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            CollectionPlayButtons(tracks: visibleTracks)
+                .padding(.top, 4)
+        }
+        .padding(.bottom, 16)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func optionalSearchable(_ enabled: Bool, text: Binding<String>, prompt: String) -> some View {
+        if enabled {
+            self.searchable(text: text, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text(L(prompt)))
+        } else {
+            self
+        }
     }
 }
 

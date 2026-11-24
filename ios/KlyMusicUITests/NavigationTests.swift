@@ -180,7 +180,12 @@ final class NavigationTests: XCTestCase {
         tapTab("nav.search", label: "Ara", in: app)
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "search.category.")).firstMatch.waitForExistence(timeout: 10))
         shot(app, "Apple-Search-Categories")
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "search.category.")).firstMatch.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "track.row.")).firstMatch.waitForExistence(timeout: 10))
+        shot(app, "Apple-Genre-Hub")
+        app.navigationBars.buttons.firstMatch.tap()
         let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap(); search.typeText(name)
         let libraryScope = app.buttons["Kütüphanen"]
         XCTAssertTrue(libraryScope.waitForExistence(timeout: 5)); libraryScope.tap()
@@ -330,6 +335,7 @@ final class NavigationTests: XCTestCase {
             app.buttons["library.options"].tap()
             app.buttons["library.favorites"].tap()
             XCTAssertTrue(app.navigationBars["Favoriler"].waitForExistence(timeout: 5))
+            shot(app, "Apple-Favorites-\(theme)")
             XCTAssertTrue(app.tabBars.firstMatch.exists, "Tab bar should remain visible in a library detail")
             app.navigationBars["Favoriler"].buttons.firstMatch.tap()
             XCTAssertTrue(app.navigationBars["Kütüphane"].waitForExistence(timeout: 5))

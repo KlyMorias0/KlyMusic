@@ -163,10 +163,10 @@ struct LibraryView: View {
         .navigationDestination(item: $destination) { destination in
             switch destination {
             case .playlists: PlaylistsView()
-            case .songs: TrackListView(title: L("Şarkılar"), tracks: library.saved.compactMap(\.track).sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending })
-            case .favorites: TrackListView(title: L("Favoriler"), tracks: library.favorites)
+            case .songs: TrackListView(title: L("Şarkılar"), tracks: library.saved.compactMap(\.track).sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }, style: .songs)
+            case .favorites: TrackListView(title: L("Favoriler"), tracks: library.favorites, style: .songs)
             case .downloads: DownloadsView()
-            case .recent: TrackListView(title: L("Son dinlenenler"), tracks: library.recent)
+            case .recent: TrackListView(title: L("Son dinlenenler"), tracks: library.recent, style: .songs)
             case .albums: SavedAlbumsView()
             case .artists: FollowedArtistsView()
             }
@@ -261,7 +261,7 @@ struct LibraryView: View {
         } else if let albumID = pin.targetID.isEmpty ? nil : pin.targetID, !albumID.hasPrefix("local:") {
             AlbumDetailView(collection: .init(id: albumID, title: pin.title, artist: pin.subtitle, artwork: pin.artwork))
         } else {
-            TrackListView(title: pin.title, tracks: library.saved.compactMap(\.track).filter { $0.album == pin.title })
+            TrackListView(title: pin.title, tracks: library.saved.compactMap(\.track).filter { $0.album == pin.title }, subtitle: pin.subtitle.isEmpty ? nil : pin.subtitle)
         }
     }
 
@@ -295,7 +295,7 @@ struct LibraryView: View {
         return NavigationLink {
             switch entry.content {
             case .playlist(let list): PlaylistDetailView(playlist: list)
-            case .album(let track): TrackListView(title: entry.title, tracks: albumTracks(track))
+            case .album(let track): TrackListView(title: entry.title, tracks: albumTracks(track), subtitle: entry.artist.isEmpty ? nil : entry.artist)
             }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
@@ -545,7 +545,7 @@ struct PlaylistsView: View {
                 .accessibilityIdentifier("playlist.create")
 
                 NavigationLink {
-                    TrackListView(title: L("Favoriler"), tracks: library.favorites)
+                    TrackListView(title: L("Favoriler"), tracks: library.favorites, style: .songs)
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "star.fill")
@@ -633,17 +633,23 @@ struct CreatePlaylistView: View {
                 Section {
                     HStack {
                         Spacer()
-                        Image(systemName: "music.note.list")
-                            .font(.system(size: 48, weight: .light))
-                            .foregroundStyle(Color.coral)
-                            .frame(width: 140, height: 140)
-                            .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(LinearGradient(colors: [Color.coral.opacity(0.22), Color.musicElevated], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            Image(systemName: "music.note.list")
+                                .font(.system(size: 52, weight: .light))
+                                .foregroundStyle(Color.coral)
+                        }
+                        .frame(width: 164, height: 164)
+                        .shadow(color: .black.opacity(0.22), radius: 14, y: 7)
                         Spacer()
                     }
                     .listRowBackground(Color.clear)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 10)
 
                     TextField(L("Liste adı"), text: $name)
+                        .font(.body.weight(.medium))
+                        .multilineTextAlignment(.center)
                         .accessibilityIdentifier("playlist.name")
                 }
                 .listRowBackground(Color.musicElevated)
@@ -707,15 +713,29 @@ struct LibraryLink: View {
 struct PlaylistArtwork: View {
     var tracks: [Track]
     var radius: CGFloat = 12
+
+    private var uniqueArtworks: [String] {
+        var seen = Set<String>()
+        var urls: [String] = []
+        for track in tracks {
+            if let art = track.artwork, !art.isEmpty, seen.insert(art).inserted {
+                urls.append(art)
+                if urls.count == 4 { break }
+            }
+        }
+        return urls
+    }
+
     var body: some View {
         GeometryReader { geometry in
+            let mosaic = uniqueArtworks
             Group {
-                if tracks.count >= 4 {
+                if mosaic.count >= 4 {
                     VStack(spacing: 0) {
                         ForEach(0..<2) { row in
                             HStack(spacing: 0) {
                                 ForEach(0..<2) { column in
-                                    Artwork(url: tracks[row * 2 + column].artwork, radius: 0)
+                                    Artwork(url: mosaic[row * 2 + column], radius: 0)
                                         .frame(width: geometry.size.width / 2, height: geometry.size.height / 2)
                                 }
                             }
@@ -760,23 +780,39 @@ struct PlaylistPicker: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
                 ForEach(library.playlists) { list in
-                    Button { library.add(track, to: list); dismiss() } label: {
-                        HStack(spacing: 14) {
-                            PlaylistArtwork(tracks: library.tracks(in: list), radius: 12)
-                                .frame(width: 56, height: 56)
-                            Text(list.name)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if list.trackIDs.contains(track.id) {
-                                Image(systemName: "checkmark")
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(Color.coral)
+                    VStack(spacing: 0) {
+                        Button { library.add(track, to: list); dismiss() } label: {
+                            HStack(spacing: 14) {
+                                PlaylistArtwork(tracks: library.tracks(in: list), radius: 10)
+                                    .frame(width: 56, height: 56)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(list.name)
+                                        .font(.body.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Text(String(format: L("%lld şarkı"), Int64(list.trackIDs.count)))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if list.trackIDs.contains(track.id) {
+                                    Image(systemName: "checkmark")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.coral)
+                                }
                             }
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, 4)
+                        .buttonStyle(TrackRowButtonStyle())
+                        Divider().padding(.leading, 70)
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.plain)
@@ -802,19 +838,37 @@ struct PlaylistDetailView: View {
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var downloads: DownloadManager
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(LibraryPinsStore.storageKey) private var pinsValue = ""
     @State private var editing: EditMode = .inactive
     @State private var deleting = false
     @State private var rename = false
     @State private var newName = ""
+    @State private var searchText = ""
 
     var tracks: [Track] { library.tracks(in: playlist) }
+    private var isFiltering: Bool { !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !editing.isEditing }
+    private var visibleTracks: [Track] {
+        isFiltering ? TrackListSort.apply(.standard, query: searchText, to: tracks) : tracks
+    }
+
+    private var playlistPin: LibraryPin {
+        LibraryPin(
+            id: "playlist:" + playlist.id.uuidString,
+            kind: "playlist",
+            targetID: playlist.id.uuidString,
+            title: playlist.name,
+            subtitle: L("Çalma Listesi"),
+            artwork: tracks.first?.artwork
+        )
+    }
+    private var isPinned: Bool { LibraryPinsStore.contains(id: playlistPin.id, in: pinsValue) }
 
     private var durationText: String {
         let totalSeconds = tracks.reduce(0.0) { $0 + ($1.duration.isFinite && $1.duration > 0 ? $1.duration : 0.0) }
         let count = Int64(tracks.count)
         if totalSeconds > 0 {
             let minutes = Int64(totalSeconds / 60)
-            return String(format: L("%lld şarkı · %@"), count, String(format: L("%lld dakika"), minutes))
+            return String(format: L("%lld şarkı, %lld dakika"), count, minutes)
         } else {
             return String(format: L("%lld şarkı"), count)
         }
@@ -825,10 +879,10 @@ struct PlaylistDetailView: View {
             Section {
                 VStack(spacing: 16) {
                     PlaylistArtwork(tracks: tracks, radius: 14)
-                        .frame(width: 240, height: 240)
+                        .frame(width: 236, height: 236)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .shadow(color: .black.opacity(0.35), radius: 16, x: 0, y: 8)
-                        .padding(.top, 12)
+                        .shadow(color: .black.opacity(0.32), radius: 18, x: 0, y: 9)
+                        .padding(.top, 10)
 
                     VStack(spacing: 5) {
                         Text(playlist.name)
@@ -843,21 +897,32 @@ struct PlaylistDetailView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    CollectionPlayButtons(tracks: tracks)
+                    CollectionPlayButtons(tracks: visibleTracks)
                         .padding(.top, 4)
 
                     Divider()
                         .overlay(Color.primary.opacity(0.08))
-                        .padding(.top, 8)
+                        .padding(.leading, 64)
+                        .padding(.top, 6)
                 }
-                .padding(.bottom, 6)
+                .padding(.bottom, 4)
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
 
-            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                TrackRow(track: track, tracks: tracks, number: index + 1)
+            if isFiltering && visibleTracks.isEmpty {
+                EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: "Farklı bir arama dene.")
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } else {
+                ForEach(visibleTracks) { track in
+                    VStack(spacing: 0) {
+                        TrackRow(track: track, tracks: visibleTracks, showFavoriteDot: true)
+                        Divider()
+                            .overlay(Color.primary.opacity(0.08))
+                            .padding(.leading, 64)
+                    }
                     .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
@@ -869,19 +934,28 @@ struct PlaylistDetailView: View {
                             Label(L("Sil"), systemImage: "trash")
                         }
                     }
-            }
-            .onMove { source, destination in
-                playlist.trackIDs.move(fromOffsets: source, toOffset: destination)
-                library.commit()
-            }
-            .onDelete { offsets in
-                let ids = Set(offsets.map { tracks[$0].id })
-                playlist.trackIDs.removeAll { ids.contains($0) }
-                library.commit()
+                }
+                .onMove(perform: isFiltering ? nil : { source, destination in
+                    playlist.trackIDs.move(fromOffsets: source, toOffset: destination)
+                    library.commit()
+                })
+                .onDelete(perform: isFiltering ? nil : { offsets in
+                    let ids = Set(offsets.map { tracks[$0].id })
+                    playlist.trackIDs.removeAll { ids.contains($0) }
+                    library.commit()
+                })
             }
 
             if tracks.isEmpty {
                 EmptyState(symbol: "text.badge.plus", title: "İlk şarkını ekle", message: "Bir şarkının seçeneklerinden bu listeye ekleyebilirsin.")
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } else if !visibleTracks.isEmpty {
+                Text(durationText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 10)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 16, trailing: 20))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
             }
@@ -890,6 +964,7 @@ struct PlaylistDetailView: View {
         .scrollContentBackground(.hidden)
         .background(Color.pageBackground)
         .navigationBarTitleDisplayMode(.inline)
+        .optionalSearchable(!tracks.isEmpty && !editing.isEditing, text: $searchText, prompt: "Listede ara")
         .tint(Color.coral)
         .environment(\.editMode, $editing)
         .toolbar {
@@ -900,6 +975,9 @@ struct PlaylistDetailView: View {
                         .foregroundStyle(Color.coral)
                 } else {
                     Menu {
+                        Button { pinsValue = LibraryPinsStore.toggle(playlistPin, in: pinsValue) } label: {
+                            Label(L(isPinned ? "Sabitlemeyi Kaldır" : "Kütüphaneye Sabitle"), systemImage: isPinned ? "pin.slash" : "pin")
+                        }
                         Button { editing = .active } label: { Label(L("Çalma Listesini Düzenle"), systemImage: "pencil") }
                         Button { newName = playlist.name; rename = true } label: { Label(L("Yeniden Adlandır"), systemImage: "textformat") }
                         Section {
@@ -936,12 +1014,17 @@ struct DownloadsView: View {
     @EnvironmentObject private var player: MusicPlayer
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var confirmDelete = false
+    @State private var searchText = ""
+
+    private var visibleDownloaded: [Track] {
+        TrackListSort.apply(.standard, query: searchText, to: library.downloaded)
+    }
 
     var body: some View {
         List {
             if !library.downloaded.isEmpty || !downloads.jobs.isEmpty {
                 Section {
-                    CollectionPlayButtons(tracks: library.downloaded)
+                    CollectionPlayButtons(tracks: visibleDownloaded)
                         .padding(.vertical, 8)
                 }
                 .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
@@ -984,18 +1067,33 @@ struct DownloadsView: View {
 
             if !library.downloaded.isEmpty {
                 Section {
-                    ForEach(library.downloaded) { track in
-                        TrackRow(track: track, tracks: library.downloaded)
+                    if visibleDownloaded.isEmpty {
+                        EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: "Farklı bir arama dene.")
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    } else {
+                        ForEach(visibleDownloaded) { track in
+                            VStack(spacing: 0) {
+                                TrackRow(track: track, tracks: visibleDownloaded, showFavoriteDot: true)
+                                Divider().overlay(Color.primary.opacity(0.08)).padding(.leading, 64)
+                            }
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                             .swipeActions { Button(L("Sil"), role: .destructive) { library.removeDownload(track) } }
+                        }
                     }
                 } header: {
-                    Text(L("Bu cihazda"))
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .textCase(nil)
-                        .padding(.vertical, 6)
+                    HStack {
+                        Text(L("Bu cihazda"))
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(String(format: L("%lld şarkı"), Int64(visibleDownloaded.count)))
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .textCase(nil)
+                    .padding(.vertical, 6)
                 }
                 .listRowBackground(Color.clear)
             }
@@ -1004,6 +1102,7 @@ struct DownloadsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.pageBackground)
         .navigationTitle(L("İndirilenler"))
+        .optionalSearchable(library.downloaded.count > 3, text: $searchText, prompt: "İndirilenlerde ara")
         .overlay {
             if library.downloaded.isEmpty && downloads.jobs.isEmpty {
                 EmptyState(symbol: "arrow.down.circle", title: "İndirilen Müzik Yok", message: "İndirdiğin müzikler burada görünür.")
@@ -1051,46 +1150,67 @@ struct DownloadsView: View {
 struct SavedAlbumsView: View {
     @EnvironmentObject private var library: LibraryStore
     @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var searchText = ""
+
     var albums: [MusicCollection] {
         var seen = Set<String>()
         return library.saved.compactMap(\.track).compactMap { track in
             guard let id = track.albumID, !id.isEmpty, seen.insert(id).inserted else { return nil }
             return MusicCollection(id: id, title: track.album, artist: track.artist, artwork: track.artwork)
-        }.sorted { $0.title < $1.title }
+        }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
+
+    private var visibleAlbums: [MusicCollection] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return albums }
+        let needle = NativeCatalog.normalized(trimmed)
+        return albums.filter {
+            NativeCatalog.normalized($0.title).contains(needle) || NativeCatalog.normalized($0.artist).contains(needle)
+        }
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if !albums.isEmpty {
-                    Text(String(format: L("%lld albüm"), Int64(albums.count)))
+        let columns = typeSize.isAccessibilitySize
+            ? [GridItem(.flexible(), spacing: 14)]
+            : [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 18) {
+                if !visibleAlbums.isEmpty {
+                    Text(String(format: L("%lld albüm"), Int64(visibleAlbums.count)))
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
-                }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 260 : 150), spacing: 16, alignment: .top)], alignment: .leading, spacing: 24) {
-                    ForEach(albums) { album in
-                        NavigationLink {
-                            TrackListView(title: album.title, tracks: library.saved.compactMap(\.track).filter { $0.albumID == album.id })
-                        } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Artwork(url: album.artwork, radius: 12)
-                                    .aspectRatio(1, contentMode: .fit)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(album.title)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                                    Text(album.artist)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 22) {
+                        ForEach(visibleAlbums) { album in
+                            NavigationLink {
+                                TrackListView(
+                                    title: album.title,
+                                    tracks: library.saved.compactMap(\.track).filter { $0.albumID == album.id },
+                                    subtitle: album.artist
+                                )
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Artwork(url: album.artwork, radius: 10)
+                                        .aspectRatio(1, contentMode: .fit)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .shadow(color: .black.opacity(0.18), radius: 7, x: 0, y: 4)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(album.title)
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                                        Text(album.artist)
+                                            .font(.system(size: 13.5))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .buttonStyle(CardButtonStyle())
                         }
-                        .buttonStyle(CardButtonStyle())
                     }
+                } else if !albums.isEmpty {
+                    EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: "Farklı bir arama dene.")
                 }
             }
             .padding(.horizontal, 20)
@@ -1099,6 +1219,7 @@ struct SavedAlbumsView: View {
         }
         .background(Color.pageBackground)
         .navigationTitle(L("Albümler"))
+        .optionalSearchable(!albums.isEmpty, text: $searchText, prompt: "Albümlerde ara")
         .overlay {
             if albums.isEmpty {
                 EmptyState(symbol: "square.stack", title: "Albümlerin burada", message: "Kaydettiğin şarkıların albümleri burada görünecek.")
@@ -1111,6 +1232,9 @@ struct FollowedArtistsView: View {
     @AppStorage("followedArtists") private var followed = ""
     @EnvironmentObject private var library: LibraryStore
     @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var searchText = ""
+    @State private var portraits: [String: String] = [:]
+
     var artists: [(String, String)] {
         let followedRows = followed.components(separatedBy: "\n").compactMap { value -> (String, String)? in
             let parts = value.split(separator: "|", maxSplits: 1)
@@ -1123,42 +1247,63 @@ struct FollowedArtistsView: View {
         var seen = Set<String>()
         return (followedRows + savedRows).filter { seen.insert($0.0).inserted }.sorted { $0.1.localizedStandardCompare($1.1) == .orderedAscending }
     }
+
+    private var savedArtworkByArtist: [String: String] {
+        var map: [String: String] = [:]
+        for track in library.saved.compactMap(\.track) {
+            if let id = track.artistID, !id.isEmpty, map[id] == nil, let art = track.artwork, !art.isEmpty {
+                map[id] = art
+            }
+        }
+        return map
+    }
+
+    private var visibleArtists: [(String, String)] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return artists }
+        let needle = NativeCatalog.normalized(trimmed)
+        return artists.filter { NativeCatalog.normalized($0.1).contains(needle) }
+    }
+
     var body: some View {
-        ScrollView {
+        let fallbackArt = savedArtworkByArtist
+        ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if !artists.isEmpty {
-                    Text(String(format: L("%lld sanatçı takip ediliyor"), Int64(artists.count)))
+                if !visibleArtists.isEmpty {
+                    Text(String(format: L("%lld sanatçı takip ediliyor"), Int64(visibleArtists.count)))
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                         .padding(.bottom, 16)
-                }
-                ForEach(artists, id: \.0) { artist in
-                    NavigationLink { ArtistDetailView(id: artist.0, name: artist.1) } label: {
-                        HStack(spacing: 16) {
-                            ArtistPortrait(url: nil, name: artist.1)
-                                .frame(width: 58, height: 58)
-                                .clipShape(Circle())
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(artist.1)
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                                Text(L("Sanatçı"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    ForEach(visibleArtists, id: \.0) { artist in
+                        NavigationLink { ArtistDetailView(id: artist.0, name: artist.1) } label: {
+                            HStack(spacing: 16) {
+                                ArtistPortrait(url: portraits[artist.0] ?? fallbackArt[artist.0], name: artist.1)
+                                    .frame(width: 58, height: 58)
+                                    .clipShape(Circle())
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(artist.1)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                                    Text(L("Sanatçı"))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Color(uiColor: .tertiaryLabel))
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
+                        .buttonStyle(TrackRowButtonStyle())
+                        Divider()
+                            .overlay(Color.primary.opacity(0.08))
+                            .padding(.leading, 74)
                     }
-                    .buttonStyle(.plain)
-                    Divider()
-                        .overlay(Color.primary.opacity(0.08))
-                        .padding(.leading, 74)
+                } else if !artists.isEmpty {
+                    EmptyState(symbol: "magnifyingglass", title: "Sonuç bulunamadı", message: "Farklı bir arama dene.")
                 }
             }
             .padding(.horizontal, 20)
@@ -1167,9 +1312,20 @@ struct FollowedArtistsView: View {
         }
         .background(Color.pageBackground)
         .navigationTitle(L("Sanatçılar"))
+        .optionalSearchable(!artists.isEmpty, text: $searchText, prompt: "Sanatçılarda ara")
         .overlay {
             if artists.isEmpty {
                 EmptyState(symbol: "person.2", title: "Sevdiğin sesleri takip et", message: "Sanatçı sayfalarından takip ettiğin isimler burada görünecek.")
+            }
+        }
+        .task(id: artists.map(\.0).joined(separator: "|")) {
+            let localArt = savedArtworkByArtist
+            for artist in artists where portraits[artist.0] == nil && localArt[artist.0] == nil {
+                guard !Task.isCancelled else { return }
+                if let profile = try? await API.shared.artist(artist.0),
+                   let url = profile.artist.artwork ?? profile.tracks.first?.artwork, !url.isEmpty {
+                    portraits[artist.0] = url
+                }
             }
         }
     }

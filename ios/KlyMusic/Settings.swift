@@ -449,9 +449,9 @@ private struct AudioQualitySettings: View {
     var body: some View {
         List {
             Section {
-                option("Otomatik", value: "auto", subtitle: "Ağın hızına göre en uygun kaliteyi seçer.")
-                option("Veri Tasarrufu", value: "data", subtitle: "Daha az internet kullanır.")
-                option("Yüksek kalite", value: "high", subtitle: "Kaynağın sunduğu yüksek kaliteli sesi kullanır.")
+                option("Otomatik", value: "auto", subtitle: "Ağın hızına göre en uygun kaliteyi seçer.", badge: "AAC · 160 kbps")
+                option("Veri Tasarrufu", value: "data", subtitle: "Daha az internet kullanır.", badge: "AAC · 64 kbps")
+                option("Yüksek kalite", value: "high", subtitle: "Kaynağın sunduğu yüksek kaliteli sesi kullanır.", badge: "Dolby Atmos · 256 kbps", showDolbyMark: true)
             } footer: {
                 SettingsNote(text: "Yeni tercih sonraki parçada uygulanır. İnternet kullanımı kaynağa ve bit hızına bağlıdır.")
             }
@@ -462,7 +462,7 @@ private struct AudioQualitySettings: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func option(_ title: String, value: String, subtitle: String) -> some View {
+    private func option(_ title: String, value: String, subtitle: String, badge: String, showDolbyMark: Bool = false) -> some View {
         let active = (value == "auto" && !lowData && (quality == "auto" || quality.isEmpty)) ||
                      (value == "data" && lowData) ||
                      (value == "high" && !lowData && quality == "high")
@@ -471,10 +471,26 @@ private struct AudioQualitySettings: View {
             lowData = value == "data"
         } label: {
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L(title))
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(L(title))
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                        HStack(spacing: 4) {
+                            if showDolbyMark {
+                                DolbyDoubleDMark()
+                                    .fill(Color.secondary, style: FillStyle(eoFill: true))
+                                    .frame(width: 12, height: 8)
+                            }
+                            Text(badge)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2.5)
+                        .background(Color.primary.opacity(0.06), in: Capsule())
+                        .accessibilityHidden(true)
+                    }
                     Text(L(subtitle))
                         .font(.footnote)
                         .foregroundStyle(.secondary)

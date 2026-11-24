@@ -1,6 +1,68 @@
 import SwiftUI
+import AVFoundation
 import AVKit
 import MediaPlayer
+
+struct DolbyDoubleDMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let w = rect.width
+        let h = rect.height
+        guard w > 0, h > 0 else { return path }
+
+        let blockWidth = w * 0.455
+        let halfBlock = CGRect(x: rect.minX, y: rect.minY, width: blockWidth, height: h)
+        let rightBlock = CGRect(x: rect.maxX - blockWidth, y: rect.minY, width: blockWidth, height: h)
+        path.addRect(halfBlock)
+        path.addRect(rightBlock)
+
+        let r = h * 0.34
+        let topY = rect.midY - r
+        let botY = rect.midY + r
+        let k: CGFloat = 0.55228475
+        let spineX = rect.minX + w * 0.095
+        let curveStartX = rect.minX + w * 0.21
+        let curveEndX = rect.minX + w * 0.40
+        let dx = curveEndX - curveStartX
+
+        var leftCutout = Path()
+        leftCutout.move(to: CGPoint(x: spineX, y: topY))
+        leftCutout.addLine(to: CGPoint(x: curveStartX, y: topY))
+        leftCutout.addCurve(
+            to: CGPoint(x: curveEndX, y: rect.midY),
+            control1: CGPoint(x: curveStartX + dx * k, y: topY),
+            control2: CGPoint(x: curveEndX, y: rect.midY - r * k)
+        )
+        leftCutout.addCurve(
+            to: CGPoint(x: curveStartX, y: botY),
+            control1: CGPoint(x: curveEndX, y: rect.midY + r * k),
+            control2: CGPoint(x: curveStartX + dx * k, y: botY)
+        )
+        leftCutout.addLine(to: CGPoint(x: spineX, y: botY))
+        leftCutout.closeSubpath()
+
+        let mirror = CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: rect.minX + rect.maxX, ty: 0)
+        path.addPath(leftCutout)
+        path.addPath(leftCutout.applying(mirror))
+        return path
+    }
+}
+
+struct DolbyAtmosBadge: View {
+    var color: Color = .playerSecondary
+    var body: some View {
+        HStack(spacing: 4.5) {
+            DolbyDoubleDMark()
+                .fill(color, style: FillStyle(eoFill: true))
+                .frame(width: 14, height: 9.5)
+                .accessibilityHidden(true)
+            Text("Dolby Atmos")
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(-0.15)
+                .foregroundStyle(color)
+        }
+    }
+}
 
 struct MiniPlayer: View {
     var inSystemAccessory = false
@@ -57,9 +119,9 @@ struct NowPlayingView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let side = min(360, min(geometry.size.width - 56, max(190, geometry.size.height - 410)))
+            let side = min(388, min(geometry.size.width - 56, max(190, geometry.size.height - 410)))
             ZStack {
-                AlbumBackdrop(artwork: displayed?.artwork, isPlaying: player.isPlaying)
+                AlbumBackdrop(artwork: displayed?.artwork, isPlaying: player.isPlaying, intense: showLyrics)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         Button { dismiss() } label: {
@@ -80,9 +142,9 @@ struct NowPlayingView: View {
                         }.frame(height: side).frame(maxWidth: .infinity)
                             .padding(.top, 10).padding(.bottom, 25)
                         appleMetadata.padding(.bottom, 15)
-                        ApplePlaybackTimeline().padding(.bottom, 10)
-                        appleTransport.padding(.bottom, 20)
-                        volume.padding(.bottom, 12)
+                        ApplePlaybackTimeline().padding(.bottom, 12)
+                        appleTransport.padding(.bottom, 18)
+                        AppleVolumeBar().padding(.bottom, 12)
                         Spacer(minLength: 8)
                         appleTools.padding(.bottom, 14)
                     }
@@ -95,68 +157,104 @@ struct NowPlayingView: View {
         .sheet(isPresented: $showQueue) { QueueView() }
     }
 
-    private var volume: some View {
-        HStack(spacing: 13) {
-            Image(systemName: "speaker.fill").font(.system(size: 10))
-            VolumeControl().frame(height: 26)
-            Image(systemName: "speaker.wave.3.fill").font(.system(size: 12))
-        }.foregroundStyle(.secondary)
-    }
-
     private var appleMetadata: some View {
         let displayed = player.pendingTrack ?? player.current
-        return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(displayed?.title ?? "KlyMusic").font(.system(size: 22, weight: .semibold)).lineLimit(2)
-                Text(displayed?.artist ?? "").font(.system(size: 19)).foregroundStyle(.secondary).lineLimit(1)
-                if player.pendingTrack != nil { Text(L("Hazırlanıyor…")).font(.caption).foregroundStyle(.secondary) }
+        return HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(displayed?.title ?? "KlyMusic")
+                    .font(.system(size: 21, weight: .bold))
+                    .foregroundStyle(Color.playerPrimary)
+                    .lineLimit(1)
+                Text(displayed?.artist ?? "")
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(Color.playerSecondary)
+                    .lineLimit(1)
+                if player.pendingTrack != nil {
+                    Text(L("Hazırlanıyor…"))
+                        .font(.caption)
+                        .foregroundStyle(Color.playerSecondary)
+                }
             }.frame(maxWidth: .infinity, alignment: .leading)
             if let displayed {
-                Button { library.toggleFavorite(displayed) } label: {
-                    Image(systemName: library.isFavorite(displayed) ? "star.fill" : "star")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(library.isFavorite(displayed) ? Color.coral : Color.primary)
-                        .frame(width: 32, height: 32).background(.primary.opacity(0.08), in: Circle())
-                        .frame(width: 44, height: 44)
-                }.accessibilityIdentifier("player.favorite")
-                    .accessibilityLabel(library.isFavorite(displayed) ? L("Favorilerden çıkar") : L("Favorilere ekle"))
-                TrackMenu(track: displayed, pill: true)
+                HStack(spacing: 10) {
+                    Button { library.toggleFavorite(displayed) } label: {
+                        Image(systemName: library.isFavorite(displayed) ? "star.fill" : "star")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(library.isFavorite(displayed) ? Color.coral : Color.playerPrimary)
+                            .frame(width: 32, height: 32)
+                            .background(Color.playerPrimary.opacity(0.11), in: Circle())
+                            .frame(width: 34, height: 44)
+                            .contentShape(Rectangle())
+                    }.accessibilityIdentifier("player.favorite")
+                        .accessibilityLabel(library.isFavorite(displayed) ? L("Favorilerden çıkar") : L("Favorilere ekle"))
+                    TrackMenu(track: displayed, pill: true)
+                }
             }
         }
     }
 
     private var appleTransport: some View {
-        HStack {
+        HStack(spacing: 48) {
             Button { player.previous() } label: {
-                Image(systemName: "backward.fill").font(.system(size: 30)).frame(maxWidth: .infinity, minHeight: 62)
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .frame(width: 56, height: 60)
+                    .contentShape(Rectangle())
             }.accessibilityLabel("Önceki şarkı")
             Button { player.toggle() } label: {
                 Group {
-                    if player.isBuffering || waitingForFirstTrack { ProgressView().tint(.primary) }
-                    else { Image(systemName: player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 42, weight: .semibold)) }
-                }.frame(maxWidth: .infinity, minHeight: 62)
+                    if player.isBuffering || waitingForFirstTrack {
+                        ProgressView().tint(Color.playerPrimary)
+                    } else {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 44, weight: .bold))
+                            .offset(x: player.isPlaying ? 0 : 2)
+                    }
+                }
+                .frame(width: 68, height: 62)
+                .contentShape(Rectangle())
             }.accessibilityLabel(player.isPlaying ? L("Duraklat") : L("Çal"))
                 .accessibilityIdentifier("player.playPause").accessibilityValue(player.isPlaying ? "playing" : "paused")
             Button { player.next() } label: {
-                Image(systemName: "forward.fill").font(.system(size: 30)).frame(maxWidth: .infinity, minHeight: 62)
+                Image(systemName: "forward.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .frame(width: 56, height: 60)
+                    .contentShape(Rectangle())
             }.accessibilityLabel("Sonraki şarkı")
-        }.foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .foregroundStyle(Color.playerPrimary)
     }
 
     private var appleTools: some View {
-        HStack {
+        HStack(spacing: 0) {
             Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { showLyrics.toggle() }
+                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)) { showLyrics.toggle() }
                 if showLyrics { player.loadLyrics() }
             } label: {
-                Image(systemName: showLyrics ? "quote.bubble.fill" : "quote.bubble").font(.system(size: 20)).frame(maxWidth: .infinity, minHeight: 46)
-                    .foregroundStyle(showLyrics ? Color.primary : Color.secondary)
+                Image(systemName: showLyrics ? "quote.bubble.fill" : "quote.bubble")
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(showLyrics ? Color.playerPrimary : Color.playerSecondary)
+                    .frame(width: 38, height: 34)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.playerPrimary.opacity(showLyrics ? 0.14 : 0))
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 46)
+                    .contentShape(Rectangle())
             }.accessibilityLabel("Şarkı sözleri").accessibilityIdentifier("lyrics.toggle").accessibilityValue(showLyrics ? "visible" : "hidden")
-            AirPlayControl().frame(maxWidth: .infinity).frame(height: 46).accessibilityLabel("AirPlay")
+            AirPlayControl()
+                .frame(width: 46, height: 46)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel("AirPlay")
             Button { showQueue = true } label: {
-                Image(systemName: "list.bullet").font(.system(size: 20)).frame(maxWidth: .infinity, minHeight: 46)
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(Color.playerSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 46)
+                    .contentShape(Rectangle())
             }.accessibilityLabel("Çalma sırası").accessibilityIdentifier("player.queue")
-        }.foregroundStyle(.secondary)
+        }
     }
 
 }
@@ -174,13 +272,14 @@ private struct ApplePlaybackTimeline: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 3) {
             GeometryReader { geometry in
+                let fraction = max(0, min(1, value / max(1, clock.duration)))
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.primary.opacity(0.16))
-                    Capsule().fill(.primary.opacity(scrubbing ? 0.92 : 0.65))
-                        .frame(width: max(0, min(1, value / max(1, clock.duration))) * geometry.size.width)
-                }.frame(height: scrubbing ? 8 : 4).frame(height: 28)
+                    Capsule().fill(Color.playerPrimary.opacity(0.18))
+                    Capsule().fill(Color.playerPrimary.opacity(scrubbing ? 0.96 : 0.72))
+                        .frame(width: fraction * geometry.size.width)
+                }.frame(height: scrubbing ? 9 : 5).frame(height: 22)
                     .frame(maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .animation(.easeOut(duration: 0.14), value: scrubbing)
@@ -188,7 +287,7 @@ private struct ApplePlaybackTimeline: View {
                         scrubbing = true
                         scrub = min(max(0, event.location.x / max(1, geometry.size.width)), 1) * max(0, clock.duration)
                     }.onEnded { _ in player.seek(scrub); scrubbing = false })
-            }.frame(height: 28)
+            }.frame(height: 22)
                 .accessibilityElement().accessibilityLabel("Oynatma konumu")
                 .accessibilityValue(Track.time(value)).accessibilityIdentifier("player.scrubber")
                 .accessibilityAdjustableAction { direction in
@@ -198,25 +297,121 @@ private struct ApplePlaybackTimeline: View {
                     @unknown default: break
                     }
                 }
-            HStack {
-                Text(Track.time(value)).accessibilityIdentifier("player.elapsed").accessibilityValue(String(Int(clock.position)))
-                Spacer()
-                if isOfflineTrack {
-                    Label(L("Çevrimdışı"), systemImage: "arrow.down.circle.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(.primary.opacity(0.08), in: Capsule())
-                } else {
-                    Text("AAC")
-                        .font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(.primary.opacity(0.08), in: Capsule())
-                        .accessibilityHidden(true)
+            ZStack {
+                HStack(spacing: 0) {
+                    Text(Track.time(value))
+                        .accessibilityIdentifier("player.elapsed")
+                        .accessibilityValue(String(Int(clock.position)))
+                    Spacer(minLength: 0)
+                    Text("−" + Track.time(max(0, clock.duration - value)))
                 }
-                Spacer()
-                Text("−" + Track.time(max(0, clock.duration - value)))
-            }.font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    DolbyAtmosBadge(color: .playerSecondary)
+                    if isOfflineTrack {
+                        Text("·")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.playerSecondary)
+                            .accessibilityHidden(true)
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text(L("Çevrimdışı"))
+                                .font(.system(size: 10.5, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.playerSecondary)
+                    }
+                }
+            }.font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(Color.playerSecondary)
         }.accessibilityElement(children: .contain).accessibilityIdentifier("player.timeline")
+    }
+}
+
+private final class SystemVolumeObserver: ObservableObject {
+    @Published var volume: Double = 0.68
+    private var token: NSKeyValueObservation?
+    weak var bridgeSlider: UISlider?
+
+    init() {
+        let session = AVAudioSession.sharedInstance()
+        let initial = Double(session.outputVolume)
+        #if targetEnvironment(simulator)
+        volume = initial > 0.01 ? initial : 0.68
+        #else
+        volume = initial
+        #endif
+        token = session.observe(\.outputVolume, options: [.new]) { [weak self] _, change in
+            guard let updated = change.newValue else { return }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                #if targetEnvironment(simulator)
+                if updated > 0.01 { self.volume = Double(updated) }
+                #else
+                self.volume = Double(updated)
+                #endif
+            }
+        }
+    }
+
+    func setVolume(_ target: Double) {
+        let clamped = min(1.0, max(0.0, target))
+        volume = clamped
+        bridgeSlider?.setValue(Float(clamped), animated: false)
+    }
+}
+
+private struct AppleVolumeBar: View {
+    @StateObject private var observer = SystemVolumeObserver()
+    @State private var dragging = false
+    @State private var bridgeSlider: UISlider?
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "speaker.fill")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(Color.playerSecondary)
+                .frame(width: 15, alignment: .leading)
+                .accessibilityHidden(true)
+
+            GeometryReader { geometry in
+                let width = max(1, geometry.size.width)
+                let fillWidth = max(0, min(1, observer.volume)) * width
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.playerPrimary.opacity(0.18))
+                    Capsule().fill(Color.playerPrimary.opacity(dragging ? 0.96 : 0.72))
+                        .frame(width: fillWidth)
+                }
+                .frame(height: dragging ? 9 : 5)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .animation(.easeOut(duration: 0.14), value: dragging)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { event in
+                            dragging = true
+                            observer.bridgeSlider = bridgeSlider
+                            observer.setVolume(event.location.x / width)
+                        }
+                        .onEnded { _ in dragging = false }
+                )
+            }
+            .frame(height: 24)
+            .background {
+                VolumeControl(slider: $bridgeSlider)
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.playerSecondary)
+                .frame(width: 18, alignment: .trailing)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("Ses seviyesi"))
+        .accessibilityValue("\(Int(observer.volume * 100))%")
     }
 }
 
@@ -245,11 +440,12 @@ struct LyricsView: View {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .bottomTrailing) {
                         ScrollView(showsIndicators: false) {
-                            LazyVStack(alignment: .leading, spacing: 24) {
+                            LazyVStack(alignment: .leading, spacing: 26) {
                                 ForEach(lines) { line in
                                     VStack(alignment: .leading, spacing: 14) {
                                         if following && active >= 0 && line.id == active + 1 && isInstrumentalGap(before: line) {
                                             InstrumentalInterludeDots(isPlaying: player.isPlaying)
+                                                .transition(.opacity.combined(with: .scale(scale: 0.9)))
                                         }
                                         Button {
                                             following = true
@@ -264,7 +460,7 @@ struct LyricsView: View {
                                                 depthBlur: following && !reduceMotion && !voiceOver && active >= 0,
                                                 progress: progress(for: line)
                                             )
-                                        }.buttonStyle(.plain)
+                                        }.buttonStyle(LyricLineButtonStyle())
                                             .accessibilityIdentifier("lyrics.line.\(line.id)")
                                             .accessibilityLabel(line.text)
                                             .accessibilityHint(L("Bu satırdan çal"))
@@ -272,11 +468,23 @@ struct LyricsView: View {
                                     }
                                     .id(line.id)
                                 }
-                            }.padding(.vertical, 70).padding(.horizontal, 3)
+                            }.padding(.vertical, 76).padding(.horizontal, 4)
+                        }
+                        .mask {
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0.0),
+                                    .init(color: .black, location: 0.08),
+                                    .init(color: .black, location: 0.90),
+                                    .init(color: .clear, location: 1.0)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
                         }
                         .accessibilityIdentifier("lyrics.scroll")
                         .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in following = false })
-                        .onAppear { proxy.scrollTo(max(0, active), anchor: .center) }
+                        .onAppear { proxy.scrollTo(max(0, active), anchor: UnitPoint(x: 0.5, y: 0.38)) }
                         .onChange(of: active) { _, id in
                             guard following, !voiceOver, id >= 0 else { return }
                             scroll(to: id, proxy: proxy)
@@ -295,10 +503,23 @@ struct LyricsView: View {
                     }
                 }
             } else if let plain = player.lyrics?.plain, !plain.isEmpty {
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     Text(plain).font(.title2.weight(.semibold)).foregroundStyle(Color.playerPrimary)
-                        .lineSpacing(12).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 20)
-                }.transition(.opacity)
+                        .lineSpacing(12).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
+                }
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: .black, location: 0.08),
+                            .init(color: .black, location: 0.90),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .transition(.opacity)
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "quote.bubble").font(.system(size: 32)).foregroundStyle(Color.playerSecondary)
@@ -327,9 +548,42 @@ struct LyricsView: View {
     }
 
     private func scroll(to id: Int, proxy: ScrollViewProxy) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) {
-            proxy.scrollTo(id, anchor: .center)
+        withAnimation(reduceMotion ? nil : .spring(response: 0.52, dampingFraction: 0.86)) {
+            proxy.scrollTo(id, anchor: UnitPoint(x: 0.5, y: 0.38))
         }
+    }
+}
+
+private struct LyricLineButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0, anchor: .leading)
+            .opacity(configuration.isPressed ? 0.84 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.72), value: configuration.isPressed)
+    }
+}
+
+private struct InterludeDotMetrics {
+    let scales: [CGFloat]
+    let offsets: [CGFloat]
+    let opacities: [Double]
+
+    static func compute(at date: Date, isPlaying: Bool, reduceMotion: Bool) -> InterludeDotMetrics {
+        guard isPlaying && !reduceMotion else {
+            return InterludeDotMetrics(scales: [0.92, 1.0, 0.92], offsets: [0, 0, 0], opacities: [0.55, 0.75, 0.55])
+        }
+        let t: Double = date.timeIntervalSinceReferenceDate * 3.8
+        var scales: [CGFloat] = []
+        var offsets: [CGFloat] = []
+        var opacities: [Double] = []
+        for idx in 0..<3 {
+            let raw: Double = Foundation.sin(t - Double(idx) * 0.85)
+            let wave: Double = 0.5 + 0.5 * raw
+            scales.append(CGFloat(0.78 + 0.38 * wave))
+            offsets.append(CGFloat(-3.5 * wave))
+            opacities.append(0.38 + 0.62 * wave)
+        }
+        return InterludeDotMetrics(scales: scales, offsets: offsets, opacities: opacities)
     }
 }
 
@@ -337,19 +591,63 @@ private struct InstrumentalInterludeDots: View {
     var isPlaying: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 12.0, paused: !isPlaying || reduceMotion)) { timeline in
-            let t = isPlaying && !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 3.0 : 0.0
-            HStack(spacing: 7) {
+        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !isPlaying || reduceMotion)) { timeline in
+            let metrics = InterludeDotMetrics.compute(at: timeline.date, isPlaying: isPlaying, reduceMotion: reduceMotion)
+            HStack(spacing: 8) {
                 ForEach(0..<3, id: \.self) { index in
-                    let wave = isPlaying && !reduceMotion ? 0.35 + 0.65 * max(0, sin(t - Double(index) * 0.7)) : 0.5
                     Circle()
-                        .fill(Color.playerPrimary.opacity(wave))
+                        .fill(Color.playerPrimary.opacity(metrics.opacities[index]))
                         .frame(width: 9, height: 9)
+                        .scaleEffect(metrics.scales[index])
+                        .offset(y: metrics.offsets[index])
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.playerPrimary.opacity(0.08), in: Capsule())
         .accessibilityHidden(true)
+    }
+}
+
+private struct LyricVisualState {
+    let baseOpacity: Double
+    let blurRadius: CGFloat
+    let scale: CGFloat
+    let yOffset: CGFloat
+    let sweepProgress: Double
+    let sweepTail: Double
+    let sweepColorAtTail: Color
+
+    static func compute(isActive: Bool, isPast: Bool, distance: Int, depthBlur: Bool, progress: Double, reduceMotion: Bool) -> LyricVisualState {
+        let baseOpacity: Double
+        if isActive {
+            baseOpacity = 0.42
+        } else if !depthBlur {
+            baseOpacity = 0.84
+        } else if distance <= 1 {
+            baseOpacity = isPast ? 0.50 : 0.62
+        } else if distance == 2 {
+            baseOpacity = isPast ? 0.36 : 0.46
+        } else {
+            baseOpacity = 0.28
+        }
+
+        let blurRadius: CGFloat = (!depthBlur || isActive) ? 0 : min(2.4, CGFloat(distance) * 0.72)
+        let scale: CGFloat = (isActive || reduceMotion) ? 1.0 : 0.93
+        let yOffset: CGFloat = (isActive && !reduceMotion) ? -2.0 : 0.0
+        let p: Double = reduceMotion ? 1.0 : min(1.0, max(0.0, progress))
+        let tail: Double = min(1.0, p + 0.18)
+        let tailColor: Color = p >= 0.985 ? .black : .clear
+        return LyricVisualState(
+            baseOpacity: baseOpacity,
+            blurRadius: blurRadius,
+            scale: scale,
+            yOffset: yOffset,
+            sweepProgress: p,
+            sweepTail: tail,
+            sweepColorAtTail: tailColor
+        )
     }
 }
 
@@ -361,7 +659,7 @@ private struct AnimatedLyricLine: View {
     var depthBlur: Bool
     var progress: Double
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .title) private var textSize = 30.0
+    @ScaledMetric(relativeTo: .title) private var textSize = 31.0
 
     private var label: some View {
         Text(text).font(.system(size: textSize, weight: .bold))
@@ -370,25 +668,39 @@ private struct AnimatedLyricLine: View {
     }
 
     var body: some View {
-        let blurAmount: CGFloat = (!depthBlur || isActive) ? 0 : min(2.2, CGFloat(distance) * 0.75)
+        let state = LyricVisualState.compute(
+            isActive: isActive,
+            isPast: isPast,
+            distance: distance,
+            depthBlur: depthBlur,
+            progress: progress,
+            reduceMotion: reduceMotion
+        )
         label
-            .foregroundStyle(isActive ? Color.playerPrimary.opacity(0.68) : Color.playerSecondary.opacity(isPast ? 0.78 : 0.92))
+            .foregroundStyle(Color.playerPrimary.opacity(state.baseOpacity))
             .overlay(alignment: .leading) {
                 if isActive {
                     label.foregroundStyle(Color.playerPrimary)
-                        .shadow(color: Color.white.opacity(0.16), radius: 8)
+                        .shadow(color: Color.white.opacity(0.32), radius: 11, y: 1)
                         .mask {
-                            GeometryReader { geo in
-                                Rectangle().frame(width: geo.size.width * (reduceMotion ? 1 : progress))
-                            }
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .black, location: 0.0),
+                                    .init(color: .black, location: state.sweepProgress),
+                                    .init(color: state.sweepColorAtTail, location: state.sweepTail)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         }
-                        .animation(reduceMotion ? nil : .linear(duration: 0.25), value: progress)
+                        .animation(reduceMotion ? nil : .linear(duration: 0.22), value: progress)
                         .accessibilityHidden(true)
                 }
             }
-            .blur(radius: blurAmount)
-            .scaleEffect(isActive || reduceMotion ? 1 : 0.96, anchor: .leading)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: isActive)
+            .blur(radius: state.blurRadius)
+            .scaleEffect(state.scale, anchor: .leading)
+            .offset(y: state.yOffset)
+            .animation(reduceMotion ? nil : .spring(response: 0.44, dampingFraction: 0.74), value: isActive)
             .contentShape(Rectangle()).accessibilityHidden(true)
     }
 }
@@ -399,76 +711,110 @@ struct QueueView: View {
     @State private var confirmClear = false
 
     var body: some View {
+        let currentTrack = player.pendingTrack ?? player.current
         let upcoming = player.upcomingTracks
         NavigationStack {
-            List {
-                if let current = player.pendingTrack ?? player.current {
-                    Section {
-                        HStack(spacing: 13) {
-                            queueArtwork(current)
-                            queueMetadata(current)
-                            Spacer(minLength: 8)
-                            if player.pendingTrack != nil { ProgressView().controlSize(.small) }
-                            else if player.isPlaying {
-                                NowPlayingBars(isPlaying: true, color: .coral, size: 15)
-                            } else {
-                                Image(systemName: "pause.fill")
-                                    .font(.system(size: 16)).foregroundStyle(.secondary)
+            ZStack {
+                AlbumBackdrop(artwork: currentTrack?.artwork, isPlaying: player.isPlaying)
+                List {
+                    if let current = currentTrack {
+                        Section {
+                            HStack(spacing: 13) {
+                                queueArtwork(current)
+                                queueMetadata(current)
+                                Spacer(minLength: 8)
+                                if player.pendingTrack != nil {
+                                    ProgressView().controlSize(.small)
+                                } else if player.isPlaying {
+                                    NowPlayingBars(isPlaying: true, color: .coral, size: 15)
+                                } else {
+                                    Image(systemName: "pause.fill")
+                                        .font(.system(size: 16)).foregroundStyle(.secondary)
+                                }
                             }
-                        }.padding(.vertical, 7).accessibilityIdentifier("queue.current")
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(.white.opacity(0.08), lineWidth: 0.5)
+                            )
+                            .padding(.vertical, 2)
+                            .accessibilityIdentifier("queue.current")
+                        } header: {
+                            Text("Şimdi çalıyor").font(.subheadline.weight(.semibold)).foregroundStyle(Color.playerSecondary).textCase(nil)
+                        }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                    }
+                    Section {
+                        if upcoming.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L("Sıra boş")).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                                Text(L("Şarkı menüsünden sıraya ekleyebilirsin.")).font(.footnote).foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 16)
+                            .accessibilityIdentifier("queue.empty")
+                        } else {
+                            ForEach(upcoming) { track in
+                                VStack(spacing: 0) {
+                                    Button { player.playUpcoming(id: track.id) } label: {
+                                        HStack(spacing: 13) {
+                                            queueArtwork(track)
+                                            queueMetadata(track)
+                                        }.padding(.vertical, 8).contentShape(Rectangle())
+                                    }.buttonStyle(TrackRowButtonStyle())
+                                        .accessibilityLabel("\(track.title), \(track.artist)")
+                                        .accessibilityHint(L("Çal")).accessibilityIdentifier("queue.track.\(track.id)")
+                                        .contextMenu {
+                                            Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
+                                            Button(role: .destructive) { player.removeUpcoming(id: track.id) } label: { Label("Sıradan kaldır", systemImage: "minus.circle") }
+                                        }
+                                    Divider().overlay(Color.primary.opacity(0.08)).padding(.leading, 61)
+                                }
+                            }.onMove { offsets, destination in
+                                player.moveUpcoming(from: offsets, to: destination, snapshot: upcoming)
+                            }
+                        }
                     } header: {
-                        Text("Şimdi çalıyor").font(.subheadline.weight(.medium)).textCase(nil)
+                        HStack(spacing: 8) {
+                            Text(L("Sıradaki")).font(.headline).foregroundStyle(.primary)
+                            if !upcoming.isEmpty { Text("\(upcoming.count)").font(.subheadline).foregroundStyle(.secondary) }
+                            Spacer(minLength: 0)
+                            Button { player.toggleShuffle() } label: {
+                                Image(systemName: "shuffle")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(player.shuffle ? Color.white : Color.playerSecondary)
+                                    .frame(width: 36, height: 32)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .fill(player.shuffle ? Color.coral : Color.primary.opacity(0.08))
+                                    )
+                                    .frame(width: 40, height: 40)
+                                    .contentShape(Rectangle())
+                            }.accessibilityLabel(L("Karıştır")).accessibilityValue(player.shuffle ? L("Açık") : L("Kapalı"))
+                            Button { player.cycleRepeat() } label: {
+                                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(player.repeatMode == .off ? Color.playerSecondary : Color.white)
+                                    .frame(width: 36, height: 32)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .fill(player.repeatMode == .off ? Color.primary.opacity(0.08) : Color.coral)
+                                    )
+                                    .frame(width: 40, height: 40)
+                                    .contentShape(Rectangle())
+                            }.accessibilityLabel(L("Tekrarlama")).accessibilityValue(player.repeatMode == .off ? L("Kapalı") : (player.repeatMode == .one ? L("Bir Şarkı") : L("Tümü")))
+                        }.textCase(nil)
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 18))
                 }
-                Section {
-                    if upcoming.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(L("Sıra boş")).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
-                            Text(L("Şarkı menüsünden sıraya ekleyebilirsin.")).font(.footnote).foregroundStyle(.secondary)
-                        }.padding(.vertical, 14).accessibilityIdentifier("queue.empty")
-                    } else {
-                        ForEach(upcoming) { track in
-                            Button { player.playUpcoming(id: track.id) } label: {
-                                HStack(spacing: 13) {
-                                    queueArtwork(track)
-                                    queueMetadata(track)
-                                }.padding(.vertical, 7).contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                                .accessibilityLabel("\(track.title), \(track.artist)")
-                                .accessibilityHint(L("Çal")).accessibilityIdentifier("queue.track.\(track.id)")
-                                .contextMenu {
-                                    Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
-                                    Button(role: .destructive) { player.removeUpcoming(id: track.id) } label: { Label("Sıradan kaldır", systemImage: "minus.circle") }
-                                }
-                        }.onMove { offsets, destination in
-                            player.moveUpcoming(from: offsets, to: destination, snapshot: upcoming)
-                        }
-                    }
-                } header: {
-                    HStack(spacing: 8) {
-                        Text(L("Sıradaki")).font(.headline).foregroundStyle(.primary)
-                        if !upcoming.isEmpty { Text("\(upcoming.count)").font(.subheadline).foregroundStyle(.secondary) }
-                        Spacer(minLength: 0)
-                        Button { player.toggleShuffle() } label: {
-                            Image(systemName: "shuffle").frame(width: 40, height: 40).contentShape(Rectangle())
-                                .foregroundStyle(player.shuffle ? Color.coral : Color.secondary)
-                        }.accessibilityLabel(L("Karıştır")).accessibilityValue(player.shuffle ? L("Açık") : L("Kapalı"))
-                        Button { player.cycleRepeat() } label: {
-                            Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat").frame(width: 40, height: 40).contentShape(Rectangle())
-                                .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.coral)
-                        }.accessibilityLabel(L("Tekrarlama")).accessibilityValue(player.repeatMode == .off ? L("Kapalı") : (player.repeatMode == .one ? L("Bir Şarkı") : L("Tümü")))
-                    }.textCase(nil)
-                }
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 18))
+                .listStyle(.plain).listSectionSpacing(18).scrollContentBackground(.hidden)
+                .environment(\.editMode, .constant(.active))
             }
-            .listStyle(.plain).listSectionSpacing(20).scrollContentBackground(.hidden)
-            .environment(\.editMode, .constant(.active))
-            .background(Color.pageBackground)
             .navigationTitle(L("Çalma sırası")).navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.pageBackground, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
@@ -498,11 +844,11 @@ struct QueueView: View {
                 Button(L("Vazgeç"), role: .cancel) { }
             } message: { Text(L("Çalan şarkı devam eder.")) }
         }
-        .presentationBackground(Color.pageBackground).presentationDragIndicator(.visible)
+        .presentationBackground(Color.canvas).presentationDragIndicator(.visible)
     }
 
     private func queueArtwork(_ track: Track) -> some View {
-        Artwork(url: track.artwork, radius: 6).frame(width: 48, height: 48)
+        Artwork(url: track.artwork, radius: 7).frame(width: 48, height: 48)
     }
     private func queueMetadata(_ track: Track) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -524,10 +870,24 @@ struct AirPlayControl: UIViewRepresentable {
 }
 
 struct VolumeControl: UIViewRepresentable {
+    @Binding var slider: UISlider?
+
     func makeUIView(context: Context) -> MPVolumeView {
-        let view = MPVolumeView(); view.tintColor = UIColor(Color.playerSecondary)
+        let view = MPVolumeView()
+        view.tintColor = UIColor(Color.playerSecondary)
         view.showsRouteButton = false
+        DispatchQueue.main.async {
+            slider = view.subviews.compactMap { $0 as? UISlider }.first
+        }
         return view
     }
-    func updateUIView(_ view: MPVolumeView, context: Context) { view.tintColor = UIColor(Color.playerSecondary) }
+
+    func updateUIView(_ view: MPVolumeView, context: Context) {
+        view.tintColor = UIColor(Color.playerSecondary)
+        if slider == nil {
+            DispatchQueue.main.async {
+                slider = view.subviews.compactMap { $0 as? UISlider }.first
+            }
+        }
+    }
 }

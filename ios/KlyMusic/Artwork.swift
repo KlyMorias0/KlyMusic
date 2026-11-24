@@ -190,41 +190,91 @@ struct ArtworkPalette: Equatable, Sendable {
     }
 }
 
+private struct BackdropPhase {
+    let driftX: CGFloat
+    let driftY: CGFloat
+    let breathe: CGFloat
+    let topAlpha: Double
+    let leftAlpha: Double
+    let rightAlpha: Double
+    let bottomAlpha: Double
+
+    static func compute(at date: Date, isPlaying: Bool, intense: Bool, dark: Bool, reduceMotion: Bool) -> BackdropPhase {
+        let active: Bool = isPlaying && !reduceMotion
+        let speed: Double = intense ? 0.36 : 0.22
+        let t: Double = active ? date.timeIntervalSinceReferenceDate * speed : 0.0
+        let amplitudeX: Double = intense ? 48.0 : 34.0
+        let amplitudeY: Double = intense ? 38.0 : 28.0
+        let dx = CGFloat(Foundation.sin(t) * amplitudeX)
+        let dy = CGFloat(Foundation.cos(t * 0.85) * amplitudeY)
+        let pulse: Double = (intense && active) ? (1.0 + 0.08 * Foundation.sin(t * 1.15)) : 1.0
+        let scale = CGFloat(pulse)
+
+        if dark {
+            return BackdropPhase(
+                driftX: dx,
+                driftY: dy,
+                breathe: scale,
+                topAlpha: intense ? 0.68 : 0.56,
+                leftAlpha: intense ? 0.64 : 0.54,
+                rightAlpha: intense ? 0.60 : 0.50,
+                bottomAlpha: intense ? 0.54 : 0.46
+            )
+        } else {
+            return BackdropPhase(
+                driftX: dx,
+                driftY: dy,
+                breathe: scale,
+                topAlpha: intense ? 0.28 : 0.20,
+                leftAlpha: intense ? 0.25 : 0.18,
+                rightAlpha: intense ? 0.22 : 0.16,
+                bottomAlpha: intense ? 0.19 : 0.14
+            )
+        }
+    }
+}
+
 struct AlbumBackdrop: View {
     var artwork: String?
     var isPlaying: Bool = false
+    var intense: Bool = false
     @State private var palette = ArtworkPalette.fallback
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: !isPlaying || reduceMotion)) { timeline in
-            let t = isPlaying && !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 0.22 : 0.0
-            let driftX = CGFloat(sin(t)) * 34
-            let driftY = CGFloat(cos(t * 0.85)) * 28
+            let phase = BackdropPhase.compute(
+                at: timeline.date,
+                isPlaying: isPlaying,
+                intense: intense,
+                dark: scheme == .dark,
+                reduceMotion: reduceMotion
+            )
             GeometryReader { geometry in
                 let w = geometry.size.width
                 let h = geometry.size.height
                 ZStack {
                     Color.canvas
-                    Ellipse().fill(palette.top.color.opacity(scheme == .dark ? 0.56 : 0.20))
-                        .frame(width: w * 1.15, height: h * 0.72)
+                    Ellipse().fill(palette.top.color.opacity(phase.topAlpha))
+                        .frame(width: w * 1.15 * phase.breathe, height: h * 0.72 * phase.breathe)
                         .blur(radius: 85)
-                        .position(x: w * 0.38 + driftX, y: h * 0.16 + driftY * 0.5)
-                    Ellipse().fill(palette.left.color.opacity(scheme == .dark ? 0.54 : 0.18))
-                        .frame(width: w * 1.1, height: h * 0.8)
+                        .position(x: w * 0.38 + phase.driftX, y: h * 0.16 + phase.driftY * 0.5)
+                    Ellipse().fill(palette.left.color.opacity(phase.leftAlpha))
+                        .frame(width: w * 1.1 * phase.breathe, height: h * 0.8 * phase.breathe)
                         .blur(radius: 80)
-                        .position(x: -w * 0.04 - driftX * 0.6, y: h * 0.44 - driftY)
-                    Ellipse().fill(palette.right.color.opacity(scheme == .dark ? 0.50 : 0.16))
-                        .frame(width: w * 1.05, height: h * 0.85)
+                        .position(x: -w * 0.04 - phase.driftX * 0.6, y: h * 0.44 - phase.driftY)
+                    Ellipse().fill(palette.right.color.opacity(phase.rightAlpha))
+                        .frame(width: w * 1.05 * phase.breathe, height: h * 0.85 * phase.breathe)
                         .blur(radius: 85)
-                        .position(x: w * 0.96 + driftX * 0.5, y: h * 0.66 + driftY)
-                    Ellipse().fill(palette.bottom.color.opacity(scheme == .dark ? 0.46 : 0.14))
-                        .frame(width: w * 1.2, height: h * 0.68)
+                        .position(x: w * 0.96 + phase.driftX * 0.5, y: h * 0.66 + phase.driftY)
+                    Ellipse().fill(palette.bottom.color.opacity(phase.bottomAlpha))
+                        .frame(width: w * 1.2 * phase.breathe, height: h * 0.68 * phase.breathe)
                         .blur(radius: 90)
-                        .position(x: w * 0.45 - driftX, y: h * 0.92 - driftY * 0.5)
+                        .position(x: w * 0.45 - phase.driftX, y: h * 0.92 - phase.driftY * 0.5)
                 }
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.75), value: palette)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.45), value: intense)
             }
         }
         .ignoresSafeArea().allowsHitTesting(false)

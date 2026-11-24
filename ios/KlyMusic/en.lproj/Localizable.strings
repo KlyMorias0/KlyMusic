@@ -403,3 +403,15 @@
 "Kütüphaneye Sabitle" = "Pin to Library";
 "Sabitlemeyi Kaldır" = "Unpin";
 "%lld şarkı, %lld dakika" = "%lld songs, %lld minutes";
+
+// Added in 2.16.0 player symmetry, Dolby Atmos, Live Lyrics & inner screens
+"Ses seviyesi" = "Volume";
+"En İyi Sonuçlar" = "Top Results";
+"Popüler Şarkılar" = "Top Songs";
+"Şarkılarda ara" = "Find in Songs";
+"Listede ara" = "Find in Playlist";
+"İndirilenlerde ara" = "Find in Downloads";
+"Albümlerde ara" = "Find in Albums";
+"Sanatçılarda ara" = "Find in Artists";
+"Varsayılan" = "Default";
+"Şarkı" = "Song";

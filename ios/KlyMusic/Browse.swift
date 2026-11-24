@@ -1012,31 +1012,96 @@ struct QueryView: View {
     @EnvironmentObject private var player: MusicPlayer
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                if !result.tracks.isEmpty {
-                    CollectionPlayButtons(tracks: result.tracks)
-                        .padding(.horizontal, 20)
-                }
-                if loading {
-                    ProgressView().padding(40)
-                } else if let failure {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 28) {
+                if loading && result.tracks.isEmpty {
+                    MusicLoadingView()
+                } else if let failure, result.tracks.isEmpty {
                     ErrorState(message: failure) { Task { await load() } }
-                } else if result.tracks.isEmpty {
+                        .padding(.horizontal, 20)
+                } else if result.tracks.isEmpty && result.albums.isEmpty && result.artists.isEmpty {
                     EmptyState(symbol: "music.note", title: L("Sonuç bulunamadı"), message: L("Farklı bir arama dene."))
+                } else {
+                    if !result.tracks.isEmpty {
+                        DiscoverHeroShelf(title: "Öne çıkan", tracks: Array(result.tracks.prefix(4)))
+                    }
+
+                    if result.tracks.count > 4 {
+                        CompactTrackShelf(title: "Popüler Şarkılar", tracks: Array(result.tracks.prefix(12)), rows: 4)
+                    }
+
+                    if !result.albums.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            BrowseShelfHeading(title: "Albümler")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(alignment: .top, spacing: 14) {
+                                    ForEach(result.albums) { album in
+                                        NavigationLink {
+                                            AlbumDetailView(collection: album)
+                                        } label: {
+                                            AlbumCard(collection: album).frame(width: 152)
+                                        }
+                                        .buttonStyle(CardButtonStyle())
+                                        .accessibilityIdentifier("album.open.\(album.id)")
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .scrollTargetLayout()
+                            }
+                            .scrollTargetBehavior(.viewAligned)
+                        }
+                    }
+
+                    if !result.artists.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            BrowseShelfHeading(title: "Sanatçılar")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: 16) {
+                                    ForEach(result.artists) { artist in
+                                        NavigationLink {
+                                            ArtistDetailView(id: artist.id, name: artist.name)
+                                        } label: {
+                                            VStack(spacing: 8) {
+                                                ArtistPortrait(url: artist.artwork, name: artist.name)
+                                                    .frame(width: 88, height: 88)
+                                                    .clipShape(Circle())
+                                                Text(artist.name)
+                                                    .font(.system(size: 13.5, weight: .semibold))
+                                                    .foregroundStyle(.primary)
+                                                    .lineLimit(1)
+                                                    .frame(width: 92)
+                                            }
+                                        }
+                                        .buttonStyle(CardButtonStyle())
+                                        .accessibilityIdentifier("artist.open.\(artist.id)")
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                    }
+
+                    if !result.tracks.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            BrowseShelfHeading(title: "Şarkılar", tracks: result.tracks)
+                            CollectionPlayButtons(tracks: result.tracks)
+                                .padding(.horizontal, 20)
+                            trackRows(result.tracks)
+                        }
+                    }
                 }
-                trackRows(result.tracks)
             }
-            .padding(.top, 12)
-            .padding(.bottom, 28)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
         .background(Color.pageBackground)
         .navigationTitle(title)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .task { await load() }
     }
 
     private func load() async {
-        loading = true
+        loading = result.tracks.isEmpty
         failure = nil
         defer { loading = false }
         do {
@@ -1204,9 +1269,9 @@ struct SearchView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .foregroundStyle(filter == value ? Color.pageBackground : Color.primary)
+                .foregroundStyle(filter == value ? Color.white : Color.primary)
                 .background(
-                    filter == value ? Color.primary : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.12, alpha: 1) : UIColor(white: 0.92, alpha: 1) }),
+                    filter == value ? Color.coral : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.12, alpha: 1) : UIColor(white: 0.92, alpha: 1) }),
                     in: Capsule()
                 )
                 .overlay(
@@ -1267,6 +1332,10 @@ struct SearchView: View {
                 noResults
             } else {
                 VStack(alignment: .leading, spacing: 22) {
+                    if !visibleResult.artists.isEmpty || !visibleResult.albums.isEmpty || !songs.isEmpty {
+                        topResultsShelf
+                    }
+
                     if !songs.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             BrowseShelfHeading(title: "Şarkılar", tracks: songs)
@@ -1396,6 +1465,91 @@ struct SearchView: View {
         }
     }
 
+    @ViewBuilder private var topResultsShelf: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            BrowseShelfHeading(title: "En İyi Sonuçlar")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    if let topArtist = visibleResult.artists.first {
+                        NavigationLink { artistDestination(topArtist) } label: {
+                            topResultCard(
+                                title: topArtist.name,
+                                subtitle: L("Sanatçı"),
+                                artwork: topArtist.artwork,
+                                isArtist: true,
+                                trailingSymbol: "chevron.right"
+                            )
+                        }
+                        .buttonStyle(CardButtonStyle())
+                        .accessibilityIdentifier("search.top.artist")
+                    }
+                    if let topTrack = songs.first {
+                        Button { player.play(topTrack, in: songs) } label: {
+                            topResultCard(
+                                title: topTrack.title,
+                                subtitle: L("Şarkı") + " · " + topTrack.artist,
+                                artwork: topTrack.artwork,
+                                isArtist: false,
+                                trailingSymbol: player.current?.id == topTrack.id && player.isPlaying ? "pause.fill" : "play.fill"
+                            )
+                        }
+                        .buttonStyle(CardButtonStyle())
+                        .accessibilityIdentifier("search.top.song")
+                    }
+                    if let topAlbum = visibleResult.albums.first {
+                        NavigationLink { albumDestination(topAlbum) } label: {
+                            topResultCard(
+                                title: topAlbum.title,
+                                subtitle: L("Albüm") + " · " + topAlbum.artist,
+                                artwork: topAlbum.artwork,
+                                isArtist: false,
+                                trailingSymbol: "chevron.right"
+                            )
+                        }
+                        .buttonStyle(CardButtonStyle())
+                        .accessibilityIdentifier("search.top.album")
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
+    private func topResultCard(title: String, subtitle: String, artwork: String?, isArtist: Bool, trailingSymbol: String) -> some View {
+        HStack(spacing: 12) {
+            if isArtist {
+                ArtistPortrait(url: artwork, name: title)
+                    .frame(width: 58, height: 58)
+                    .clipShape(Circle())
+            } else {
+                Artwork(url: artwork, radius: 9)
+                    .frame(width: 58, height: 58)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: trailingSymbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(trailingSymbol.contains("chevron") ? AnyShapeStyle(Color(uiColor: .tertiaryLabel)) : AnyShapeStyle(Color.coral))
+                .accessibilityHidden(true)
+        }
+        .padding(12)
+        .frame(width: 266)
+        .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.primary.opacity(0.06), lineWidth: 0.6)
+        )
+    }
+
     private func playlistRow(_ playlist: SavedPlaylist) -> some View {
         VStack(spacing: 0) {
             NavigationLink {
@@ -1416,6 +1570,9 @@ struct SearchView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
                 }
                 .padding(.vertical, 8)
             }
@@ -1443,6 +1600,9 @@ struct SearchView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
                 }
                 .padding(.vertical, 8)
             }
@@ -1472,6 +1632,9 @@ struct SearchView: View {
                             .lineLimit(1)
                     }
                     Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
                 }
                 .padding(.vertical, 8)
             }

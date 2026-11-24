@@ -1,5 +1,6 @@
 import XCTest
 import Combine
+import SwiftUI
 import SwiftData
 import AVFoundation
 import MediaPlayer
@@ -2107,5 +2108,26 @@ extension CoreTests {
         raw = LibraryPinsStore.toggle(stored[0], in: raw)
         XCTAssertFalse(LibraryPinsStore.contains(id: "album:11", in: raw))
         XCTAssertNotNil(UIImage(systemName: RootView.libraryTabSymbol))
+    }
+
+    func testDolbyDoubleDMarkIsNonEmptyAndHorizontallySymmetric() {
+        let mark = DolbyDoubleDMark()
+        let path = mark.path(in: CGRect(x: 0, y: 0, width: 28, height: 19))
+        XCTAssertFalse(path.isEmpty)
+        XCTAssertEqual(path.boundingRect.width, 28, accuracy: 0.2)
+        XCTAssertEqual(path.boundingRect.midX, 14.0, accuracy: 0.2)
+    }
+
+    func testTrackListSortAndSearchFilter() {
+        let items = [
+            Track(id: "1", title: "Zaman", artist: "Bora", album: "Gece", duration: 180),
+            Track(id: "2", title: "Aşk", artist: "Can", album: "Sabah", duration: 200),
+            Track(id: "3", title: "Mavi", artist: "Ada", album: "Deniz", duration: 150)
+        ]
+        XCTAssertEqual(TrackListSort.apply(.standard, query: "", to: items).map(\.id), ["1", "2", "3"])
+        XCTAssertEqual(TrackListSort.apply(.title, query: "", to: items).map(\.id), ["2", "3", "1"])
+        XCTAssertEqual(TrackListSort.apply(.artist, query: "", to: items).map(\.id), ["3", "1", "2"])
+        XCTAssertEqual(TrackListSort.apply(.standard, query: "deniz", to: items).map(\.id), ["3"])
+        XCTAssertEqual(TrackListSort.apply(.standard, query: "  bora ", to: items).map(\.id), ["1"])
     }
 }

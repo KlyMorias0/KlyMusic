@@ -401,3 +401,15 @@
 "Kütüphaneye Sabitle" = "Kütüphaneye Sabitle";
 "Sabitlemeyi Kaldır" = "Sabitlemeyi Kaldır";
 "%lld şarkı, %lld dakika" = "%lld şarkı, %lld dakika";
+
+// Added in 2.16.0 player symmetry, Dolby Atmos, Live Lyrics & inner screens
+"Ses seviyesi" = "Ses seviyesi";
+"En İyi Sonuçlar" = "En İyi Sonuçlar";
+"Popüler Şarkılar" = "Popüler Şarkılar";
+"Şarkılarda ara" = "Şarkılarda ara";
+"Listede ara" = "Listede ara";
+"İndirilenlerde ara" = "İndirilenlerde ara";
+"Albümlerde ara" = "Albümlerde ara";
+"Sanatçılarda ara" = "Sanatçılarda ara";
+"Varsayılan" = "Varsayılan";
+"Şarkı" = "Şarkı";
