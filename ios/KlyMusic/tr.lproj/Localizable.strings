@@ -374,3 +374,30 @@
 "Öne Çıkan" = "Öne Çıkan";
 "Yakında" = "Yakında";
 "Son Çıkan" = "Son Çıkan";
+
+// Added in 2.15.0 Apple Music 1:1 update
+"Radyo" = "Radyo";
+"Senin İstasyonun" = "Senin İstasyonun";
+"KİŞİSEL İSTASYON" = "KİŞİSEL İSTASYON";
+"Sevdiğin sanatçılar ve sana özel kesintisiz müzik" = "Sevdiğin sanatçılar ve sana özel kesintisiz müzik";
+"Canlı İstasyonlar" = "Canlı İstasyonlar";
+"CANLI İSTASYON" = "CANLI İSTASYON";
+"Hit Müzik İstasyonu" = "Hit Müzik İstasyonu";
+"Günün her anına uygun popüler hitler" = "Günün her anına uygun popüler hitler";
+"Türkçe Pop İstasyonu" = "Türkçe Pop İstasyonu";
+"En sevilen Türkçe pop parçaları" = "En sevilen Türkçe pop parçaları";
+"Gece & Chill İstasyonu" = "Gece & Chill İstasyonu";
+"Geceye eşlik eden sakin ve akustik seçkiler" = "Geceye eşlik eden sakin ve akustik seçkiler";
+"Hip-Hop & Ritim" = "Hip-Hop & Ritim";
+"Yüksek tempo ve sokakların ritmi" = "Yüksek tempo ve sokakların ritmi";
+"Tür İstasyonları" = "Tür İstasyonları";
+"Pop" = "Pop";
+"Rock" = "Rock";
+"Akustik" = "Akustik";
+"Elektronik" = "Elektronik";
+"Klasik" = "Klasik";
+"90'lar & 2000'ler" = "90'lar & 2000'ler";
+"Sabitlenenler" = "Sabitlenenler";
+"Kütüphaneye Sabitle" = "Kütüphaneye Sabitle";
+"Sabitlemeyi Kaldır" = "Sabitlemeyi Kaldır";
+"%lld şarkı, %lld dakika" = "%lld şarkı, %lld dakika";

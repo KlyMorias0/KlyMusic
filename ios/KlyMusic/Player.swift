@@ -70,9 +70,12 @@ struct LyricsCacheEntry: Codable {
     @Published var sleepUntil: Date?
     @Published var sleepAtEnd = false
     @Published var lastTransitionMS: Double = 0
+    @Published var activeStationTitle: String? = nil
     weak var library: LibraryStore?
     let engine = AVQueuePlayer()
     private var originalQueue: [Track] = []
+    private var activeStationQuery: String? = nil
+    private var stationReplenishTask: Task<Void, Never>? = nil
     private var itemTracks: [ObjectIdentifier: (Track, PlaybackAsset?)] = [:]
     private var matchingTask: Task<Void, Never>?
     private var matchingIDs: [String] = []
@@ -225,7 +228,7 @@ struct LyricsCacheEntry: Codable {
             try Task.checkCancellation()
             let url = try API.mediaURL(stream!)
             item = AVPlayerItem(url: url)
-            item.preferredForwardBufferDuration = PlaybackPreferences.savesData() ? 0.75 : 2
+            item.preferredForwardBufferDuration = PlaybackPreferences.savesData() ? 22 : 45
             if let stream, stream.duration.isFinite, stream.duration > 0 {
                 // The resolver has checked this single recording's actual media duration.
                 item.forwardPlaybackEndTime = CMTime(seconds: stream.duration, preferredTimescale: 600)
@@ -282,7 +285,26 @@ struct LyricsCacheEntry: Codable {
         }
     }
 
+    func startStation(title: String, query: String, seedTracks: [Track]) {
+        guard let first = seedTracks.first else { return }
+        stationReplenishTask?.cancel()
+        stationReplenishTask = nil
+        activeStationTitle = title
+        activeStationQuery = query
+        startPlayback(first, in: seedTracks, source: "auto", keepStation: true)
+    }
+
     func play(_ track: Track, in tracks: [Track]? = nil, source: String = "auto") {
+        startPlayback(track, in: tracks, source: source, keepStation: tracks == nil)
+    }
+
+    private func startPlayback(_ track: Track, in tracks: [Track]? = nil, source: String = "auto", keepStation: Bool) {
+        if !keepStation {
+            stationReplenishTask?.cancel()
+            stationReplenishTask = nil
+            activeStationTitle = nil
+            activeStationQuery = nil
+        }
         selectionTask?.cancel(); nextTask?.cancel()
         generation = UUID(); let token = generation
         if let tracks {
@@ -360,6 +382,30 @@ struct LyricsCacheEntry: Codable {
             }
         }
         prepareNext()
+        replenishStationIfNeeded()
+    }
+
+    private func replenishStationIfNeeded() {
+        guard let query = activeStationQuery, !query.isEmpty, queue.count - 1 - index <= 3 else { return }
+        guard stationReplenishTask == nil else { return }
+        let stationTitle = activeStationTitle
+        let existingIDs = Set(queue.map(\.id))
+        let existingIdentities = Set(queue.map(HomeFeed.identity))
+        stationReplenishTask = Task(priority: .utility) { [weak self] in
+            defer { Task { @MainActor in self?.stationReplenishTask = nil } }
+            guard let response = try? await API.shared.search(query) else { return }
+            try? Task.checkCancellation()
+            await MainActor.run {
+                guard let self, self.activeStationTitle == stationTitle, self.activeStationQuery == query else { return }
+                let additions = response.tracks.filter {
+                    !existingIDs.contains($0.id) && !existingIdentities.contains(HomeFeed.identity($0))
+                }.prefix(10)
+                guard !additions.isEmpty else { return }
+                self.queue.append(contentsOf: additions)
+                self.originalQueue.append(contentsOf: additions)
+                if self.engine.items().count <= 1 { self.prepareNext() }
+            }
+        }
     }
 
     func prepareNext() {

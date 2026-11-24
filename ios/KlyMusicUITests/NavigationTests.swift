@@ -11,6 +11,10 @@ final class NavigationTests: XCTestCase {
         tapTab("nav.discover", label: "Keşfet", in: app)
         XCTAssertTrue(app.staticTexts["Türler ve ruh halleri"].waitForExistence(timeout: 5))
         shot(app, "Redesign-Discover-Dark")
+        tapTab("nav.radio", label: "Radyo", in: app)
+        XCTAssertTrue(app.navigationBars["Radyo"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["radio.play.personal"].waitForExistence(timeout: 5))
+        shot(app, "Redesign-Radio-Dark")
         tapTab("nav.library", label: "Kütüphane", in: app)
         XCTAssertTrue(app.buttons["library.playlists"].waitForExistence(timeout: 5))
         shot(app, "Redesign-Library-Dark")
@@ -136,6 +140,9 @@ final class NavigationTests: XCTestCase {
         let spotlight = app.descendants(matching: .any).matching(NSPredicate(format: "identifier IN %@", ["home.featured", "home.personalized"])).firstMatch
         XCTAssertTrue(spotlight.waitForExistence(timeout: 15))
         shot(app, "Music-Home-Light")
+        tapTab("nav.radio", label: "Radyo", in: app)
+        XCTAssertTrue(app.buttons["radio.play.personal"].waitForExistence(timeout: 5))
+        shot(app, "Apple-Radio")
         tapTab("nav.library", label: "Kütüphane", in: app)
         XCTAssertTrue(app.buttons["library.playlists"].waitForExistence(timeout: 5))
         shot(app, "Apple-Library")
@@ -312,6 +319,11 @@ final class NavigationTests: XCTestCase {
             XCTAssertTrue(discover.isSelected)
             XCTAssertTrue(app.navigationBars["Keşfet"].exists)
             shot(app, "Native-Tabs-Discover-\(theme)")
+
+            let radio = tapTab("nav.radio", label: "Radyo", in: app)
+            XCTAssertTrue(radio.isSelected)
+            XCTAssertTrue(app.navigationBars["Radyo"].exists)
+            shot(app, "Native-Tabs-Radio-\(theme)")
 
             tapTab("nav.library", label: "Kütüphane", in: app)
             XCTAssertTrue(app.navigationBars["Kütüphane"].waitForExistence(timeout: 5))

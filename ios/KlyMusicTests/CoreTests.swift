@@ -4,6 +4,7 @@ import SwiftData
 import AVFoundation
 import MediaPlayer
 import UIKit
+import YouTubeKit
 @testable import KlyMusic
 
 final class CoreTests: XCTestCase {
@@ -2064,5 +2065,46 @@ extension CoreTests {
         }
         XCTAssertFalse(RecordingIdentity.same(remix, Track(id: "youtube:abcdefghijk", title: "Gece (Original Version)", artist: "Artist")))
         XCTAssertTrue(RecordingIdentity.lookupTitles(soundtrack).contains("Gece"))
+    }
+
+    func testArtworkBucketsSaveBandwidthWhileStayingRetinaSharp() throws {
+        let apple = try XCTUnwrap(URL(string: "https://is1-ssl.mzstatic.com/image/thumb/album/600x600bb.jpg"))
+        let expected: [(Int, String)] = [
+            (150, "160x160bb.jpg"),
+            (180, "200x200bb.jpg"),
+            (280, "320x320bb.jpg"),
+            (474, "480x480bb.jpg"),
+            (600, "640x640bb.jpg"),
+            (900, "960x960bb.jpg")
+        ]
+        for (pixels, suffix) in expected {
+            XCTAssertTrue(try XCTUnwrap(ArtworkRequest.sized(apple, pixels: pixels)).absoluteString.hasSuffix(suffix), "pixels=\(pixels)")
+        }
+    }
+
+    func testAudioPreferenceScoreBalancesLowDataAndHighQuality() {
+        let low = YouTube.audioPreferenceScore(bitrate: 48_000, aacLC: false, dataSaver: true, highQuality: false)
+        let balanced = YouTube.audioPreferenceScore(bitrate: 128_000, aacLC: true, dataSaver: true, highQuality: false)
+        let heavy = YouTube.audioPreferenceScore(bitrate: 256_000, aacLC: true, dataSaver: true, highQuality: false)
+        XCTAssertGreaterThan(balanced, low, "Default low-data mode should still prefer clean 128 kbps AAC-LC over blurry 48 kbps")
+        XCTAssertGreaterThan(low, heavy, "Data saver must avoid 256+ kbps streams when lighter AAC exists")
+
+        let high256 = YouTube.audioPreferenceScore(bitrate: 256_000, aacLC: true, dataSaver: false, highQuality: true)
+        let high128 = YouTube.audioPreferenceScore(bitrate: 128_000, aacLC: true, dataSaver: false, highQuality: true)
+        XCTAssertGreaterThan(high256, high128, "Explicit high quality mode must rank highest bitrate first")
+    }
+
+    func testLibraryPinsStoreTogglesWithoutDuplicatesAndCapsCount() {
+        var raw = ""
+        for idx in 1...11 {
+            let pin = LibraryPin(id: "album:\(idx)", kind: "album", targetID: "\(idx)", title: "Album \(idx)", subtitle: "Artist", artwork: nil)
+            raw = LibraryPinsStore.toggle(pin, in: raw)
+        }
+        let stored = LibraryPinsStore.decode(raw)
+        XCTAssertEqual(stored.count, 9)
+        XCTAssertEqual(stored.first?.id, "album:11")
+        XCTAssertTrue(LibraryPinsStore.contains(id: "album:11", in: raw))
+        raw = LibraryPinsStore.toggle(stored[0], in: raw)
+        XCTAssertFalse(LibraryPinsStore.contains(id: "album:11", in: raw))
     }
 }

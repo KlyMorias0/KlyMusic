@@ -24,6 +24,40 @@ public class YouTube {
         cache.totalCostLimit = 12 * 1024 * 1024
         return cache
     }()
+
+    private static var scriptDiskDirectory: URL {
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("YouTubePlayerJS", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private static func scriptDiskURL(for url: URL) -> URL {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let cleaned = String(url.path.unicodeScalars.map { allowed.contains($0) ? Character($0) : "_" }.suffix(72))
+        return scriptDiskDirectory.appendingPathComponent(cleaned + ".js")
+    }
+
+    private static func trimDiskScripts() {
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: scriptDiskDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ), files.count > 3 else { return }
+        let sorted = files.sorted {
+            ((try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) <
+            ((try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
+        }
+        for file in sorted.prefix(files.count - 2) {
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    static func clearScriptCaches() {
+        scriptCache.removeAllObjects()
+        if let files = try? FileManager.default.contentsOfDirectory(at: scriptDiskDirectory, includingPropertiesForKeys: nil) {
+            for file in files { try? FileManager.default.removeItem(at: file) }
+        }
+    }
     
     private var _videoInfos: [InnerTube.VideoInfo]?
     
@@ -110,7 +144,7 @@ public class YouTube {
             request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
             request.setValue("en-US,en", forHTTPHeaderField: "accept-language")
             request.httpShouldHandleCookies = false
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, _) = try await YouTubeNetwork.session.data(for: request)
             _watchHTML = String(data: data, encoding: .utf8) ?? ""
             return _watchHTML!
         }
@@ -127,7 +161,7 @@ public class YouTube {
             request.setValue("en-US,en", forHTTPHeaderField: "accept-language")
             request.setValue("https://www.reddit.com/", forHTTPHeaderField: "Referer")
             request.httpShouldHandleCookies = false
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, _) = try await YouTubeNetwork.session.data(for: request)
             _embedHTML = String(data: data, encoding: .utf8) ?? ""
             return _embedHTML!
         }
@@ -198,13 +232,23 @@ public class YouTube {
             if let cached = Self.scriptCache.object(forKey: jsURL as NSURL) {
                 _js = cached as String
             } else {
-                let request = URLRequest(url: jsURL, timeoutInterval: 8)
-                let (data, response) = try await URLSession.shared.data(for: request)
-                try Task.checkCancellation()
-                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-                      let text = String(data: data, encoding: .utf8), !text.isEmpty else { throw YouTubeKitError.extractError }
-                _js = text
-                Self.scriptCache.setObject(text as NSString, forKey: jsURL as NSURL, cost: data.count)
+                let diskURL = Self.scriptDiskURL(for: jsURL)
+                if let diskText = try? String(contentsOf: diskURL, encoding: .utf8), !diskText.isEmpty {
+                    _js = diskText
+                    Self.scriptCache.setObject(diskText as NSString, forKey: jsURL as NSURL, cost: diskText.utf8.count)
+                } else {
+                    var request = URLRequest(url: jsURL, timeoutInterval: 8)
+                    request.httpShouldHandleCookies = false
+                    request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
+                    let (data, response) = try await YouTubeNetwork.session.data(for: request)
+                    try Task.checkCancellation()
+                    guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                          let text = String(data: data, encoding: .utf8), !text.isEmpty else { throw YouTubeKitError.extractError }
+                    _js = text
+                    Self.scriptCache.setObject(text as NSString, forKey: jsURL as NSURL, cost: data.count)
+                    try? data.write(to: diskURL, options: .atomic)
+                    Self.trimDiskScripts()
+                }
             }
             return _js!
         }
@@ -266,7 +310,7 @@ public class YouTube {
                             // to force an update to the js file, we clear the cache and retry
                             _js = nil
                             _jsURL = nil
-                            YouTube.scriptCache.removeAllObjects()
+                            YouTube.clearScriptCaches()
                             try await Extraction.applySignature(streamManifest: &streamManifest, videoInfo: videoInfo, js: js)
                         }
                         
@@ -323,9 +367,41 @@ public class YouTube {
         }
     }
 
+    /// Scores M4A/AAC streams so default and data-saver modes prefer clean ~128 kbps AAC-LC
+    /// (~57 MB/hr) over muffled 48 kbps or heavy 256+ kbps, while explicit high quality prefers max bitrate.
+    public static func audioPreferenceScore(bitrate: Int, aacLC: Bool, dataSaver: Bool, highQuality: Bool) -> Int {
+        let clampedBitrate = min(max(0, bitrate), 1_000_000)
+        if highQuality {
+            return 4_000_000 + clampedBitrate + (aacLC ? 1 : 0)
+        }
+        let tier: Int
+        if (96_000...165_000).contains(clampedBitrate) {
+            tier = 4
+        } else if dataSaver {
+            tier = clampedBitrate > 0 && clampedBitrate < 96_000 ? 3 : (clampedBitrate > 165_000 ? 2 : 1)
+        } else {
+            tier = clampedBitrate > 165_000 ? 3 : (clampedBitrate > 0 ? 2 : 1)
+        }
+        let bitrateComponent = (dataSaver && tier != 4) ? (1_000_000 - clampedBitrate) : clampedBitrate
+        return tier * 2_000_000 + bitrateComponent + (aacLC ? 1 : 0)
+    }
+
+    public static func sortAudioStreams(_ streams: [Stream], dataSaver: Bool, highQuality: Bool) -> [Stream] {
+        streams.sorted { lhs, rhs in
+            let leftBps = lhs.bitrate ?? (lhs.itag.audioBitrate.map { $0 * 1000 } ?? 0)
+            let rightBps = rhs.bitrate ?? (rhs.itag.audioBitrate.map { $0 * 1000 } ?? 0)
+            let leftAAC: Bool = { if case .mp4a("40.2") = lhs.audioCodec { return true }; return false }()
+            let rightAAC: Bool = { if case .mp4a("40.2") = rhs.audioCodec { return true }; return false }()
+            let leftScore = audioPreferenceScore(bitrate: leftBps, aacLC: leftAAC, dataSaver: dataSaver, highQuality: highQuality)
+            let rightScore = audioPreferenceScore(bitrate: rightBps, aacLC: rightAAC, dataSaver: dataSaver, highQuality: highQuality)
+            return leftScore > rightScore
+        }
+    }
+
     /// Resolve and validate AAC as clients finish, rather than waiting for every
     /// client (and every video rendition) before the caller can start playback.
     public func firstPlayableAudioStream(dataSaver: Bool = false,
+                                         highQuality: Bool = false,
                                          validate: @escaping @Sendable (Stream) async throws -> Bool) async throws -> Stream {
         let availability = AudioAvailabilityState()
         do {
@@ -344,8 +420,8 @@ public class YouTube {
                         do {
                             // Give the primary audio clients a short head start;
                             // healthy playback need not fan out to every fallback.
-                            if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 180_000_000) }
-                            else if index >= 2 { try await Task.sleep(nanoseconds: 300_000_000) }
+                            if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 120_000_000) }
+                            else if index >= 2 { try await Task.sleep(nanoseconds: 200_000_000) }
                             let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
                                                  useOAuth: useOAuth, allowCache: allowOAuthCache)
                             let info = try await tube.player(videoID: videoID)
@@ -366,9 +442,7 @@ public class YouTube {
                             guard !manifest.isEmpty else { return nil }
                             try Extraction.applySignature(streamManifest: &manifest, videoInfo: info, js: source)
                             try Task.checkCancellation()
-                            let streams = manifest.compactMap { try? Stream(format: $0) }.sorted {
-                                dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
-                            }
+                            let streams = Self.sortAudioStreams(manifest.compactMap { try? Stream(format: $0) }, dataSaver: dataSaver, highQuality: highQuality)
                             for stream in streams where stream.isNativelyPlayable {
                                 try Task.checkCancellation()
                                 if try await validate(stream) { return stream }
@@ -391,9 +465,11 @@ public class YouTube {
             return nil
         }, fallback: { [self] in
             // Keep all existing extraction alternatives if fast clients are unavailable.
-            let fallback = try await streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }.sorted {
-                dataSaver ? ($0.bitrate ?? 0) < ($1.bitrate ?? 0) : ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
-            }
+            let fallback = Self.sortAudioStreams(
+                try await streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable },
+                dataSaver: dataSaver,
+                highQuality: highQuality
+            )
             if !fallback.isEmpty { await availability.record("OK") }
             for stream in fallback {
                 try Task.checkCancellation()
@@ -588,7 +664,7 @@ actor FastAudioContextCache {
         let context = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Context, Error>) in
                 guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
-                if let (date, context) = cached, Date().timeIntervalSince(date) < 300 {
+                if let (date, context) = cached, Date().timeIntervalSince(date) < 1800 {
                     continuation.resume(returning: context)
                 } else if var request = pending {
                     request.waiters[waiter] = continuation; pending = request
@@ -661,4 +737,18 @@ actor AudioAvailabilityState {
         if loginRequired { return .authenticationRequired }
         return unavailable ? .unavailable : nil
     }
+}
+
+@available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
+enum YouTubeNetwork {
+    static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.httpShouldSetCookies = false
+        config.httpMaximumConnectionsPerHost = 6
+        config.waitsForConnectivity = false
+        config.timeoutIntervalForRequest = 8
+        config.timeoutIntervalForResource = 20
+        config.httpAdditionalHeaders = ["Accept-Encoding": "gzip, deflate, br"]
+        return URLSession(configuration: config)
+    }()
 }

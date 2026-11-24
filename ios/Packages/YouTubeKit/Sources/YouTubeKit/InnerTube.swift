@@ -176,10 +176,12 @@ class InnerTube {
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
+        request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
+        request.httpShouldHandleCookies = false
         
         // TODO: handle oauth auth case again
         
-        let (responseData, _) = try await URLSession.shared.data(for: request)
+        let (responseData, _) = try await YouTubeNetwork.session.data(for: request)
         try Task.checkCancellation()
         
         return try JSONDecoder().decode(T.self, from: responseData)

@@ -1,5 +1,39 @@
 import SwiftUI
 
+struct LibraryPin: Codable, Identifiable, Equatable, Hashable {
+    var id: String
+    var kind: String // "playlist" | "album" | "artist"
+    var targetID: String
+    var title: String
+    var subtitle: String
+    var artwork: String?
+}
+
+enum LibraryPinsStore {
+    static let storageKey = "libraryPins-v1"
+    static func decode(_ storedValue: String) -> [LibraryPin] {
+        guard let data = storedValue.data(using: .utf8),
+              let pins = try? JSONDecoder().decode([LibraryPin].self, from: data) else { return [] }
+        var seen = Set<String>()
+        return pins.filter { seen.insert($0.id).inserted }
+    }
+    static func encode(_ pins: [LibraryPin]) -> String {
+        String(data: (try? JSONEncoder().encode(Array(pins.prefix(9)))) ?? Data(), encoding: .utf8) ?? ""
+    }
+    static func contains(id: String, in storedValue: String) -> Bool {
+        decode(storedValue).contains { $0.id == id }
+    }
+    static func toggle(_ pin: LibraryPin, in storedValue: String) -> String {
+        var pins = decode(storedValue)
+        if let index = pins.firstIndex(where: { $0.id == pin.id }) {
+            pins.remove(at: index)
+        } else {
+            pins.insert(pin, at: 0)
+        }
+        return encode(pins)
+    }
+}
+
 struct LibraryView: View {
     @EnvironmentObject private var library: LibraryStore
     @State private var newList = false
@@ -8,14 +42,37 @@ struct LibraryView: View {
     @AppStorage("libraryLayout-v1") private var layoutValue = ""
     @AppStorage("librarySort-v1") private var sortValue = LibraryCollectionSort.added.rawValue
     @AppStorage("followedArtists") private var followedArtists = ""
+    @AppStorage(LibraryPinsStore.storageKey) private var pinsValue = ""
     private var layout: LibraryLayout { LibraryLayout(storedValue: layoutValue) }
+    private var pins: [LibraryPin] { LibraryPinsStore.decode(pinsValue) }
     private var recent: [LibraryRecentEntry] {
         Array((LibraryCollectionSort(rawValue: sortValue) ?? .added).sorted(library.recentlyAddedCollections).prefix(16))
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 26) {
+                if !pins.isEmpty {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(L("Sabitlenenler"))
+                            .font(.title2.weight(.bold))
+                            .tracking(-0.5)
+                            .foregroundStyle(.primary)
+                        LazyVGrid(
+                            columns: [
+                                GridItem(.flexible(), spacing: 14, alignment: .top),
+                                GridItem(.flexible(), spacing: 14, alignment: .top),
+                                GridItem(.flexible(), spacing: 14, alignment: .top)
+                            ],
+                            spacing: 16
+                        ) {
+                            ForEach(pins) { pin in
+                                pinTile(pin)
+                            }
+                        }
+                    }
+                }
+
                 VStack(spacing: 0) {
                     ForEach(layout.visible) { category in
                         libraryRow(
@@ -116,6 +173,16 @@ struct LibraryView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button { newList = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(L("Yeni Çalma Listesi"))
+                .accessibilityIdentifier("library.quickCreate")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { newList = true } label: { Label(L("Yeni Çalma Listesi…"), systemImage: "text.badge.plus") }.accessibilityIdentifier("playlist.create")
                     Button { editingCategories = true } label: { Label(L("Düzenle"), systemImage: "line.3.horizontal") }.accessibilityIdentifier("library.edit")
@@ -137,8 +204,95 @@ struct LibraryView: View {
         .sheet(isPresented: $editingCategories) { LibraryLayoutEditor(storedValue: $layoutValue) }
     }
 
-    private func recentCard(_ entry: LibraryRecentEntry) -> some View {
+    @ViewBuilder private func pinTile(_ pin: LibraryPin) -> some View {
         NavigationLink {
+            pinDestination(for: pin)
+        } label: {
+            VStack(spacing: 6) {
+                Group {
+                    if pin.kind == "playlist", let list = library.playlists.first(where: { $0.id.uuidString == pin.targetID }) {
+                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 10)
+                    } else if pin.kind == "artist" {
+                        ArtistPortrait(url: pin.artwork, name: pin.title)
+                    } else {
+                        Artwork(url: pin.artwork, radius: 10)
+                    }
+                }
+                .aspectRatio(1, contentMode: .fit)
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(5)
+                        .background(.black.opacity(0.45), in: Circle())
+                        .padding(6)
+                }
+
+                VStack(spacing: 1) {
+                    Text(pin.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if !pin.subtitle.isEmpty {
+                        Text(pin.subtitle)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(CardButtonStyle())
+        .contextMenu {
+            Button {
+                pinsValue = LibraryPinsStore.toggle(pin, in: pinsValue)
+            } label: {
+                Label(L("Sabitlemeyi Kaldır"), systemImage: "pin.slash")
+            }
+        }
+    }
+
+    @ViewBuilder private func pinDestination(for pin: LibraryPin) -> some View {
+        if pin.kind == "playlist", let list = library.playlists.first(where: { $0.id.uuidString == pin.targetID }) {
+            PlaylistDetailView(playlist: list)
+        } else if pin.kind == "artist" {
+            ArtistDetailView(id: pin.targetID, name: pin.title)
+        } else if let albumID = pin.targetID.isEmpty ? nil : pin.targetID, !albumID.hasPrefix("local:") {
+            AlbumDetailView(collection: .init(id: albumID, title: pin.title, artist: pin.subtitle, artwork: pin.artwork))
+        } else {
+            TrackListView(title: pin.title, tracks: library.saved.compactMap(\.track).filter { $0.album == pin.title })
+        }
+    }
+
+    private func pinModel(for entry: LibraryRecentEntry) -> LibraryPin {
+        switch entry.content {
+        case .playlist(let list):
+            return LibraryPin(
+                id: "playlist:" + list.id.uuidString,
+                kind: "playlist",
+                targetID: list.id.uuidString,
+                title: list.name,
+                subtitle: L("Çalma Listesi"),
+                artwork: library.tracks(in: list).first?.artwork
+            )
+        case .album(let track):
+            let albumID = track.albumID ?? ""
+            return LibraryPin(
+                id: "album:" + (albumID.isEmpty ? track.id : albumID),
+                kind: "album",
+                targetID: albumID,
+                title: entry.title,
+                subtitle: entry.artist,
+                artwork: track.artwork
+            )
+        }
+    }
+
+    private func recentCard(_ entry: LibraryRecentEntry) -> some View {
+        let pin = pinModel(for: entry)
+        let isPinned = LibraryPinsStore.contains(id: pin.id, in: pinsValue)
+        return NavigationLink {
             switch entry.content {
             case .playlist(let list): PlaylistDetailView(playlist: list)
             case .album(let track): TrackListView(title: entry.title, tracks: albumTracks(track))
@@ -148,21 +302,20 @@ struct LibraryView: View {
                 Group {
                     switch entry.content {
                     case .playlist(let list):
-                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 6)
+                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 10)
                     case .album(let track):
-                        Artwork(url: track.artwork, radius: 6)
+                        Artwork(url: track.artwork, radius: 10)
                     }
                 }
                 .aspectRatio(1, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.title)
-                        .font(.system(size: 15))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(entry.artist.isEmpty ? L("Çalma Listesi") : entry.artist)
-                        .font(.system(size: 15))
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -170,6 +323,13 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(CardButtonStyle())
+        .contextMenu {
+            Button {
+                pinsValue = LibraryPinsStore.toggle(pin, in: pinsValue)
+            } label: {
+                Label(L(isPinned ? "Sabitlemeyi Kaldır" : "Kütüphaneye Sabitle"), systemImage: isPinned ? "pin.slash" : "pin")
+            }
+        }
         .accessibilityIdentifier("library.recent." + entry.id)
     }
 
@@ -233,7 +393,7 @@ enum LibraryCategory: String, CaseIterable, Codable, Identifiable {
     var symbol: String {
         switch self {
         case .playlists: "music.note.list"
-        case .artists: "person.crop.circle"
+        case .artists: "music.mic"
         case .albums: "square.stack"
         case .songs: "music.note"
         case .downloads: "arrow.down.circle"
@@ -354,77 +514,111 @@ private enum LibraryDestination: Hashable {
 struct PlaylistsView: View {
     @EnvironmentObject private var library: LibraryStore
     @State private var creating = false
+    @State private var searchText = ""
+    @AppStorage(LibraryPinsStore.storageKey) private var pinsValue = ""
+
+    private var filteredPlaylists: [SavedPlaylist] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return library.playlists }
+        let normalizedQuery = NativeCatalog.normalized(trimmed)
+        return library.playlists.filter { NativeCatalog.normalized($0.name).contains(normalizedQuery) }
+    }
+
     var body: some View {
         List {
-            Button { creating = true } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.coral)
-                        .frame(width: 58, height: 58)
-                        .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    Text(L("Yeni Çalma Listesi…"))
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.coral)
-                    Spacer()
-                }
-                .padding(.vertical, 4)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("playlist.create")
-
-            NavigationLink {
-                TrackListView(title: L("Favoriler"), tracks: library.favorites)
-            } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.coral)
-                        .frame(width: 58, height: 58)
-                        .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L("Favoriler"))
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text(String(format: L("%lld şarkı"), Int64(library.favorites.count)))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            .accessibilityIdentifier("library.favorites")
-
-            ForEach(library.playlists) { playlist in
-                NavigationLink { PlaylistDetailView(playlist: playlist) } label: {
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button { creating = true } label: {
                     HStack(spacing: 14) {
-                        PlaylistArtwork(tracks: library.tracks(in: playlist), radius: 12)
+                        Image(systemName: "plus")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Color.coral)
                             .frame(width: 58, height: 58)
+                            .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        Text(L("Yeni Çalma Listesi…"))
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.coral)
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("playlist.create")
+
+                NavigationLink {
+                    TrackListView(title: L("Favoriler"), tracks: library.favorites)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(Color.coral)
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 23))
+                            .foregroundStyle(Color.coral)
+                            .frame(width: 58, height: 58)
+                            .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(playlist.name)
+                            Text(L("Favoriler"))
                                 .font(.body.weight(.semibold))
                                 .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Text(String(format: L("%lld şarkı"), Int64(playlist.trackIDs.count)))
+                            Text(String(format: L("%lld şarkı"), Int64(library.favorites.count)))
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
                 }
-                .contextMenu {
-                    Button(role: .destructive) { library.deletePlaylist(playlist) } label: {
-                        Label(L("Sil"), systemImage: "trash")
-                    }
-                }
+                .accessibilityIdentifier("library.favorites")
+            }
+
+            ForEach(filteredPlaylists) { playlist in
+                playlistRow(playlist)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.pageBackground)
         .navigationTitle(L("Çalma Listeleri"))
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text(L("Kütüphanende ara")))
         .tint(.primary)
         .sheet(isPresented: $creating) { CreatePlaylistView() }
+    }
+
+    private func playlistRow(_ playlist: SavedPlaylist) -> some View {
+        let pin = LibraryPin(
+            id: "playlist:" + playlist.id.uuidString,
+            kind: "playlist",
+            targetID: playlist.id.uuidString,
+            title: playlist.name,
+            subtitle: L("Çalma Listesi"),
+            artwork: library.tracks(in: playlist).first?.artwork
+        )
+        let isPinned = LibraryPinsStore.contains(id: pin.id, in: pinsValue)
+        return NavigationLink { PlaylistDetailView(playlist: playlist) } label: {
+            HStack(spacing: 14) {
+                PlaylistArtwork(tracks: library.tracks(in: playlist), radius: 12)
+                    .frame(width: 58, height: 58)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(playlist.name)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text(String(format: L("%lld şarkı"), Int64(playlist.trackIDs.count)))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .contextMenu {
+            Button {
+                pinsValue = LibraryPinsStore.toggle(pin, in: pinsValue)
+            } label: {
+                Label(L(isPinned ? "Sabitlemeyi Kaldır" : "Kütüphaneye Sabitle"), systemImage: isPinned ? "pin.slash" : "pin")
+            }
+            Button(role: .destructive) { library.deletePlaylist(playlist) } label: {
+                Label(L("Sil"), systemImage: "trash")
+            }
+        }
     }
 }
 

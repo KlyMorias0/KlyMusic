@@ -376,3 +376,30 @@
 "Öne Çıkan" = "Featured";
 "Yakında" = "Coming Soon";
 "Son Çıkan" = "Latest Release";
+
+// Added in 2.15.0 Apple Music 1:1 update
+"Radyo" = "Radio";
+"Senin İstasyonun" = "Your Station";
+"KİŞİSEL İSTASYON" = "PERSONAL STATION";
+"Sevdiğin sanatçılar ve sana özel kesintisiz müzik" = "Artists you love and endless music tuned to you";
+"Canlı İstasyonlar" = "Live Stations";
+"CANLI İSTASYON" = "LIVE STATION";
+"Hit Müzik İstasyonu" = "Hits Station";
+"Günün her anına uygun popüler hitler" = "Popular hits for every moment of the day";
+"Türkçe Pop İstasyonu" = "Turkish Pop Station";
+"En sevilen Türkçe pop parçaları" = "The biggest Turkish pop songs";
+"Gece & Chill İstasyonu" = "Late Night & Chill Station";
+"Geceye eşlik eden sakin ve akustik seçkiler" = "Calm and acoustic picks for late nights";
+"Hip-Hop & Ritim" = "Hip-Hop & Rhythm";
+"Yüksek tempo ve sokakların ritmi" = "High tempo and street rhythm";
+"Tür İstasyonları" = "Stations by Genre";
+"Pop" = "Pop";
+"Rock" = "Rock";
+"Akustik" = "Acoustic";
+"Elektronik" = "Electronic";
+"Klasik" = "Classical";
+"90'lar & 2000'ler" = "90s & 2000s";
+"Sabitlenenler" = "Pins";
+"Kütüphaneye Sabitle" = "Pin to Library";
+"Sabitlemeyi Kaldır" = "Unpin";
+"%lld şarkı, %lld dakika" = "%lld songs, %lld minutes";

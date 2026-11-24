@@ -95,10 +95,13 @@ struct RootView: View {
                 Tab(L("Keşfet"), systemImage: "square.grid.2x2.fill", value: 1) {
                     TabShell { DiscoverView() }
                 }.accessibilityIdentifier("nav.discover")
-                Tab(L("Kütüphane"), systemImage: "square.stack.fill", value: 2) {
+                Tab(L("Radyo"), systemImage: "dot.radiowaves.left.and.right", value: 2) {
+                    TabShell { RadioView() }
+                }.accessibilityIdentifier("nav.radio")
+                Tab(L("Kütüphane"), systemImage: "music.square.stack.fill", value: 3) {
                     TabShell { LibraryView() }
                 }.accessibilityIdentifier("nav.library")
-                Tab(L("Ara"), systemImage: "magnifyingglass", value: 3, role: .search) {
+                Tab(L("Ara"), systemImage: "magnifyingglass", value: 4, role: .search) {
                     TabShell { SearchView() }
                 }.accessibilityIdentifier("nav.search")
             }
@@ -110,12 +113,15 @@ struct RootView: View {
                 TabShell { DiscoverView() }
                     .tabItem { Label(L("Keşfet"), systemImage: "square.grid.2x2.fill").accessibilityIdentifier("nav.discover") }
                     .tag(1)
-                TabShell { LibraryView() }
-                    .tabItem { Label(L("Kütüphane"), systemImage: "square.stack.fill").accessibilityIdentifier("nav.library") }
+                TabShell { RadioView() }
+                    .tabItem { Label(L("Radyo"), systemImage: "dot.radiowaves.left.and.right").accessibilityIdentifier("nav.radio") }
                     .tag(2)
+                TabShell { LibraryView() }
+                    .tabItem { Label(L("Kütüphane"), systemImage: "music.square.stack.fill").accessibilityIdentifier("nav.library") }
+                    .tag(3)
                 TabShell { SearchView() }
                     .tabItem { Label(L("Ara"), systemImage: "magnifyingglass").accessibilityIdentifier("nav.search") }
-                    .tag(3)
+                    .tag(4)
             }
         }
     }

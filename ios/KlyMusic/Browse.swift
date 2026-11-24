@@ -130,7 +130,8 @@ struct HomeView: View {
                 if !featured.isEmpty {
                     HomeSpotlightShelf(
                         title: recommendations.isEmpty ? "Öne çıkanlar" : "Senin için",
-                        tracks: featured
+                        tracks: featured,
+                        personalized: !recommendations.isEmpty
                     )
                     .accessibilityIdentifier(recommendations.isEmpty ? "home.featured" : "home.personalized")
                 }
@@ -206,6 +207,7 @@ struct HomeView: View {
 private struct HomeSpotlightShelf: View {
     var title: String
     var tracks: [Track]
+    var personalized = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -213,7 +215,7 @@ private struct HomeSpotlightShelf: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 16) {
                     ForEach(tracks.prefix(6)) { track in
-                        HomeSpotlightCard(track: track, tracks: tracks)
+                        HomeSpotlightCard(track: track, tracks: tracks, eyebrow: personalized ? "SENİN İÇİN" : "Öne Çıkan")
                     }
                 }
                 .padding(.horizontal, 20)
@@ -228,7 +230,12 @@ private struct HomeSpotlightShelf: View {
 private struct HomeSpotlightCard: View {
     var track: Track
     var tracks: [Track]
+    var eyebrow: String
     @EnvironmentObject private var player: MusicPlayer
+    @State private var tint = ArtworkPalette.fallback.bottom.color
+
+    private var isCurrent: Bool { player.current?.id == track.id }
+    private var isPending: Bool { player.pendingTrack?.id == track.id }
 
     var body: some View {
         Button { player.play(track, in: tracks) } label: {
@@ -236,39 +243,76 @@ private struct HomeSpotlightCard: View {
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
                 .overlay { Artwork(url: track.artwork, radius: 0) }
                 .overlay {
-                    LinearGradient(colors: [.clear, .black.opacity(0.08), .black.opacity(0.8)],
-                                   startPoint: .center, endPoint: .bottom)
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black.opacity(0.28), location: 0.0),
+                            .init(color: .clear, location: 0.25),
+                            .init(color: .clear, location: 0.46),
+                            .init(color: tint.opacity(0.65), location: 0.72),
+                            .init(color: .black.opacity(0.86), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .overlay(alignment: .topLeading) {
+                    Text(L(eyebrow).uppercased())
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(.white.opacity(0.92))
+                        .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+                        .padding(16)
                 }
                 .overlay(alignment: .bottomLeading) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(track.artist)
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.85))
-                            .lineLimit(2)
-                        Text(track.title)
-                            .font(.title2.bold())
-                            .foregroundStyle(.white)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
+                    HStack(alignment: .bottom, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(track.title)
+                                .font(.title3.bold())
+                                .foregroundStyle(.white)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(track.artist)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.white.opacity(0.84))
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        ZStack {
+                            Circle().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+                            if isPending {
+                                ProgressView().controlSize(.small).tint(.white)
+                            } else if isCurrent {
+                                NowPlayingBars(isPlaying: player.isPlaying, color: .white, size: 12)
+                            } else {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .offset(x: 1)
+                            }
+                        }
+                        .frame(width: 32, height: 32)
                     }
                     .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .overlay(alignment: .topTrailing) {
-                    if player.pendingTrack?.id == track.id {
-                        ProgressView().tint(.white).padding(14)
-                    } else if player.current?.id == track.id && player.isPlaying {
-                        Image(systemName: "waveform")
-                            .font(.body.weight(.semibold)).foregroundStyle(.white)
-                            .padding(10).background(.black.opacity(0.35), in: Circle()).padding(10)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(.primary.opacity(0.10), lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.16), radius: 12, x: 0, y: 6)
+                .containerRelativeFrame(.horizontal) { width, _ in
+                    min(310, max(230, (width - 40) * 0.68))
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 18))
+                .task(id: track.artwork) {
+                    let url = ArtworkRequest.sized(track.artworkURL, pixels: 320)
+                    if let image = await ArtworkCache.shared.image(url, fallback: track.artworkURL, maxPixels: 240),
+                       let extracted = await ArtworkCache.shared.palette(image),
+                       !Task.isCancelled {
+                        tint = extracted.bottom.color
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 5)
-                .containerRelativeFrame(.horizontal) { width, _ in
-                    min(320, max(220, (width - 40) * 0.68))
-                }
-                .contentShape(RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(SpotlightButtonStyle())
         .accessibilityLabel("\(track.title), \(track.artist)")
@@ -296,7 +340,7 @@ private struct HomeQuickLaunchShelf: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(tracks) { track in
-                        TrackCard(track: track, tracks: tracks, size: 152)
+                        TrackCard(track: track, tracks: tracks, size: 158)
                             .accessibilityIdentifier("track.row.\(track.id)")
                     }
                 }
@@ -325,14 +369,14 @@ private struct CompactTrackShelf: View {
         VStack(alignment: .leading, spacing: 10) {
             BrowseShelfHeading(title: title, tracks: tracks)
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 24) {
-                    ForEach(0..<((min(tracks.count, 12) + rows - 1) / rows), id: \.self) { column in
+                LazyHStack(alignment: .top, spacing: 20) {
+                    ForEach(0..<((min(tracks.count, 16) + rows - 1) / rows), id: \.self) { column in
                         VStack(spacing: 0) {
                             ForEach(Array(tracks.dropFirst(column * rows).prefix(rows))) { track in
                                 TrackRow(track: track, tracks: tracks)
-                                Divider().padding(.leading, 67)
+                                Divider().padding(.leading, 64)
                             }
-                        }.frame(width: 302)
+                        }.frame(width: 318)
                     }
                 }.padding(.horizontal, 20).scrollTargetLayout()
             }.scrollTargetBehavior(.viewAligned)
@@ -488,30 +532,388 @@ private struct DiscoverHeroCard: View {
     var tracks: [Track]
     var eyebrow: String
     @EnvironmentObject private var player: MusicPlayer
+    private var isCurrent: Bool { player.current?.id == track.id }
+    private var isPending: Bool { player.pendingTrack?.id == track.id }
 
     var body: some View {
         Button { player.play(track, in: tracks) } label: {
             VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L(eyebrow).uppercased())
-                        .font(.caption2.weight(.medium)).foregroundStyle(.secondary).tracking(0.4)
-                    Text(track.title).font(.title3).foregroundStyle(.primary).lineLimit(1)
+                        .font(.caption2.weight(.semibold)).foregroundStyle(.secondary).tracking(0.5)
+                    Text(track.title).font(.title3.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                     Text(track.artist).font(.title3).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Color.clear
                     .aspectRatio(3.0 / 2.0, contentMode: .fit)
                     .overlay { Artwork(url: track.artwork, radius: 0) }
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
+                    .overlay {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.48),
+                                .init(color: .black.opacity(0.74), location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        HStack(alignment: .bottom, spacing: 10) {
+                            Text(track.album.isEmpty ? L("Bugünün ritmi burada başlıyor.") : track.album)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            ZStack {
+                                Circle().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+                                if isPending {
+                                    ProgressView().controlSize(.small).tint(.white)
+                                } else if isCurrent {
+                                    NowPlayingBars(isPlaying: player.isPlaying, color: .white, size: 11)
+                                } else {
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .offset(x: 1)
+                                }
+                            }
+                            .frame(width: 30, height: 30)
+                        }
+                        .padding(14)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
+                    }
+                    .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
             }
             .containerRelativeFrame(.horizontal) { width, _ in
-                min(460, max(280, width - 64))
+                min(460, max(280, width - 56))
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(SpotlightButtonStyle())
         .accessibilityLabel("\(track.title), \(track.artist)")
         .accessibilityHint(L("Çal"))
+    }
+}
+
+private struct RadioStation: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let query: String
+    let symbol: String
+    let colors: [Color]
+}
+
+struct RadioView: View {
+    @EnvironmentObject private var player: MusicPlayer
+    @EnvironmentObject private var library: LibraryStore
+    @State private var loadingID: String?
+    @State private var stationArtwork: [String: String] = [:]
+
+    private let liveStations: [RadioStation] = [
+        .init(
+            id: "hits",
+            title: "Hit Müzik İstasyonu",
+            subtitle: "Günün her anına uygun popüler hitler",
+            query: "Pop Hits",
+            symbol: "dot.radiowaves.left.and.right",
+            colors: [Color(red: 0.98, green: 0.14, blue: 0.23), Color(red: 0.62, green: 0.08, blue: 0.24)]
+        ),
+        .init(
+            id: "tr-pop",
+            title: "Türkçe Pop İstasyonu",
+            subtitle: "En sevilen Türkçe pop parçaları",
+            query: "Türkçe Pop",
+            symbol: "music.mic",
+            colors: [Color(red: 0.88, green: 0.22, blue: 0.44), Color(red: 0.36, green: 0.10, blue: 0.46)]
+        ),
+        .init(
+            id: "chill",
+            title: "Gece & Chill İstasyonu",
+            subtitle: "Geceye eşlik eden sakin ve akustik seçkiler",
+            query: "Chill Akustik",
+            symbol: "moon.stars.fill",
+            colors: [Color(red: 0.16, green: 0.24, blue: 0.62), Color(red: 0.10, green: 0.12, blue: 0.32)]
+        ),
+        .init(
+            id: "rap",
+            title: "Hip-Hop & Ritim",
+            subtitle: "Yüksek tempo ve sokakların ritmi",
+            query: "Türkçe Rap",
+            symbol: "waveform",
+            colors: [Color(red: 0.14, green: 0.46, blue: 0.38), Color(red: 0.08, green: 0.18, blue: 0.24)]
+        )
+    ]
+
+    private let genreStations: [RadioStation] = [
+        .init(id: "pop", title: "Pop", subtitle: "Pop", query: "Pop", symbol: "sparkles", colors: [Color(red: 0.95, green: 0.25, blue: 0.38), Color(red: 0.72, green: 0.12, blue: 0.28)]),
+        .init(id: "rock", title: "Rock", subtitle: "Rock", query: "Rock", symbol: "guitars.fill", colors: [Color(red: 0.78, green: 0.18, blue: 0.18), Color(red: 0.35, green: 0.08, blue: 0.12)]),
+        .init(id: "acoustic", title: "Akustik", subtitle: "Akustik", query: "Akustik", symbol: "music.note", colors: [Color(red: 0.74, green: 0.42, blue: 0.22), Color(red: 0.42, green: 0.20, blue: 0.14)]),
+        .init(id: "electronic", title: "Elektronik", subtitle: "Elektronik", query: "Electronic Dance", symbol: "bolt.fill", colors: [Color(red: 0.24, green: 0.32, blue: 0.85), Color(red: 0.14, green: 0.12, blue: 0.48)]),
+        .init(id: "alternative", title: "Alternatif", subtitle: "Alternatif", query: "Alternatif", symbol: "headphones", colors: [Color(red: 0.42, green: 0.26, blue: 0.64), Color(red: 0.18, green: 0.12, blue: 0.34)]),
+        .init(id: "focus", title: "Odaklan", subtitle: "Odaklan", query: "Ambient Focus", symbol: "brain.head.profile", colors: [Color(red: 0.16, green: 0.44, blue: 0.52), Color(red: 0.08, green: 0.20, blue: 0.28)]),
+        .init(id: "classical", title: "Klasik", subtitle: "Klasik", query: "Classical Piano", symbol: "pianokeys", colors: [Color(red: 0.48, green: 0.36, blue: 0.24), Color(red: 0.22, green: 0.16, blue: 0.12)]),
+        .init(id: "decades", title: "90'lar & 2000'ler", subtitle: "90'lar & 2000'ler", query: "90s 2000s hits", symbol: "clock.arrow.circlepath", colors: [Color(red: 0.82, green: 0.38, blue: 0.16), Color(red: 0.45, green: 0.18, blue: 0.10)])
+    ]
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 28) {
+                personalStationCard
+                    .padding(.horizontal, 20)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    BrowseShelfHeading(title: "Canlı İstasyonlar")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 14) {
+                            ForEach(liveStations) { station in
+                                liveStationCard(station)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .scrollTargetLayout()
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    BrowseShelfHeading(title: "Tür İstasyonları")
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                        spacing: 12
+                    ) {
+                        ForEach(genreStations) { station in
+                            genreStationTile(station)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 28)
+        }
+        .background(Color.pageBackground)
+        .navigationTitle(L("Radyo"))
+        .toolbarTitleDisplayMode(.inlineLarge)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
+        .task { await preloadStationArtwork() }
+    }
+
+    private var personalStationCard: some View {
+        let active = player.activeStationTitle == L("Senin İstasyonun")
+        return ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: [Color(red: 0.98, green: 0.14, blue: 0.23), Color(red: 0.56, green: 0.08, blue: 0.34), Color(red: 0.14, green: 0.10, blue: 0.24)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Circle()
+                .fill(.white.opacity(0.10))
+                .frame(width: 210, height: 210)
+                .offset(x: 185, y: -70)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(L("KİŞİSEL İSTASYON"))
+                        .font(.caption2.weight(.bold))
+                        .tracking(0.8)
+                        .foregroundStyle(.white.opacity(0.88))
+                    Spacer()
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                Spacer(minLength: 8)
+                Text(L("Senin İstasyonun"))
+                    .font(.title.bold())
+                    .foregroundStyle(.white)
+                Text(L("Sevdiğin sanatçılar ve sana özel kesintisiz müzik"))
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.86))
+                    .lineLimit(2)
+                Button {
+                    Task { await playPersonalStation() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if loadingID == "personal" {
+                            ProgressView().controlSize(.small).tint(Color.coral)
+                        } else if active {
+                            NowPlayingBars(isPlaying: player.isPlaying, color: .coral, size: 12)
+                        } else {
+                            Image(systemName: "play.fill").font(.system(size: 13, weight: .bold))
+                        }
+                        Text(L(active ? "Şimdi çalıyor" : "Çal"))
+                            .font(.subheadline.weight(.bold))
+                    }
+                    .foregroundStyle(Color.coral)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 9)
+                    .background(.white, in: Capsule())
+                }
+                .buttonStyle(CardButtonStyle())
+                .accessibilityIdentifier("radio.play.personal")
+                .padding(.top, 4)
+            }
+            .padding(20)
+        }
+        .frame(minHeight: 205)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.white.opacity(0.14), lineWidth: 0.6)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
+        .accessibilityIdentifier("radio.personal")
+    }
+
+    private func liveStationCard(_ station: RadioStation) -> some View {
+        let localizedTitle = L(station.title)
+        let active = player.activeStationTitle == localizedTitle
+        return Button {
+            Task { await playStation(station) }
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                LinearGradient(colors: station.colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                if let art = stationArtwork[station.id] {
+                    Artwork(url: art, radius: 0)
+                        .opacity(0.32)
+                        .blendMode(.plusLighter)
+                }
+                LinearGradient(
+                    stops: [.init(color: .clear, location: 0.35), .init(color: .black.opacity(0.75), location: 1.0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label(L("CANLI İSTASYON"), systemImage: station.symbol)
+                            .font(.caption2.weight(.bold))
+                            .tracking(0.6)
+                            .foregroundStyle(.white.opacity(0.92))
+                        Spacer()
+                    }
+                    Spacer()
+                    Text(localizedTitle)
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                    Text(L(station.subtitle))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.84))
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                }
+                .padding(16)
+            }
+            .overlay(alignment: .topTrailing) {
+                if loadingID == station.id {
+                    ProgressView().controlSize(.small).tint(.white).padding(14)
+                } else if active {
+                    ZStack {
+                        Circle().fill(.black.opacity(0.45))
+                        NowPlayingBars(isPlaying: player.isPlaying, color: .white, size: 12)
+                    }
+                    .frame(width: 30, height: 30)
+                    .padding(12)
+                }
+            }
+            .frame(width: 244, height: 288)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(.white.opacity(0.10), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.14), radius: 10, y: 5)
+        }
+        .buttonStyle(SpotlightButtonStyle())
+        .accessibilityLabel(localizedTitle)
+        .accessibilityHint(L("Çal"))
+        .accessibilityIdentifier("radio.station.\(station.id)")
+    }
+
+    private func genreStationTile(_ station: RadioStation) -> some View {
+        let localizedTitle = L(station.title)
+        let active = player.activeStationTitle == localizedTitle
+        return Button {
+            Task { await playStation(station) }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    LinearGradient(colors: station.colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    if loadingID == station.id {
+                        ProgressView().controlSize(.small).tint(.white)
+                    } else if active {
+                        NowPlayingBars(isPlaying: player.isPlaying, color: .white, size: 14)
+                    } else {
+                        Image(systemName: station.symbol)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                Text(localizedTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+            }
+            .padding(10)
+            .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(.primary.opacity(0.06), lineWidth: 0.5)
+            }
+        }
+        .buttonStyle(TileButtonStyle())
+        .accessibilityLabel(localizedTitle)
+        .accessibilityHint(L("Çal"))
+        .accessibilityIdentifier("radio.genre.\(station.id)")
+    }
+
+    private func preloadStationArtwork() async {
+        guard !PlaybackPreferences.savesData() else { return }
+        for station in liveStations where stationArtwork[station.id] == nil {
+            guard !Task.isCancelled else { return }
+            if let track = try? await API.shared.search(station.query).tracks.first,
+               let art = track.artwork {
+                stationArtwork[station.id] = art
+            }
+        }
+    }
+
+    private func playPersonalStation() async {
+        loadingID = "personal"
+        defer { loadingID = nil }
+        var seen = Set<String>()
+        var seeds = (library.favorites + library.recent).filter { seen.insert($0.id).inserted }
+        let queryArtist = seeds.first?.artist
+        if seeds.count < 10, let home = try? await API.shared.home() {
+            let extra = home.sections.flatMap(\.tracks).filter { seen.insert($0.id).inserted }
+            seeds.append(contentsOf: extra.prefix(15))
+        }
+        let stationQuery = queryArtist?.isEmpty == false ? queryArtist! : (ListeningLocale.current.languageCode == "tr" ? "Türkçe Pop" : "Pop Hits")
+        if seeds.isEmpty, let searched = try? await API.shared.search(stationQuery) {
+            seeds = searched.tracks
+        }
+        guard !seeds.isEmpty else { return }
+        player.startStation(title: L("Senin İstasyonun"), query: stationQuery, seedTracks: seeds.shuffled())
+    }
+
+    private func playStation(_ station: RadioStation) async {
+        loadingID = station.id
+        defer { loadingID = nil }
+        var tracks = (try? await API.shared.search(station.query).tracks) ?? []
+        if tracks.isEmpty, let home = try? await API.shared.home() {
+            tracks = home.sections.flatMap(\.tracks)
+        }
+        guard !tracks.isEmpty else { return }
+        player.startStation(title: L(station.title), query: station.query, seedTracks: tracks)
     }
 }
 
@@ -1157,7 +1559,9 @@ struct AlbumDetailView: View {
     @State private var failure: String?
     @State private var loading = true
     @EnvironmentObject private var player: MusicPlayer
+    @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var downloads: DownloadManager
+    @AppStorage(LibraryPinsStore.storageKey) private var pinsValue = ""
 
     private var releaseYear: String? {
         if let date = collection.releaseDate, date.count >= 4 {
@@ -1166,31 +1570,35 @@ struct AlbumDetailView: View {
         return nil
     }
 
-    private var totalDuration: String {
-        String(format: L("%lld dakika"), Int64(tracks.reduce(0) { $0 + $1.duration } / 60))
+    private var totalMinutes: Int64 {
+        Int64(max(0, Int(tracks.reduce(0) { $0 + $1.duration } / 60)))
     }
+
+    private var allFavorited: Bool {
+        !tracks.isEmpty && tracks.allSatisfy { library.isFavorite($0) }
+    }
+
+    private var albumPin: LibraryPin {
+        LibraryPin(
+            id: "album:" + collection.id,
+            kind: "album",
+            targetID: collection.id,
+            title: collection.title,
+            subtitle: collection.artist,
+            artwork: collection.artwork
+        )
+    }
+    private var isPinned: Bool { LibraryPinsStore.contains(id: albumPin.id, in: pinsValue) }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .center, spacing: 20) {
-                // Centered artwork with 14pt radius, deep shadow and subtle ambient aura
-                ZStack {
-                    Artwork(url: collection.artwork, radius: 0)
-                        .frame(width: 200, height: 200)
-                        .blur(radius: 40)
-                        .opacity(0.3)
-                    Artwork(url: collection.artwork, radius: 14)
-                        .frame(width: 220, height: 220)
-                        .shadow(color: .black.opacity(0.4), radius: 18, x: 0, y: 9)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                }
-                .padding(.top, 16)
+            VStack(alignment: .center, spacing: 18) {
+                Artwork(url: collection.artwork, radius: 12)
+                    .frame(width: 236, height: 236)
+                    .shadow(color: .black.opacity(0.28), radius: 20, x: 0, y: 10)
+                    .padding(.top, 14)
 
-                // Title, Artist and Release Year
-                VStack(spacing: 6) {
+                VStack(spacing: 5) {
                     Text(collection.title)
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(Color.primary)
@@ -1199,7 +1607,7 @@ struct AlbumDetailView: View {
                         .padding(.horizontal, 20)
 
                     NavigationLink {
-                        if let firstTrack = tracks.first, let artistID = firstTrack.artistID {
+                        if let firstTrack = tracks.first, let artistID = firstTrack.artistID, !artistID.isEmpty {
                             ArtistDetailView(id: artistID, name: collection.artist)
                         } else {
                             QueryView(query: collection.artist, title: collection.artist)
@@ -1207,37 +1615,29 @@ struct AlbumDetailView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Text(collection.artist)
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 18, weight: .regular))
                                 .foregroundStyle(Color.coral)
                                 .lineLimit(1)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Color.coral.opacity(0.7))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.coral.opacity(0.75))
                         }
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("album.artist.\(collection.artist)")
                     .padding(.horizontal, 20)
 
-                    if let year = releaseYear {
-                        Text(year)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Color.secondary)
-                    }
+                    Text((releaseYear.map { L("Albüm") + " · " + $0 } ?? L("Albüm")).uppercased())
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(Color.secondary)
+                        .padding(.top, 2)
                 }
 
-                // Play & Shuffle pill buttons (hidden until tracks load!)
                 if !tracks.isEmpty {
-                    VStack(spacing: 8) {
-                        CollectionPlayButtons(tracks: tracks)
-                            .padding(.horizontal, 20)
-
-                        Text(String(format: L("%lld şarkı · %@"), Int64(tracks.count), totalDuration))
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(Color.secondary)
-                            .padding(.horizontal, 20)
-                    }
-                    .padding(.top, 4)
+                    CollectionPlayButtons(tracks: tracks)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 4)
                 }
 
                 if loading {
@@ -1254,15 +1654,32 @@ struct AlbumDetailView: View {
                     .padding(.horizontal, 20)
                 }
 
-                // Track list with track numbers
                 if !tracks.isEmpty {
-                    LazyVStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        Divider().padding(.leading, 48)
                         ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                            TrackRow(track: track, tracks: tracks, number: index + 1)
-                            Divider().padding(.leading, 40)
+                            AlbumTrackRow(
+                                track: track,
+                                tracks: tracks,
+                                number: index + 1,
+                                albumArtist: collection.artist
+                            )
+                            Divider().padding(.leading, 48)
                         }
                     }
                     .padding(.horizontal, 20)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let year = releaseYear {
+                            Text(year)
+                        }
+                        Text(String(format: L("%lld şarkı, %lld dakika"), Int64(tracks.count), totalMinutes))
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
                 }
             }
             .padding(.bottom, 32)
@@ -1271,6 +1688,44 @@ struct AlbumDetailView: View {
         .navigationTitle(collection.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    guard !tracks.isEmpty else { return }
+                    if allFavorited {
+                        tracks.forEach { if library.isFavorite($0) { library.toggleFavorite($0) } }
+                    } else {
+                        tracks.forEach { if !library.isFavorite($0) { library.toggleFavorite($0) } }
+                    }
+                } label: {
+                    Image(systemName: allFavorited ? "checkmark" : "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .foregroundStyle(Color.coral)
+                .disabled(tracks.isEmpty)
+                .accessibilityLabel(L(allFavorited ? "Favorilerden çıkar" : "Favorilere ekle"))
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        pinsValue = LibraryPinsStore.toggle(albumPin, in: pinsValue)
+                    } label: {
+                        Label(L(isPinned ? "Sabitlemeyi Kaldır" : "Kütüphaneye Sabitle"), systemImage: isPinned ? "pin.slash" : "pin")
+                    }
+                    if !tracks.isEmpty {
+                        Button {
+                            tracks.forEach { downloads.enqueue($0) }
+                        } label: {
+                            Label(L("Tümünü indir"), systemImage: "arrow.down.circle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .foregroundStyle(Color.primary)
+            }
+        }
         .task { await load() }
     }
 
@@ -1283,6 +1738,89 @@ struct AlbumDetailView: View {
         } catch is CancellationError {
         } catch {
             failure = error.localizedDescription
+        }
+    }
+}
+
+private struct AlbumTrackRow: View {
+    var track: Track
+    var tracks: [Track]
+    var number: Int
+    var albumArtist: String
+    @EnvironmentObject private var player: MusicPlayer
+    @EnvironmentObject private var library: LibraryStore
+
+    private var isCurrent: Bool { player.current?.id == track.id }
+    private var showArtistSubtitle: Bool {
+        !track.artist.isEmpty && NativeCatalog.normalized(track.artist) != NativeCatalog.normalized(albumArtist)
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button {
+                player.play(track, in: tracks)
+            } label: {
+                HStack(spacing: 10) {
+                    HStack(spacing: 3) {
+                        if library.isFavorite(track) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 7))
+                                .foregroundStyle(Color.coral)
+                        } else {
+                            Color.clear.frame(width: 7, height: 7)
+                        }
+                        Group {
+                            if player.pendingTrack?.id == track.id {
+                                ProgressView().controlSize(.mini).tint(Color.coral)
+                            } else if isCurrent {
+                                NowPlayingBars(isPlaying: player.isPlaying, color: .coral, size: 12)
+                            } else {
+                                Text("\(number)")
+                                    .font(.system(size: 15, weight: .regular))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.secondary)
+                            }
+                        }
+                        .frame(width: 20, alignment: .center)
+                    }
+                    .frame(width: 32, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(track.title)
+                                .font(.system(size: 16))
+                                .foregroundStyle(isCurrent ? Color.coral : Color.primary)
+                                .lineLimit(1)
+                            if track.explicit {
+                                Image(systemName: "e.square.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        if showArtistSubtitle {
+                            Text(track.artist)
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if library.localURL(track.id) != nil {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(TrackRowButtonStyle())
+            .accessibilityLabel("\(track.title), \(track.artist)")
+            .accessibilityHint(L("Çal"))
+            .accessibilityIdentifier("track.row.\(track.id)")
+
+            TrackMenu(track: track)
         }
     }
 }
@@ -1334,68 +1872,59 @@ struct ArtistDetailView: View {
     @State private var compactTitle = false
     @EnvironmentObject private var player: MusicPlayer
     @AppStorage("followedArtists") private var followed = ""
+    @AppStorage(LibraryPinsStore.storageKey) private var pinsValue = ""
 
     private var isFollowing: Bool {
         followed.split(separator: "\n").contains { $0.split(separator: "|", maxSplits: 1).first == Substring(id) }
     }
     private var artwork: String? { details?.artist.banner ?? details?.artist.artwork }
+    private var artistPin: LibraryPin {
+        LibraryPin(
+            id: "artist:" + id,
+            kind: "artist",
+            targetID: id,
+            title: details?.artist.name ?? name,
+            subtitle: L("Sanatçı"),
+            artwork: details?.artist.artwork ?? details?.artist.banner
+        )
+    }
+    private var isPinned: Bool { LibraryPinsStore.contains(id: artistPin.id, in: pinsValue) }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
-                // Immersive hero banner
-                VStack(spacing: 16) {
+                // Full-bleed Apple Music hero header
+                VStack(spacing: 0) {
                     if let artwork {
                         ZStack(alignment: .bottom) {
                             Artwork(url: artwork, radius: 0)
-                                .frame(height: 320)
+                                .frame(height: 316)
                                 .clipped()
 
-                            // Smooth fade into pure black (Color.pageBackground)
                             LinearGradient(
                                 stops: [
                                     .init(color: .clear, location: 0.0),
-                                    .init(color: .clear, location: 0.35),
-                                    .init(color: Color.pageBackground.opacity(0.6), location: 0.72),
+                                    .init(color: .clear, location: 0.36),
+                                    .init(color: Color.pageBackground.opacity(0.65), location: 0.74),
                                     .init(color: Color.pageBackground, location: 1.0)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
 
-                            artistNameView
-                                .padding(.bottom, 8)
+                            heroTitleAndPlay(centered: false)
+                                .padding(.bottom, 10)
                         }
                     } else {
-                        VStack(spacing: 18) {
+                        VStack(spacing: 16) {
                             ArtistPortrait(url: nil, name: name)
-                                .frame(width: 120, height: 120)
-                            artistNameView
+                                .frame(width: 132, height: 132)
+                            heroTitleAndPlay(centered: true)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
+                        .padding(.top, 20)
+                        .padding(.bottom, 8)
                     }
-
-                    // Play buttons & Follow button
-                    HStack(spacing: 12) {
-                        if let tracks = details?.tracks, !tracks.isEmpty {
-                            CollectionPlayButtons(tracks: tracks)
-                        }
-                        Button(action: toggleFollow) {
-                            Image(systemName: isFollowing ? "star.fill" : "star")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(isFollowing ? Color.coral : Color.primary)
-                                .frame(width: 44, height: 44)
-                                .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
-                                )
-                        }
-                        .buttonStyle(CardButtonStyle())
-                        .accessibilityLabel(isFollowing ? L("Takibi bırak") : L("Takip et"))
-                    }
-                    .padding(.horizontal, 20)
                 }
 
                 if let details {
@@ -1425,49 +1954,95 @@ struct ArtistDetailView: View {
                 .foregroundStyle(isFollowing ? Color.coral : .primary)
                 .accessibilityLabel(isFollowing ? L("Takibi bırak") : L("Takip et"))
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        pinsValue = LibraryPinsStore.toggle(artistPin, in: pinsValue)
+                    } label: {
+                        Label(L(isPinned ? "Sabitlemeyi Kaldır" : "Kütüphaneye Sabitle"), systemImage: isPinned ? "pin.slash" : "pin")
+                    }
+                    if let tracks = details?.tracks, !tracks.isEmpty {
+                        Button {
+                            let shuffled = tracks.shuffled()
+                            if let first = shuffled.first { player.play(first, in: shuffled) }
+                        } label: {
+                            Label(L("Karıştır"), systemImage: "shuffle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .foregroundStyle(.primary)
+            }
         }
         .task { await load() }
     }
 
-    private var artistNameView: some View {
-        Text(details?.artist.name ?? name)
-            .font(.system(size: 34, weight: .bold))
-            .foregroundStyle(Color.primary)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 20)
-            .frame(maxWidth: .infinity)
-            .onGeometryChange(for: Bool.self) { geometry in
-                geometry.frame(in: .named("artistScroll")).maxY < 0
-            } action: { compactTitle = $0 }
+    private func heroTitleAndPlay(centered: Bool) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            if centered { Spacer(minLength: 0) }
+            Text(details?.artist.name ?? name)
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(Color.primary)
+                .multilineTextAlignment(centered ? .center : .leading)
+                .lineLimit(2)
+            if !centered { Spacer(minLength: 8) }
+            if let tracks = details?.tracks, let first = tracks.first {
+                Button {
+                    player.play(first, in: tracks)
+                } label: {
+                    ZStack {
+                        Circle().fill(Color.coral)
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(.white)
+                            .offset(x: 1)
+                    }
+                    .frame(width: 44, height: 44)
+                    .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
+                }
+                .buttonStyle(CardButtonStyle())
+                .accessibilityLabel(L("Çal"))
+                .accessibilityIdentifier("artist.play")
+            }
+            if centered { Spacer(minLength: 0) }
+        }
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: Bool.self) { geometry in
+            geometry.frame(in: .named("artistScroll")).minY < 24
+        } action: { compactTitle = $0 }
     }
 
     private func artistContent(_ details: ArtistResponse) -> some View {
         VStack(alignment: .leading, spacing: 28) {
-            // Latest / Featured release card
             if let release = details.featured ?? details.albums.first {
                 NavigationLink {
                     AlbumDetailView(collection: release)
                 } label: {
                     HStack(spacing: 14) {
                         Artwork(url: release.artwork, radius: 10)
-                            .frame(width: 80, height: 80)
+                            .frame(width: 96, height: 96)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(L(release.releaseLabel).uppercased())
                                 .font(.caption2.weight(.bold))
+                                .tracking(0.5)
                                 .foregroundStyle(Color.coral)
                             Text(release.title)
                                 .font(.headline)
                                 .foregroundStyle(Color.primary)
-                                .lineLimit(1)
-                            Text(release.artist)
-                                .font(.subheadline)
-                                .foregroundStyle(Color.secondary)
-                                .lineLimit(1)
+                                .lineLimit(2)
                             if let date = release.releaseDate, date.count >= 4 {
                                 Text(String(date.prefix(4)))
-                                    .font(.footnote)
+                                    .font(.subheadline)
                                     .foregroundStyle(Color.secondary)
+                            } else {
+                                Text(release.artist)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.secondary)
+                                    .lineLimit(1)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1480,7 +2055,7 @@ struct ArtistDetailView: View {
                     .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 0.8)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
                     )
                 }
                 .buttonStyle(CardButtonStyle())
@@ -1488,21 +2063,10 @@ struct ArtistDetailView: View {
                 .accessibilityIdentifier("artist.latest")
             }
 
-            // Popular tracks with rank numbers (1, 2, 3...)
             if !details.tracks.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    BrowseShelfHeading(title: "En çok dinlenenler", tracks: details.tracks)
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(details.tracks.prefix(10).enumerated()), id: \.element.id) { index, track in
-                            TrackRow(track: track, tracks: details.tracks, number: index + 1)
-                            Divider().padding(.leading, 40)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
+                CompactTrackShelf(title: "En çok dinlenenler", tracks: details.tracks, rows: 4)
             }
 
-            // Discography shelves (Albums & Singles)
             if !details.albums.isEmpty {
                 let albums = details.albums.filter { $0.kind.lowercased() != "single" }
                 let singles = details.albums.filter { $0.kind.lowercased() == "single" }
@@ -1516,7 +2080,7 @@ struct ArtistDetailView: View {
                                     NavigationLink {
                                         AlbumDetailView(collection: album)
                                     } label: {
-                                        AlbumCard(collection: album).frame(width: 154)
+                                        AlbumCard(collection: album).frame(width: 158)
                                     }
                                     .buttonStyle(CardButtonStyle())
                                     .accessibilityIdentifier("album.open.\(album.id)")
@@ -1536,7 +2100,7 @@ struct ArtistDetailView: View {
                                     NavigationLink {
                                         AlbumDetailView(collection: single)
                                     } label: {
-                                        AlbumCard(collection: single).frame(width: 154)
+                                        AlbumCard(collection: single).frame(width: 158)
                                     }
                                     .buttonStyle(CardButtonStyle())
                                     .accessibilityIdentifier("album.open.\(single.id)")
@@ -1554,7 +2118,7 @@ struct ArtistDetailView: View {
                                     NavigationLink {
                                         AlbumDetailView(collection: album)
                                     } label: {
-                                        AlbumCard(collection: album).frame(width: 154)
+                                        AlbumCard(collection: album).frame(width: 158)
                                     }
                                     .buttonStyle(CardButtonStyle())
                                     .accessibilityIdentifier("album.open.\(album.id)")

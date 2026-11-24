@@ -371,11 +371,73 @@ struct DownloadJob {
     }
 }
 
+private final class SharedAudioProbeHub: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    static let shared = SharedAudioProbeHub()
+    private let lock = NSLock()
+    private var probes: [Int: AudioHeaderProbe] = [:]
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpShouldSetCookies = false
+        config.httpMaximumConnectionsPerHost = 6
+        config.waitsForConnectivity = false
+        config.timeoutIntervalForRequest = 4
+        config.timeoutIntervalForResource = 6
+        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+    }()
+
+    func enqueue(_ request: URLRequest, probe: AudioHeaderProbe) -> URLSessionDataTask {
+        let task = session.dataTask(with: request)
+        lock.lock()
+        probes[task.taskIdentifier] = probe
+        lock.unlock()
+        return task
+    }
+
+    func release(taskID: Int) {
+        lock.lock()
+        probes.removeValue(forKey: taskID)
+        lock.unlock()
+    }
+
+    private func probe(for task: URLSessionTask) -> AudioHeaderProbe? {
+        lock.lock()
+        defer { lock.unlock() }
+        return probes[task.taskIdentifier]
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        if let probe = probe(for: dataTask) {
+            probe.urlSession(session, dataTask: dataTask, didReceive: response, completionHandler: completionHandler)
+        } else {
+            completionHandler(.cancel)
+        }
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        probe(for: dataTask)?.urlSession(session, dataTask: dataTask, didReceive: data)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        if let probe = probe(for: task) {
+            probe.urlSession(session, task: task, willPerformHTTPRedirection: response, newRequest: request, completionHandler: completionHandler)
+        } else {
+            completionHandler(nil)
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        probe(for: task)?.urlSession(session, task: task, didCompleteWithError: error)
+    }
+}
+
 /// Inspect only the container header and stop the transfer even when a CDN ignores Range.
 final class AudioHeaderProbe: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Bool, Error>?
     private var session: URLSession?
+    private var sharedHub: SharedAudioProbeHub?
     private var task: URLSessionDataTask?
     private var header = Data()
     private var finished = false
@@ -398,10 +460,17 @@ final class AudioHeaderProbe: NSObject, URLSessionDataDelegate, @unchecked Senda
         guard let url = request.url, NativeCatalog.allowedMediaURL(url) else {
             lock.unlock(); finish(.success(false)); return
         }
-        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-        let task = session.dataTask(with: request)
-        self.session = session; self.task = task
-        task.resume()
+        if let protocols = configuration.protocolClasses, !protocols.isEmpty {
+            let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+            let task = session.dataTask(with: request)
+            self.session = session; self.task = task
+            task.resume()
+        } else {
+            let hub = SharedAudioProbeHub.shared
+            let task = hub.enqueue(request, probe: self)
+            self.sharedHub = hub; self.task = task
+            task.resume()
+        }
         lock.unlock()
     }
 
@@ -409,9 +478,10 @@ final class AudioHeaderProbe: NSObject, URLSessionDataDelegate, @unchecked Senda
         lock.lock()
         guard !finished else { lock.unlock(); return }
         finished = true
-        let continuation = self.continuation, session = self.session, task = self.task
-        self.continuation = nil; self.session = nil; self.task = nil
+        let continuation = self.continuation, session = self.session, sharedHub = self.sharedHub, task = self.task
+        self.continuation = nil; self.session = nil; self.sharedHub = nil; self.task = nil
         lock.unlock()
+        if let task { sharedHub?.release(taskID: task.taskIdentifier) }
         task?.cancel(); session?.invalidateAndCancel()
         continuation?.resume(with: result)
     }

@@ -8,6 +8,7 @@ actor NativeCatalog {
     typealias StreamLoader = @Sendable (Track, String, Double) async throws -> PlaybackAsset
     private let session: URLSession
     private let streamLoader: StreamLoader?
+    private let useDiskCache: Bool
     private let streamAssets = PlaybackAssetCache(capacity: 24)
     private var homeCache: (key: String, date: Date, response: HomeResponse)?
     private var homeTask: (key: String, token: UUID, task: Task<HomeResponse, Error>)?
@@ -18,13 +19,20 @@ actor NativeCatalog {
     private var candidateCache: [String: (Date, [Track])] = [:]
     private var categoryTask: (String, Task<[BrowseCategory], Error>)?
     private var recommendationCache: [String: (Date, HomeResponse)] = [:]
+    private var albumCache: [String: (Date, AlbumResponse)] = [:]
+    private var artistCache: [String: (Date, ArtistResponse)] = [:]
     private let recordingMatches = RecordingMatchStore.shared
 
     init(session suppliedSession: URLSession? = nil, streamLoader: StreamLoader? = nil) {
         self.streamLoader = streamLoader
+        self.useDiskCache = suppliedSession == nil
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 35
+        config.timeoutIntervalForRequest = 12
+        config.timeoutIntervalForResource = 30
+        config.httpMaximumConnectionsPerHost = 6
+        config.httpShouldSetCookies = false
+        config.waitsForConnectivity = false
+        config.httpAdditionalHeaders = ["Accept-Encoding": "gzip, deflate, br"]
         config.urlCache = URLCache(memoryCapacity: 12_000_000, diskCapacity: 60_000_000)
         session = suppliedSession ?? URLSession(configuration: config)
     }
@@ -32,6 +40,24 @@ actor NativeCatalog {
     func home() async throws -> HomeResponse {
         let locale = ListeningLocale.current
         if let cached = homeCache, cached.key == locale.cacheKey, Date().timeIntervalSince(cached.date) < 1800 { return cached.response }
+        if useDiskCache, let disk = CatalogDiskCache.load(HomeResponse.self, name: "home-" + locale.cacheKey, maxAge: 7200) {
+            homeCache = (locale.cacheKey, disk.saved, disk.value)
+            if Date().timeIntervalSince(disk.saved) >= 900 && !PlaybackPreferences.savesData() {
+                Task(priority: .utility) { [weak self] in _ = try? await self?.refreshHome(locale: locale) }
+            }
+            return disk.value
+        }
+        do {
+            return try await refreshHome(locale: locale)
+        } catch {
+            if useDiskCache, let stale = CatalogDiskCache.load(HomeResponse.self, name: "home-" + locale.cacheKey, maxAge: 30 * 86400) {
+                return stale.value
+            }
+            throw error
+        }
+    }
+
+    private func refreshHome(locale: ListeningLocale) async throws -> HomeResponse {
         if let pending = homeTask, pending.key == locale.cacheKey { return try await pending.task.value }
         let token = UUID()
         let task = Task { try await self.loadHome(locale: locale) }
@@ -39,6 +65,7 @@ actor NativeCatalog {
         defer { if homeTask?.token == token { homeTask = nil } }
         let result = try await task.value
         if ListeningLocale.current.cacheKey == locale.cacheKey { homeCache = (locale.cacheKey, .now, result) }
+        if useDiskCache { CatalogDiskCache.save(result, name: "home-" + locale.cacheKey) }
         return result
     }
 
@@ -108,7 +135,7 @@ actor NativeCatalog {
             return MusicArtist(id: id.stringValue, name: name, artwork: nil)
         }
         let result = SearchResponse(tracks: tracks, albums: collections, artists: people)
-        if searches.count > 60 { searches.removeAll() }
+        Self.trimTimedCache(&searches, limit: 60)
         searches[key] = (.now, result)
         return result
     }
@@ -172,7 +199,7 @@ actor NativeCatalog {
             }
             try Task.checkCancellation()
             response = HomeResponse(sections: sections)
-            if recommendationCache.count > 12 { recommendationCache.removeAll() }
+            Self.trimTimedCache(&recommendationCache, limit: 12)
             if !sections.isEmpty { recommendationCache[key] = (Date(), response) }
         }
         return HomeResponse(sections: HomeFeed.distinct(response.sections, excluding: seeds))
@@ -203,25 +230,60 @@ actor NativeCatalog {
     }
 
     func album(_ id: String) async throws -> AlbumResponse {
-        AlbumResponse(tracks: try await lookup(id).compactMap(Self.appleTrack))
+        let localeKey = ListeningLocale.current.cacheKey
+        let cacheKey = localeKey + "|" + id
+        if let (date, cached) = albumCache[cacheKey], Date().timeIntervalSince(date) < 3600 { return cached }
+        let diskKey = "album-" + cacheKey
+        if useDiskCache, let disk = CatalogDiskCache.load(AlbumResponse.self, name: diskKey, maxAge: 7 * 86400) {
+            Self.trimTimedCache(&albumCache, limit: 40)
+            albumCache[cacheKey] = (disk.saved, disk.value)
+            return disk.value
+        }
+        let response = AlbumResponse(tracks: try await lookup(id).compactMap(Self.appleTrack))
+        if !response.tracks.isEmpty {
+            Self.trimTimedCache(&albumCache, limit: 40)
+            albumCache[cacheKey] = (.now, response)
+            if useDiskCache { CatalogDiskCache.save(response, name: diskKey) }
+        }
+        return response
     }
 
     func artist(_ id: String) async throws -> ArtistResponse {
-        async let songs = lookup(id)
-        async let collections = try? lookup(id, entity: "album")
-        async let page = try? publicMusicPage(path: "artist/" + id, locale: ListeningLocale.current)
-        let (rows, albumRows, website) = try await (songs, collections, page)
-        guard let row = rows.first(where: { $0["wrapperType"] as? String == "artist" }), let name = row["artistName"] as? String else { throw APIError.invalidResponse }
-        let albums: [MusicCollection] = (albumRows ?? []).compactMap { row in
-            guard let id = row["collectionId"] as? NSNumber, let title = row["collectionName"] as? String else { return nil }
-            return .init(id: id.stringValue, title: title, artist: row["artistName"] as? String ?? name, artwork: Self.art(row["artworkUrl100"] as? String), releaseDate: row["releaseDate"] as? String)
-        }.sorted { ($0.releaseDate ?? "") > ($1.releaseDate ?? "") }
-        let sections = Self.at(website, "data.0.data.sections") as? [JSON] ?? []
-        let header = sections.first(where: { $0["itemKind"] as? String == "artistDetailHeader" })
-        let item = (header?["items"] as? [JSON])?.first
-        let portrait = Self.art(Self.at(item, "circleArtwork.dictionary.url") as? String)
-        let banner = Self.art(Self.at(item, "wideArtwork.dictionary.url") as? String)
-        return ArtistResponse(artist: .init(id: id, name: name, artwork: portrait, banner: banner), tracks: rows.compactMap(Self.appleTrack), albums: albums, featured: albums.first)
+        let localeKey = ListeningLocale.current.cacheKey
+        let cacheKey = localeKey + "|" + id
+        if let (date, cached) = artistCache[cacheKey], Date().timeIntervalSince(date) < 3600 { return cached }
+        let diskKey = "artist-" + cacheKey
+        if useDiskCache, let disk = CatalogDiskCache.load(ArtistResponse.self, name: diskKey, maxAge: 3 * 86400) {
+            Self.trimTimedCache(&artistCache, limit: 30)
+            artistCache[cacheKey] = (disk.saved, disk.value)
+            return disk.value
+        }
+        do {
+            async let songs = lookup(id)
+            async let collections = try? lookup(id, entity: "album")
+            async let page = try? publicMusicPage(path: "artist/" + id, locale: ListeningLocale.current)
+            let (rows, albumRows, website) = try await (songs, collections, page)
+            guard let row = rows.first(where: { $0["wrapperType"] as? String == "artist" }), let name = row["artistName"] as? String else { throw APIError.invalidResponse }
+            let albums: [MusicCollection] = (albumRows ?? []).compactMap { row in
+                guard let id = row["collectionId"] as? NSNumber, let title = row["collectionName"] as? String else { return nil }
+                return .init(id: id.stringValue, title: title, artist: row["artistName"] as? String ?? name, artwork: Self.art(row["artworkUrl100"] as? String), releaseDate: row["releaseDate"] as? String)
+            }.sorted { ($0.releaseDate ?? "") > ($1.releaseDate ?? "") }
+            let sections = Self.at(website, "data.0.data.sections") as? [JSON] ?? []
+            let header = sections.first(where: { $0["itemKind"] as? String == "artistDetailHeader" })
+            let item = (header?["items"] as? [JSON])?.first
+            let portrait = Self.art(Self.at(item, "circleArtwork.dictionary.url") as? String)
+            let banner = Self.art(Self.at(item, "wideArtwork.dictionary.url") as? String)
+            let result = ArtistResponse(artist: .init(id: id, name: name, artwork: portrait, banner: banner), tracks: rows.compactMap(Self.appleTrack), albums: albums, featured: albums.first)
+            Self.trimTimedCache(&artistCache, limit: 30)
+            artistCache[cacheKey] = (.now, result)
+            if useDiskCache { CatalogDiskCache.save(result, name: diskKey) }
+            return result
+        } catch {
+            if useDiskCache, let stale = CatalogDiskCache.load(ArtistResponse.self, name: diskKey, maxAge: 30 * 86400) {
+                return stale.value
+            }
+            throw error
+        }
     }
 
     func resolve(_ original: Track, provider: String = "auto", quality: String = "auto") async throws -> PlaybackAsset {
@@ -245,7 +307,7 @@ actor NativeCatalog {
         let order = provider == "auto" ? ["youtube", "youtube-video", "saavn"] : provider == "youtube" ? ["youtube", "youtube-video"] : [provider]
         operations += order.enumerated().map { index, stage in
             { @Sendable [self] in
-                let delay = index * 450 + (cached == nil ? 0 : 250)
+                let delay = index * 300 + (cached == nil ? 0 : 180)
                 if delay > 0 { try await Task.sleep(for: .milliseconds(delay)) }
                 return try await resolveStage(track, stage: stage, quality: quality, locale: locale)
             }
@@ -332,7 +394,7 @@ actor NativeCatalog {
         }
         try Task.checkCancellation()
         if !matches.isEmpty {
-            if candidateCache.count > 80 { candidateCache.removeAll() }
+            Self.trimTimedCache(&candidateCache, limit: 80)
             candidateCache[key] = (.now, matches)
         }
         return matches
@@ -402,7 +464,7 @@ actor NativeCatalog {
                     if track.album.isEmpty { track.album = enriched.album }
                     if track.artwork == nil { track.artwork = enriched.artwork }
                 }
-                if details.count > 150 { details.removeAll() }
+                Self.trimTimedCache(&details, limit: 150)
                 if track.duration > 0 { details[key] = (.now, track) }
             }
         }
@@ -423,14 +485,14 @@ actor NativeCatalog {
         let video = YouTube(videoID: id, methods: [.local])
         video.audioOnly = true
         let session = self.session
-        let stream = try await video.firstPlayableAudioStream(dataSaver: quality == "data") { stream in
+        let stream = try await video.firstPlayableAudioStream(dataSaver: quality == "data", highQuality: quality == "high") { stream in
             try Task.checkCancellation()
             // `dur` is the actual media duration in the signed CDN URL, independent of a search label.
             // Reject unknown or combined recordings before downloading/playing any audio.
             guard Self.allowedMediaURL(stream.url), let actualDuration = Self.streamDuration(stream.url, formatDuration: stream.duration),
                   (expectedDuration <= 0 || Self.durationCompatible(expected: expectedDuration, actual: actualDuration)) else { return false }
             var request = URLRequest(url: stream.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 4)
-            request.setValue("bytes=0-4095", forHTTPHeaderField: "Range")
+            request.setValue("bytes=0-63", forHTTPHeaderField: "Range")
             do { return try await AudioHeaderProbe.check(request, configuration: session.configuration) }
             catch is CancellationError { throw CancellationError() }
             catch { try Task.checkCancellation(); return false }
@@ -452,7 +514,7 @@ actor NativeCatalog {
         ], headers: ["Origin": "https://music.youtube.com", "Referer": "https://music.youtube.com/", "X-Youtube-Client-Name": "67", "X-Youtube-Client-Version": version])
         let result = Self.youtubeTracks(root)
         if !result.isEmpty {
-            if youtubeSearches.count > 60 { youtubeSearches.removeAll() }
+            Self.trimTimedCache(&youtubeSearches, limit: 60)
             youtubeSearches[key] = (.now, result)
         }
         return result
@@ -526,7 +588,7 @@ actor NativeCatalog {
         output.count = length
         guard let decoded = String(data: output, encoding: .utf8) else { throw APIError.invalidResponse }
         let high = String(describing: song["320kbps"] ?? more["320kbps"] ?? "false").lowercased() == "true"
-        let bitrate = quality == "data" ? 96 : high ? 320 : 160
+        let bitrate = quality == "data" ? 96 : (quality == "high" && high ? 320 : 160)
         let path = decoded.replacingOccurrences(of: #"_(?:12|48|96|160|320)\.mp4"#, with: "_\(bitrate).mp4", options: .regularExpression)
         guard let url = URL(string: path), Self.allowedMediaURL(url) else { throw APIError.invalidResponse }
         // A stale primary CDN link must fall through to the alternate source before playback starts.
@@ -573,7 +635,8 @@ actor NativeCatalog {
         guard let url = parts.url, url.scheme == "https" else { throw APIError.invalidResponse }
         var request = URLRequest(url: url)
         request.timeoutInterval = address.contains("youtubei/v1/search") ? 5 : 10
-        request.setValue("KlyMusic/2.13.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.15.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
         if let body {
             request.httpMethod = "POST"; request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -787,7 +850,8 @@ struct LyricsResolver {
         if !query.isEmpty { components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) } }
         guard let url = components.url else { throw APIError.invalidResponse }
         var request = URLRequest(url: url, timeoutInterval: 8)
-        request.setValue("KlyMusic/2.13.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.15.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await fetch(request)
         try Task.checkCancellation()
@@ -824,5 +888,63 @@ struct LRCLyricsRecord: Decodable {
         let text = (plain?.isEmpty == false ? plain : (!parsed.isEmpty ? parsed.map(\.text).joined(separator: "\n") : nil))
         let response = LyricsResponse(plain: text, synced: timed ? synced : nil, instrumental: instrumental == true && text == nil && !timed)
         return response.hasContent ? response : nil
+    }
+}
+
+private extension NativeCatalog {
+    static func trimTimedCache<Value>(_ cache: inout [String: (Date, Value)], limit: Int) {
+        while cache.count >= limit, let oldest = cache.min(by: { $0.value.0 < $1.value.0 })?.key {
+            cache.removeValue(forKey: oldest)
+        }
+    }
+}
+
+private enum CatalogDiskCache {
+    struct Envelope<Value: Codable>: Codable {
+        var saved: Date
+        var value: Value
+    }
+
+    private static var directory: URL {
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("CatalogCache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private static func fileURL(for name: String) -> URL {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let safe = String(name.unicodeScalars.map { allowed.contains($0) ? Character($0) : "_" }.prefix(96))
+        return directory.appendingPathComponent(safe + ".json")
+    }
+
+    static func load<Value: Codable>(_ type: Value.Type, name: String, maxAge: TimeInterval) -> Envelope<Value>? {
+        let url = fileURL(for: name)
+        guard let data = try? Data(contentsOf: url),
+              let envelope = try? JSONDecoder().decode(Envelope<Value>.self, from: data) else { return nil }
+        let age = Date().timeIntervalSince(envelope.saved)
+        guard age >= 0, age < maxAge else { return nil }
+        return envelope
+    }
+
+    static func save<Value: Codable>(_ value: Value, name: String) {
+        let url = fileURL(for: name)
+        guard let data = try? JSONEncoder().encode(Envelope(saved: .now, value: value)) else { return }
+        try? data.write(to: url, options: .atomic)
+        trim()
+    }
+
+    private static func trim() {
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ), files.count > 60 else { return }
+        let sorted = files.sorted {
+            ((try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) <
+            ((try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
+        }
+        for file in sorted.prefix(files.count - 48) {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 }

@@ -16,10 +16,39 @@ struct SettingsButton: View {
     @State private var presented = false
     var body: some View {
         Button { presented = true } label: {
-            Image(systemName: "gearshape").font(.system(size: 22, weight: .regular))
-                .foregroundStyle(Color.primary).frame(width: 32, height: 36).contentShape(Rectangle())
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 28, weight: .regular))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color.coral)
+                .frame(width: 34, height: 34)
+                .contentShape(Circle())
         }.accessibilityLabel(L("Ayarlar")).accessibilityIdentifier("settings.open")
             .sheet(isPresented: $presented) { NavigationStack { SettingsView() }.presentationCornerRadius(28).presentationBackground(Color.pageBackground) }
+    }
+}
+
+struct NowPlayingBars: View {
+    var isPlaying: Bool
+    var color: Color = .coral
+    var size: CGFloat = 13
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !isPlaying || reduceMotion)) { timeline in
+            let t = isPlaying && !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 5.2 : 0.0
+            let heights: [CGFloat] = isPlaying && !reduceMotion
+                ? [0.42 + 0.55 * abs(sin(t)), 0.35 + 0.62 * abs(sin(t * 1.3 + 1.1)), 0.45 + 0.50 * abs(sin(t * 0.9 + 2.3))]
+                : [0.46, 0.78, 0.38]
+            HStack(alignment: .bottom, spacing: max(1.5, size * 0.16)) {
+                ForEach(0..<3, id: \.self) { index in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: max(2, size * 0.2), height: max(3, size * heights[index]))
+                }
+            }
+            .frame(width: size, height: size, alignment: .bottom)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -51,16 +80,16 @@ struct TrackCard: View {
     var body: some View {
         Button { player.play(track, in: tracks) } label: {
             VStack(alignment: .leading, spacing: 7) {
-                Artwork(url: track.artwork, radius: 7)
+                Artwork(url: track.artwork, radius: 10)
                     .frame(width: size, height: size)
                     .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 2)
                     .overlay(alignment: .bottomTrailing) {
                         if player.current?.id == track.id || player.pendingTrack?.id == track.id {
                             ZStack {
-                                Circle().fill(.black.opacity(0.85))
-                                if player.pendingTrack?.id == track.id { ProgressView().tint(.white) }
-                                else { Image(systemName: player.isPlaying ? "waveform" : "play.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white) }
-                            }.frame(width: 30, height: 30).padding(8)
+                                Circle().fill(.black.opacity(0.75))
+                                if player.pendingTrack?.id == track.id { ProgressView().controlSize(.small).tint(.white) }
+                                else { NowPlayingBars(isPlaying: player.isPlaying, color: .white, size: 12) }
+                            }.frame(width: 28, height: 28).padding(8)
                         }
                     }
                 VStack(alignment: .leading, spacing: 2) {
@@ -68,7 +97,7 @@ struct TrackCard: View {
                         Text(track.title).font(.system(size: 15)).foregroundStyle(.primary).lineLimit(1)
                         if track.explicit { Image(systemName: "e.square.fill").font(.system(size: 9)).foregroundStyle(.tertiary) }
                     }
-                    Text(track.artist).font(.system(size: 15)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(track.artist).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }.frame(width: size, alignment: .leading).contentShape(Rectangle())
         }.buttonStyle(CardButtonStyle()).accessibilityLabel("\(track.title), \(track.artist)").accessibilityHint(L("Çal"))
@@ -96,25 +125,36 @@ struct TrackRow: View {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 player.play(track, in: tracks.isEmpty ? [track] : tracks)
             } label: {
-                HStack(spacing: 13) {
+                HStack(spacing: 12) {
                     if let number {
-                        Text(String(number)).font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(current ? Color.coral : Color.secondary).frame(width: 18, alignment: .leading)
+                        Text(String(number)).font(.system(size: 13, weight: .regular)).monospacedDigit()
+                            .foregroundStyle(current ? Color.coral : Color.secondary).frame(width: 20, alignment: .leading)
                     }
-                    Artwork(url: track.artwork, radius: 6).frame(width: 54, height: 54)
-                    VStack(alignment: .leading, spacing: 5) {
+                    Artwork(url: track.artwork, radius: 7).frame(width: 52, height: 52)
+                        .overlay {
+                            if player.pendingTrack?.id == track.id {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.black.opacity(0.45))
+                                    ProgressView().controlSize(.small).tint(.white)
+                                }
+                            } else if current {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.black.opacity(0.38))
+                                    NowPlayingBars(isPlaying: player.isPlaying, color: .white, size: 13)
+                                }
+                            }
+                        }
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 5) {
-                            Text(track.title).font(.system(size: 17)).lineLimit(1)
+                            Text(track.title).font(.system(size: 16)).lineLimit(1)
                             if track.explicit { Image(systemName: "e.square.fill").font(.system(size: 10)).foregroundStyle(.tertiary) }
                         }.foregroundStyle(current ? Color.coral : Color.primary)
                         HStack(spacing: 4) {
                             if library.localURL(track.id) != nil { Image(systemName: "arrow.down.circle.fill").font(.system(size: 10)) }
                             Text(track.artist).lineLimit(1)
-                        }.font(.system(size: 14)).foregroundStyle(.secondary)
+                        }.font(.system(size: 13.5)).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                    if player.pendingTrack?.id == track.id { ProgressView().controlSize(.small).tint(Color.coral) }
-                    else if current && player.isPlaying { Image(systemName: "waveform").font(.system(size: 14)).foregroundStyle(Color.coral) }
-                }.padding(.vertical, 7).contentShape(Rectangle())
+                }.padding(.vertical, 6).contentShape(Rectangle())
             }.buttonStyle(TrackRowButtonStyle()).accessibilityLabel("\(track.title), \(track.artist)")
                 .accessibilityHint(L("Çal")).accessibilityIdentifier("track.row.\(track.id)")
             TrackMenu(track: track)
@@ -124,6 +164,7 @@ struct TrackRow: View {
 
 struct TrackMenu: View {
     var track: Track
+    var pill = false
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var downloads: DownloadManager
@@ -172,8 +213,18 @@ struct TrackMenu: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis").font(.system(size: 18, weight: .medium)).foregroundStyle(.secondary)
-                .frame(width: 36, height: 48).contentShape(Rectangle())
+            if pill {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                    .frame(width: 32, height: 32)
+                    .background(.primary.opacity(0.08), in: Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            } else {
+                Image(systemName: "ellipsis").font(.system(size: 18, weight: .medium)).foregroundStyle(.secondary)
+                    .frame(width: 36, height: 48).contentShape(Rectangle())
+            }
         }.tint(.primary)
             .accessibilityLabel(L("Şarkı seçenekleri")).accessibilityValue(track.title)
             .accessibilityIdentifier("track.options.\(track.id)")

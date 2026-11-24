@@ -59,7 +59,7 @@ struct NowPlayingView: View {
         GeometryReader { geometry in
             let side = min(360, min(geometry.size.width - 56, max(190, geometry.size.height - 410)))
             ZStack {
-                AlbumBackdrop(artwork: displayed?.artwork)
+                AlbumBackdrop(artwork: displayed?.artwork, isPlaying: player.isPlaying)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         Button { dismiss() } label: {
@@ -72,7 +72,9 @@ struct NowPlayingView: View {
                             } else {
                                 Artwork(url: displayed?.artwork, radius: 15)
                                     .frame(width: side, height: side)
-                                    .shadow(color: .black.opacity(0.2), radius: 22, y: 12)
+                                    .shadow(color: .black.opacity(player.isPlaying ? 0.34 : 0.16), radius: player.isPlaying ? 26 : 12, y: player.isPlaying ? 14 : 6)
+                                    .scaleEffect(player.isPlaying || reduceMotion ? 1.0 : 0.86)
+                                    .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.76), value: player.isPlaying)
                                     .accessibilityIdentifier("player.cover").transition(.opacity)
                             }
                         }.frame(height: side).frame(maxWidth: .infinity)
@@ -118,7 +120,7 @@ struct NowPlayingView: View {
                         .frame(width: 44, height: 44)
                 }.accessibilityIdentifier("player.favorite")
                     .accessibilityLabel(library.isFavorite(displayed) ? L("Favorilerden çıkar") : L("Favorilere ekle"))
-                TrackMenu(track: displayed).frame(width: 30)
+                TrackMenu(track: displayed, pill: true)
             }
         }
     }
@@ -162,20 +164,26 @@ struct NowPlayingView: View {
 private struct ApplePlaybackTimeline: View {
     @EnvironmentObject private var clock: PlaybackClock
     @EnvironmentObject private var player: MusicPlayer
+    @EnvironmentObject private var library: LibraryStore
     @State private var scrubbing = false
     @State private var scrub = 0.0
     private var value: Double { scrubbing ? scrub : clock.position }
+    private var isOfflineTrack: Bool {
+        guard let current = player.pendingTrack ?? player.current else { return false }
+        return library.localURL(current.id) != nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.primary.opacity(0.16))
-                    Capsule().fill(.primary.opacity(0.65))
+                    Capsule().fill(.primary.opacity(scrubbing ? 0.92 : 0.65))
                         .frame(width: max(0, min(1, value / max(1, clock.duration))) * geometry.size.width)
-                }.frame(height: scrubbing ? 6 : 4).frame(height: 28)
+                }.frame(height: scrubbing ? 8 : 4).frame(height: 28)
                     .frame(maxHeight: .infinity)
                     .contentShape(Rectangle())
+                    .animation(.easeOut(duration: 0.14), value: scrubbing)
                     .gesture(DragGesture(minimumDistance: 0).onChanged { event in
                         scrubbing = true
                         scrub = min(max(0, event.location.x / max(1, geometry.size.width)), 1) * max(0, clock.duration)
@@ -192,6 +200,19 @@ private struct ApplePlaybackTimeline: View {
                 }
             HStack {
                 Text(Track.time(value)).accessibilityIdentifier("player.elapsed").accessibilityValue(String(Int(clock.position)))
+                Spacer()
+                if isOfflineTrack {
+                    Label(L("Çevrimdışı"), systemImage: "arrow.down.circle.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(.primary.opacity(0.08), in: Capsule())
+                } else {
+                    Text("AAC")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(.primary.opacity(0.08), in: Capsule())
+                        .accessibilityHidden(true)
+                }
                 Spacer()
                 Text("−" + Track.time(max(0, clock.duration - value)))
             }.font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
@@ -226,18 +247,30 @@ struct LyricsView: View {
                         ScrollView(showsIndicators: false) {
                             LazyVStack(alignment: .leading, spacing: 24) {
                                 ForEach(lines) { line in
-                                    Button {
-                                        following = true
-                                        player.seek(line.time)
-                                        scroll(to: line.id, proxy: proxy)
-                                    } label: {
-                                        AnimatedLyricLine(text: line.text, isActive: line.id == active,
-                                                          isPast: line.id < active, progress: progress(for: line))
-                                    }.buttonStyle(.plain).id(line.id)
-                                        .accessibilityIdentifier("lyrics.line.\(line.id)")
-                                        .accessibilityLabel(line.text)
-                                        .accessibilityHint(L("Bu satırdan çal"))
-                                        .accessibilityAddTraits(line.id == active ? .isSelected : [])
+                                    VStack(alignment: .leading, spacing: 14) {
+                                        if following && active >= 0 && line.id == active + 1 && isInstrumentalGap(before: line) {
+                                            InstrumentalInterludeDots(isPlaying: player.isPlaying)
+                                        }
+                                        Button {
+                                            following = true
+                                            player.seek(line.time)
+                                            scroll(to: line.id, proxy: proxy)
+                                        } label: {
+                                            AnimatedLyricLine(
+                                                text: line.text,
+                                                isActive: line.id == active,
+                                                isPast: line.id < active,
+                                                distance: active >= 0 ? abs(line.id - active) : 0,
+                                                depthBlur: following && !reduceMotion && !voiceOver && active >= 0,
+                                                progress: progress(for: line)
+                                            )
+                                        }.buttonStyle(.plain)
+                                            .accessibilityIdentifier("lyrics.line.\(line.id)")
+                                            .accessibilityLabel(line.text)
+                                            .accessibilityHint(L("Bu satırdan çal"))
+                                            .accessibilityAddTraits(line.id == active ? .isSelected : [])
+                                    }
+                                    .id(line.id)
                                 }
                             }.padding(.vertical, 70).padding(.horizontal, 3)
                         }
@@ -279,6 +312,12 @@ struct LyricsView: View {
         .task(id: player.current?.id) { following = true; player.loadLyrics() }
     }
 
+    private func isInstrumentalGap(before line: LyricLine) -> Bool {
+        guard let index = lines.firstIndex(where: { $0.id == line.id }), index > 0 else { return false }
+        let prevTime = lines[index - 1].time
+        return (line.time - prevTime) >= 7.0 && clock.position >= prevTime + 2.5 && clock.position < line.time - 0.6
+    }
+
     // LRCLIB supplies line timestamps, not word timings. Sweep only within the real line interval.
     private func progress(for line: LyricLine) -> Double {
         guard line.id == active else { return line.id < active ? 1 : 0 }
@@ -294,26 +333,50 @@ struct LyricsView: View {
     }
 }
 
+private struct InstrumentalInterludeDots: View {
+    var isPlaying: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0, paused: !isPlaying || reduceMotion)) { timeline in
+            let t = isPlaying && !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 3.0 : 0.0
+            HStack(spacing: 7) {
+                ForEach(0..<3, id: \.self) { index in
+                    let wave = isPlaying && !reduceMotion ? 0.35 + 0.65 * max(0, sin(t - Double(index) * 0.7)) : 0.5
+                    Circle()
+                        .fill(Color.playerPrimary.opacity(wave))
+                        .frame(width: 9, height: 9)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct AnimatedLyricLine: View {
     var text: String
     var isActive: Bool
     var isPast: Bool
+    var distance: Int
+    var depthBlur: Bool
     var progress: Double
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .title) private var textSize = 29.0
+    @ScaledMetric(relativeTo: .title) private var textSize = 30.0
 
     private var label: some View {
-        Text(text).font(.system(size: textSize, weight: .semibold))
+        Text(text).font(.system(size: textSize, weight: .bold))
             .lineSpacing(4).multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
     }
 
     var body: some View {
+        let blurAmount: CGFloat = (!depthBlur || isActive) ? 0 : min(2.2, CGFloat(distance) * 0.75)
         label
-            .foregroundStyle(isActive ? Color.playerPrimary.opacity(0.75) : Color.playerSecondary.opacity(isPast ? 0.85 : 1))
+            .foregroundStyle(isActive ? Color.playerPrimary.opacity(0.68) : Color.playerSecondary.opacity(isPast ? 0.78 : 0.92))
             .overlay(alignment: .leading) {
                 if isActive {
                     label.foregroundStyle(Color.playerPrimary)
+                        .shadow(color: Color.white.opacity(0.16), radius: 8)
                         .mask {
                             GeometryReader { geo in
                                 Rectangle().frame(width: geo.size.width * (reduceMotion ? 1 : progress))
@@ -323,7 +386,8 @@ private struct AnimatedLyricLine: View {
                         .accessibilityHidden(true)
                 }
             }
-            .scaleEffect(isActive || reduceMotion ? 1 : 0.97, anchor: .leading)
+            .blur(radius: blurAmount)
+            .scaleEffect(isActive || reduceMotion ? 1 : 0.96, anchor: .leading)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: isActive)
             .contentShape(Rectangle()).accessibilityHidden(true)
     }
@@ -345,8 +409,10 @@ struct QueueView: View {
                             queueMetadata(current)
                             Spacer(minLength: 8)
                             if player.pendingTrack != nil { ProgressView().controlSize(.small) }
-                            else {
-                                Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
+                            else if player.isPlaying {
+                                NowPlayingBars(isPlaying: true, color: .coral, size: 15)
+                            } else {
+                                Image(systemName: "pause.fill")
                                     .font(.system(size: 16)).foregroundStyle(.secondary)
                             }
                         }.padding(.vertical, 7).accessibilityIdentifier("queue.current")
