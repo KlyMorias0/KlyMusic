@@ -2106,5 +2106,6 @@ extension CoreTests {
         XCTAssertTrue(LibraryPinsStore.contains(id: "album:11", in: raw))
         raw = LibraryPinsStore.toggle(stored[0], in: raw)
         XCTAssertFalse(LibraryPinsStore.contains(id: "album:11", in: raw))
+        XCTAssertNotNil(UIImage(systemName: RootView.libraryTabSymbol))
     }
 }

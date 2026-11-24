@@ -215,7 +215,7 @@ private struct HomeSpotlightShelf: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 16) {
                     ForEach(tracks.prefix(6)) { track in
-                        HomeSpotlightCard(track: track, tracks: tracks, eyebrow: personalized ? "SENİN İÇİN" : "Öne Çıkan")
+                        HomeSpotlightCard(track: track, tracks: tracks, eyebrow: personalized ? "Senin için" : "Öne Çıkan")
                     }
                 }
                 .padding(.horizontal, 20)
@@ -245,27 +245,21 @@ private struct HomeSpotlightCard: View {
                 .overlay {
                     LinearGradient(
                         stops: [
-                            .init(color: .black.opacity(0.28), location: 0.0),
-                            .init(color: .clear, location: 0.25),
-                            .init(color: .clear, location: 0.46),
-                            .init(color: tint.opacity(0.65), location: 0.72),
-                            .init(color: .black.opacity(0.86), location: 1.0)
+                            .init(color: .clear, location: 0.42),
+                            .init(color: tint.opacity(0.68), location: 0.72),
+                            .init(color: .black.opacity(0.88), location: 1.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 }
-                .overlay(alignment: .topLeading) {
-                    Text(L(eyebrow).uppercased())
-                        .font(.system(size: 11, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(.white.opacity(0.92))
-                        .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
-                        .padding(16)
-                }
                 .overlay(alignment: .bottomLeading) {
                     HStack(alignment: .bottom, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(L(eyebrow))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.82))
+                                .lineLimit(1)
                             Text(track.title)
                                 .font(.title3.bold())
                                 .foregroundStyle(.white)
@@ -766,7 +760,6 @@ struct RadioView: View {
                 .strokeBorder(.white.opacity(0.14), lineWidth: 0.6)
         }
         .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
-        .accessibilityIdentifier("radio.personal")
     }
 
     private func liveStationCard(_ station: RadioStation) -> some View {

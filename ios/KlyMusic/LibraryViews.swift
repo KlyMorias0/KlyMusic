@@ -174,8 +174,8 @@ struct LibraryView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { newList = true } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
+                    Image(systemName: "text.badge.plus")
+                        .font(.system(size: 16, weight: .medium))
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }

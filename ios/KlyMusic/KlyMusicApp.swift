@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
@@ -98,7 +99,7 @@ struct RootView: View {
                 Tab(L("Radyo"), systemImage: "dot.radiowaves.left.and.right", value: 2) {
                     TabShell { RadioView() }
                 }.accessibilityIdentifier("nav.radio")
-                Tab(L("Kütüphane"), systemImage: "music.square.stack.fill", value: 3) {
+                Tab(L("Kütüphane"), systemImage: Self.libraryTabSymbol, value: 3) {
                     TabShell { LibraryView() }
                 }.accessibilityIdentifier("nav.library")
                 Tab(L("Ara"), systemImage: "magnifyingglass", value: 4, role: .search) {
@@ -117,7 +118,7 @@ struct RootView: View {
                     .tabItem { Label(L("Radyo"), systemImage: "dot.radiowaves.left.and.right").accessibilityIdentifier("nav.radio") }
                     .tag(2)
                 TabShell { LibraryView() }
-                    .tabItem { Label(L("Kütüphane"), systemImage: "music.square.stack.fill").accessibilityIdentifier("nav.library") }
+                    .tabItem { Label(L("Kütüphane"), systemImage: Self.libraryTabSymbol).accessibilityIdentifier("nav.library") }
                     .tag(3)
                 TabShell { SearchView() }
                     .tabItem { Label(L("Ara"), systemImage: "magnifyingglass").accessibilityIdentifier("nav.search") }
@@ -125,6 +126,13 @@ struct RootView: View {
             }
         }
     }
+
+    static let libraryTabSymbol: String = {
+        for name in ["music.note.square.stack.fill", "play.square.stack.fill", "square.stack.fill"] {
+            if UIImage(systemName: name) != nil { return name }
+        }
+        return "square.stack.fill"
+    }()
 }
 
 struct TabShell<Content: View>: View {
