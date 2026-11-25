@@ -2167,8 +2167,8 @@ extension CoreTests {
 
     @MainActor func testLiveTurkishAndAzeriActualAudioPlayback() async throws {
         let env = ProcessInfo.processInfo.environment
-        guard env["KLY_CI_VIRTUAL_AUDIO"] == "1" || env["KLYMUSIC_LIVE_AUDIO_VERIFY"] == "1" else {
-            throw XCTSkip("Live Turkish & Azeri AVPlayer playback test runs on CI / explicit opt-in")
+        guard env["KLYMUSIC_OFFLINE_ONLY"] != "1" else {
+            throw XCTSkip("Offline-only test mode enabled")
         }
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
         try? AVAudioSession.sharedInstance().setActive(true)
