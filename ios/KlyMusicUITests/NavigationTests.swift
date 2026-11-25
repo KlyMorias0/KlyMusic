@@ -72,9 +72,7 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         shot(app, "Redesign-Search-Dark")
         row.tap()
-        XCTAssertTrue(app.buttons["player.open"].waitForExistence(timeout: 10))
-        app.buttons["player.open"].tap()
-        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        openPlayer(in: app, timeout: 10)
         XCTAssertTrue(app.buttons["player.favorite"].exists)
         XCTAssertTrue(app.buttons["lyrics.toggle"].exists)
         shot(app, "Redesign-Player-Dark")
@@ -91,10 +89,8 @@ final class NavigationTests: XCTestCase {
         field.tap(); field.typeText("Gece Yolu\n")
         let row = app.buttons["track.row.fixture:lyrics"]
         XCTAssertTrue(row.waitForExistence(timeout: 15)); row.tap()
-        XCTAssertTrue(app.buttons["player.open"].waitForExistence(timeout: 15))
-        app.buttons["player.open"].tap()
+        openPlayer(in: app, timeout: 15)
         let play = app.buttons["player.playPause"]
-        XCTAssertTrue(play.waitForExistence(timeout: 10))
         expectation(for: NSPredicate(format: "value == 'playing'"), evaluatedWith: play)
         waitForExpectations(timeout: 15); play.tap()
         let options = app.buttons.matching(identifier: "track.options.fixture:lyrics").allElementsBoundByIndex
@@ -264,6 +260,16 @@ final class NavigationTests: XCTestCase {
         if button.exists && button.isHittable { button.tap() }
         return button
     }
+    private func openPlayer(in app: XCUIApplication, timeout: TimeInterval = 15, file: StaticString = #filePath, line: UInt = #line) {
+        let open = app.buttons["player.open"]
+        XCTAssertTrue(open.waitForExistence(timeout: timeout), "Mini player must appear", file: file, line: line)
+        for _ in 0..<3 {
+            if app.buttons["player.playPause"].exists { return }
+            if open.exists && open.isHittable { open.tap() }
+            if app.buttons["player.playPause"].waitForExistence(timeout: 3) { return }
+        }
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 5), "Full player must open", file: file, line: line)
+    }
     func testLyricsFollowAndLineSeeking() {
         let app = XCUIApplication()
         app.launchArguments = ["-theme", "dark", "-language", "tr", "-serverURL", "http://127.0.0.1:8879"]
@@ -274,8 +280,7 @@ final class NavigationTests: XCTestCase {
         field.tap(); field.typeText("Gece Yolu\n")
         let row = app.buttons["track.row.fixture:lyrics"]
         XCTAssertTrue(row.waitForExistence(timeout: 15)); row.tap()
-        XCTAssertTrue(app.buttons["player.open"].waitForExistence(timeout: 15))
-        app.buttons["player.open"].tap()
+        openPlayer(in: app, timeout: 15)
         XCTAssertTrue(app.buttons["lyrics.toggle"].waitForExistence(timeout: 10))
         let playing = NSPredicate(format: "value == 'playing'")
         expectation(for: playing, evaluatedWith: app.buttons["player.playPause"])
@@ -406,8 +411,7 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 45))
         let identifier = row.identifier
         row.tap()
-        XCTAssertTrue(app.buttons["player.open"].waitForExistence(timeout: 60))
-        app.buttons["player.open"].tap()
+        openPlayer(in: app, timeout: 60)
         XCTAssertTrue(app.buttons["lyrics.toggle"].waitForExistence(timeout: 10))
         let playing = NSPredicate(format: "value == 'playing'")
         expectation(for: playing, evaluatedWith: app.buttons["player.playPause"])
@@ -432,7 +436,7 @@ final class NavigationTests: XCTestCase {
         offline.buttons["library.downloads"].tap()
         let local = offline.buttons[identifier]
         XCTAssertTrue(local.waitForExistence(timeout: 10)); local.tap()
-        XCTAssertTrue(offline.buttons["player.open"].waitForExistence(timeout: 10)); offline.buttons["player.open"].tap()
+        openPlayer(in: offline, timeout: 10)
         expectation(for: playing, evaluatedWith: offline.buttons["player.playPause"])
         waitForExpectations(timeout: 20)
         XCTAssertTrue(offline.staticTexts["Çevrimdışı"].exists)
@@ -468,10 +472,8 @@ final class NavigationTests: XCTestCase {
         search.tap(); search.typeText("Gece Yolu\n")
         let row = app.buttons["track.row.fixture:lyrics"]
         XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
-        XCTAssertTrue(app.buttons["player.open"].waitForExistence(timeout: 10))
-        app.buttons["player.open"].tap()
+        openPlayer(in: app, timeout: 10)
         let play = app.buttons["player.playPause"]
-        XCTAssertTrue(play.waitForExistence(timeout: 10))
         expectation(for: NSPredicate(format: "value == 'playing'"), evaluatedWith: play)
         waitForExpectations(timeout: 15)
         play.tap()
