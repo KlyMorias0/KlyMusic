@@ -28,12 +28,6 @@
 		EB4DE76125656FE74DB44D6A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DD4470BDDA484EFCAA262C1 /* Assets.xcassets */; };
 		EE2D25FAAC4582CF3CBEB013 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = E81834B4550A7635ED25F031 /* Localizable.strings */; };
 		FBEC044186FE940B4431D8FA /* Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EB0707C6EED3401262899A /* Downloads.swift */; };
-		D17000020000000000000001 /* LiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17000010000000000000001 /* LiveActivityAttributes.swift */; };
-		D17000020000000000000002 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17000010000000000000002 /* LiveActivityManager.swift */; };
-		D17000020000000000000003 /* LiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17000010000000000000001 /* LiveActivityAttributes.swift */; };
-		D17000020000000000000004 /* KlyMusicWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17000010000000000000003 /* KlyMusicWidgets.swift */; };
-		D17000020000000000000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D17000010000000000000005 /* PrivacyInfo.xcprivacy */; };
-		D17000020000000000000006 /* KlyMusicWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D17000010000000000000006 /* KlyMusicWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,28 +45,7 @@
 			remoteGlobalIDString = 3F6C4AD05E6C3C834C55B296;
 			remoteInfo = KlyMusic;
 		};
-		D17000060000000000000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = EC457F6BBE200DAF7304F582 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = D17000040000000000000001;
-			remoteInfo = KlyMusicWidgetsExtension;
-		};
 /* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		D17000050000000000000004 /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				D17000020000000000000006 /* KlyMusicWidgetsExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		AD2C86DCED08451C90996F1F /* NativeCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCatalog.swift; sourceTree = "<group>"; };
@@ -100,17 +73,10 @@
 		D604A91E9A875C19C1B14659 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		E5317D2A64C7A066DAFECB6E /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		F93947BDE81BA2939826C0CC /* Browse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Browse.swift; sourceTree = "<group>"; };
-		D17000010000000000000001 /* LiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityAttributes.swift; sourceTree = "<group>"; };
-		D17000010000000000000002 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
-		D17000010000000000000003 /* KlyMusicWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KlyMusicWidgets.swift; sourceTree = "<group>"; };
-		D17000010000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		D17000010000000000000005 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		D17000010000000000000006 /* KlyMusicWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KlyMusicWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		DE5784173D9447C7AF5C5C09 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (ABA284D4F8A74633B4412D17 /* YouTubeKit in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
-		D17000050000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -120,7 +86,6 @@
 				4611D8947F7170AA9F7C65A7 /* KlyMusic.app */,
 				71C23E4BEE1C1CAAB814ACE4 /* KlyMusicTests.xctest */,
 				A5156D589667828AEF2B245E /* KlyMusicUITests.xctest */,
-				D17000010000000000000006 /* KlyMusicWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -148,8 +113,6 @@
 				2011E3B8E8CE8A3050ACDDF7 /* KlyMusicApp.swift */,
 				6D983ADED1C7BB1894F586E6 /* Library.swift */,
 				4CFA7DE2AF864A168BB9E830 /* LibraryViews.swift */,
-				D17000010000000000000001 /* LiveActivityAttributes.swift */,
-				D17000010000000000000002 /* LiveActivityManager.swift */,
 				B50E24EB7EF2AA9F9CF6F298 /* Localization.swift */,
 				E5317D2A64C7A066DAFECB6E /* Models.swift */,
 				867F89B4FFE7C042BA935FDB /* NowPlaying.swift */,
@@ -165,21 +128,10 @@
 			isa = PBXGroup;
 			children = (
 				A08BA3219D760707CF14C947 /* KlyMusic */,
-				D17000030000000000000001 /* KlyMusicWidgets */,
 				D6AD2E7FA9EE18B4359EAFC6 /* KlyMusicTests */,
 				833C19FCA0328DB78D3CE042 /* KlyMusicUITests */,
 				0F4EB3FBE46E2176B031DEF2 /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		D17000030000000000000001 /* KlyMusicWidgets */ = {
-			isa = PBXGroup;
-			children = (
-				D17000010000000000000003 /* KlyMusicWidgets.swift */,
-				D17000010000000000000004 /* Info.plist */,
-				D17000010000000000000005 /* PrivacyInfo.xcprivacy */,
-			);
-			path = KlyMusicWidgets;
 			sourceTree = "<group>";
 		};
 		D6AD2E7FA9EE18B4359EAFC6 /* KlyMusicTests */ = {
@@ -200,12 +152,10 @@
 				CA19CFF0FFA799D8ABA1BD8D /* Sources */,
 				DE5784173D9447C7AF5C5C09 /* Frameworks */,
 				EA65FD006D7B739D81B6BEAE /* Resources */,
-				D17000050000000000000004 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				D17000070000000000000001 /* PBXTargetDependency */,
 			);
 			name = KlyMusic;
 			packageProductDependencies = (
@@ -214,25 +164,6 @@
 			productName = KlyMusic;
 			productReference = 4611D8947F7170AA9F7C65A7 /* KlyMusic.app */;
 			productType = "com.apple.product-type.application";
-		};
-		D17000040000000000000001 /* KlyMusicWidgetsExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = D17000090000000000000001 /* Build configuration list for PBXNativeTarget "KlyMusicWidgetsExtension" */;
-			buildPhases = (
-				D17000050000000000000001 /* Sources */,
-				D17000050000000000000002 /* Frameworks */,
-				D17000050000000000000003 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = KlyMusicWidgetsExtension;
-			packageProductDependencies = (
-			);
-			productName = KlyMusicWidgetsExtension;
-			productReference = D17000010000000000000006 /* KlyMusicWidgetsExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
 		};
 		6CAF948E239744D9255D16C5 /* KlyMusicUITests */ = {
 			isa = PBXNativeTarget;
@@ -286,9 +217,6 @@
 						DevelopmentTeam = "";
 						TestTargetID = 3F6C4AD05E6C3C834C55B296;
 					};
-					D17000040000000000000001 = {
-						DevelopmentTeam = "";
-					};
 					F6C2CBC25B1902D9C2B3697D = {
 						DevelopmentTeam = "";
 					};
@@ -311,7 +239,6 @@
 			packageReferences = (36494AD7F3C5462A81781320 /* XCLocalSwiftPackageReference "YouTubeKit" */,);
 			targets = (
 				3F6C4AD05E6C3C834C55B296 /* KlyMusic */,
-				D17000040000000000000001 /* KlyMusicWidgetsExtension */,
 				F6C2CBC25B1902D9C2B3697D /* KlyMusicTests */,
 				6CAF948E239744D9255D16C5 /* KlyMusicUITests */,
 			);
@@ -319,14 +246,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		D17000050000000000000003 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				D17000020000000000000005 /* PrivacyInfo.xcprivacy in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		EA65FD006D7B739D81B6BEAE /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -370,22 +289,11 @@
 				422A53C34DB6D64DD544FF60 /* KlyMusicApp.swift in Sources */,
 				6206AD3226E2FCC0A01DB364 /* Library.swift in Sources */,
 				0A7A25DBB0EA3052B15C6966 /* LibraryViews.swift in Sources */,
-				D17000020000000000000001 /* LiveActivityAttributes.swift in Sources */,
-				D17000020000000000000002 /* LiveActivityManager.swift in Sources */,
 				4F3B3AA894C31634286862F3 /* Localization.swift in Sources */,
 				79246913E6F44FF64EF8FD6E /* Models.swift in Sources */,
 				023973C731CEB0D7F547A4C1 /* NowPlaying.swift in Sources */,
 				775AE1ACD7B9D4F10E0ACFC8 /* Player.swift in Sources */,
 				7DBB5DABF9CAAE848B747AD4 /* Settings.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		D17000050000000000000001 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				D17000020000000000000003 /* LiveActivityAttributes.swift in Sources */,
-				D17000020000000000000004 /* KlyMusicWidgets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -401,11 +309,6 @@
 			isa = PBXTargetDependency;
 			target = 3F6C4AD05E6C3C834C55B296 /* KlyMusic */;
 			targetProxy = 37CE1420678B34548DC08E95 /* PBXContainerItemProxy */;
-		};
-		D17000070000000000000001 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = D17000040000000000000001 /* KlyMusicWidgetsExtension */;
-			targetProxy = D17000060000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -665,68 +568,9 @@
 			};
 			name = Debug;
 		};
-		D17000080000000000000001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = YES;
-				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
-				DEBUG_INFORMATION_FORMAT = dwarf;
-				INFOPLIST_FILE = KlyMusicWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.app.widgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		D17000080000000000000002 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = YES;
-				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
-				INFOPLIST_FILE = KlyMusicWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.klymusic.app.widgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D17000090000000000000001 /* Build configuration list for PBXNativeTarget "KlyMusicWidgetsExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				D17000080000000000000001 /* Debug */,
-				D17000080000000000000002 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
 		253206CDB27CC8308CD13B29 /* Build configuration list for PBXNativeTarget "KlyMusicTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

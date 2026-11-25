@@ -42,14 +42,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             "quality": "auto",
             "theme": "dark",
             "language": "system",
-            "liveActivityEnabled": true,
-            "inAppIslandEnabled": false,
             "infiniteAutoplay": true,
             "useListeningHistory": true,
             "soundCheckEnabled": true,
             "animatedArtwork": true,
             "dolbyAtmosMode": "auto",
-            "islandTrailingStyle": "waveform",
             "crossfadeEnabled": false,
             "crossfadeSeconds": 4.0,
             "losslessEnabled": true,
@@ -80,7 +77,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         listeningLocale = ListeningLocale.current
-                        LiveActivityManager.shared.sync(player: player)
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in
@@ -112,7 +108,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         default:
             break
         }
-        LiveActivityManager.shared.sync(player: player, force: true)
     }
 }
 
@@ -123,9 +118,6 @@ struct RootView: View {
     var body: some View {
         tabs
         .modifier(NativePlayerAccessory(isVisible: player.current != nil || player.pendingTrack != nil))
-        .overlay(alignment: .top) {
-            InAppDynamicIslandOverlay()
-        }
         .sheet(isPresented: $player.isPresented) {
             NavigationStack { NowPlayingView().toolbar(.hidden, for: .navigationBar) }
                 .presentationDragIndicator(.hidden).presentationCornerRadius(30)

@@ -2131,41 +2131,13 @@ extension CoreTests {
         XCTAssertEqual(TrackListSort.apply(.standard, query: "  bora ", to: items).map(\.id), ["1"])
     }
 
-    func testLiveActivityThumbnailStaysUnderPayloadBudget() throws {
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 240, height: 240))
-        let image = renderer.image { ctx in
-            UIColor.systemPink.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: 240, height: 240))
-        }
-        let base64 = try XCTUnwrap(KlyMusicActivityAttributes.makeThumbnailBase64(from: image))
-        let decoded = try XCTUnwrap(Data(base64Encoded: base64))
-        XCTAssertLessThanOrEqual(decoded.count, 2400)
-        let state = KlyMusicActivityAttributes.ContentState(
-            title: "Gece Yolu",
-            artist: "KlyMusic Test",
-            album: "Karma",
-            isPlaying: true,
-            isDolbyAtmos: true,
-            isFavorite: true,
-            trailingStyle: "waveform",
-            elapsed: 12,
-            duration: 185,
-            updatedAt: Date(),
-            accentR: 0.98,
-            accentG: 0.14,
-            accentB: 0.23,
-            thumbnailBase64: base64
-        )
-        let jsonData = try JSONEncoder().encode(state)
-        XCTAssertLessThan(jsonData.count, 3500)
-    }
-
-    func testSettingsDefaultsIncludeLiveActivityAndPlaybackOptions() {
+    func testSettingsDefaultsIncludePlaybackOptions() {
         let defaults = UserDefaults.standard
-        XCTAssertEqual(defaults.string(forKey: "islandTrailingStyle") ?? "waveform", "waveform")
-        XCTAssertTrue(defaults.object(forKey: "liveActivityEnabled") as? Bool ?? true)
-        XCTAssertFalse(defaults.bool(forKey: "inAppIslandEnabled"))
         XCTAssertTrue(defaults.object(forKey: "infiniteAutoplay") as? Bool ?? true)
         XCTAssertTrue(defaults.object(forKey: "useListeningHistory") as? Bool ?? true)
+        XCTAssertTrue(defaults.object(forKey: "soundCheckEnabled") as? Bool ?? true)
+        XCTAssertTrue(defaults.object(forKey: "animatedArtwork") as? Bool ?? true)
+        XCTAssertEqual(defaults.string(forKey: "dolbyAtmosMode") ?? "auto", "auto")
+        XCTAssertTrue(defaults.object(forKey: "losslessEnabled") as? Bool ?? true)
     }
 }

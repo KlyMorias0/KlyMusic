@@ -380,8 +380,8 @@ private final class SharedAudioProbeHub: NSObject, URLSessionDataDelegate, @unch
         config.httpShouldSetCookies = false
         config.httpMaximumConnectionsPerHost = 6
         config.waitsForConnectivity = false
-        config.timeoutIntervalForRequest = 4
-        config.timeoutIntervalForResource = 6
+        config.timeoutIntervalForRequest = 6
+        config.timeoutIntervalForResource = 9
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 

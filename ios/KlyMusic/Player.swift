@@ -1,6 +1,7 @@
 import AVFoundation
 import MediaPlayer
 import SwiftUI
+import UIKit
 import OSLog
 import Network
 
@@ -79,7 +80,6 @@ struct LyricsCacheEntry: Codable {
     private var autoplayReplenishTask: Task<Void, Never>? = nil
     private var autoplayAttemptedTrackID: String?
     private var nowPlayingArtwork: (id: String, artwork: MPMediaItemArtwork)?
-    private var lastPeriodicLiveSync: Date = .distantPast
     private var itemTracks: [ObjectIdentifier: (Track, PlaybackAsset?)] = [:]
     private var matchingTask: Task<Void, Never>?
     private var matchingIDs: [String] = []
@@ -152,10 +152,6 @@ struct LyricsCacheEntry: Codable {
                     UserDefaults.standard.set(current.id, forKey: "resumeTrackID")
                     UserDefaults.standard.set(nextPosition, forKey: "resumePosition")
                 }
-                if self.isPlaying, self.current != nil, Date().timeIntervalSince(self.lastPeriodicLiveSync) >= 5.0 {
-                    self.lastPeriodicLiveSync = .now
-                    LiveActivityManager.shared.sync(player: self)
-                }
                 let liveDuration = Self.playbackDuration(liveItem)
                 if liveDuration > 0, abs(self.duration - liveDuration) > 0.1 { self.duration = liveDuration }
                 if let until = self.sleepUntil, until <= .now { self.engine.pause(); self.sleepUntil = nil }
@@ -205,6 +201,7 @@ struct LyricsCacheEntry: Codable {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playback, mode: .default, policy: .longFormAudio)
         try session.setActive(true)
+        UIApplication.shared.beginReceivingRemoteControlEvents()
     }
     private func asset(_ track: Track, source: String = "auto") async throws -> PlaybackAsset {
         try Task.checkCancellation()
@@ -382,7 +379,6 @@ struct LyricsCacheEntry: Codable {
         }
         if trackChanged || nowPlayingArtwork?.id != track.id {
             nowPlayingArtwork = nil
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         }
         if trackChanged {
             autoplayAttemptedTrackID = nil
@@ -536,12 +532,10 @@ struct LyricsCacheEntry: Codable {
         if shuffle, let current { queue = [current] + queue.filter { $0.id != current.id }.shuffled(); index = 0 }
         else { queue = originalQueue; index = queue.firstIndex { $0.id == current?.id } ?? 0 }
         resetUpcoming()
-        LiveActivityManager.shared.sync(player: self)
     }
     func cycleRepeat() {
         repeatMode = repeatMode == .off ? .all : repeatMode == .all ? .one : .off
         resetUpcoming()
-        LiveActivityManager.shared.sync(player: self)
     }
     private var activeQueueIndex: Int? {
         guard let id = (pendingTrack ?? current)?.id else { return nil }
@@ -682,30 +676,39 @@ struct LyricsCacheEntry: Codable {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
             MPNowPlayingInfoCenter.default().playbackState = .stopped
             MPRemoteCommandCenter.shared().likeCommand.isActive = false
-            LiveActivityManager.shared.sync(player: self)
             return
         }
-        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-        info[MPMediaItemPropertyTitle] = track.title
-        info[MPMediaItemPropertyArtist] = track.artist
-        info[MPMediaItemPropertyAlbumTitle] = track.album
-        info[MPMediaItemPropertyPlaybackDuration] = duration
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position
-        info[MPNowPlayingInfoPropertyPlaybackRate] = engine.rate
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: track.title,
+            MPMediaItemPropertyArtist: track.artist,
+            MPMediaItemPropertyAlbumTitle: track.album,
+            MPMediaItemPropertyPlaybackDuration: duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(max(engine.rate, 1.0)) : 0.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
+            MPNowPlayingInfoPropertyIsLiveStream: false,
+            MPNowPlayingInfoPropertyExternalContentIdentifier: track.id
+        ]
         if let nowPlayingArtwork, nowPlayingArtwork.id == track.id {
             info[MPMediaItemPropertyArtwork] = nowPlayingArtwork.artwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
         MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
         MPRemoteCommandCenter.shared().likeCommand.isActive = library?.isFavorite(track) ?? false
-        LiveActivityManager.shared.sync(player: self)
     }
     private func configureCommands() {
+        UIApplication.shared.beginReceivingRemoteControlEvents()
         let commands = MPRemoteCommandCenter.shared()
+        commands.playCommand.isEnabled = true
         commands.playCommand.addTarget { [weak self] _ in Task { @MainActor in try? self?.activateSession(); self?.engine.play() }; return .success }
+        commands.pauseCommand.isEnabled = true
         commands.pauseCommand.addTarget { [weak self] _ in Task { @MainActor in self?.engine.pause() }; return .success }
+        commands.togglePlayPauseCommand.isEnabled = true
         commands.togglePlayPauseCommand.addTarget { [weak self] _ in Task { @MainActor in self?.toggle() }; return .success }
+        commands.nextTrackCommand.isEnabled = true
         commands.nextTrackCommand.addTarget { [weak self] _ in Task { @MainActor in self?.next() }; return .success }
+        commands.previousTrackCommand.isEnabled = true
         commands.previousTrackCommand.addTarget { [weak self] _ in Task { @MainActor in self?.previous() }; return .success }
         commands.likeCommand.isEnabled = true
         commands.likeCommand.addTarget { [weak self] _ in
@@ -716,6 +719,7 @@ struct LyricsCacheEntry: Codable {
             }
             return .success
         }
+        commands.changePlaybackPositionCommand.isEnabled = true
         commands.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             Task { @MainActor in self?.seek(event.positionTime) }; return .success

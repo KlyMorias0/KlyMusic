@@ -134,6 +134,31 @@ final class ExtractionTests: XCTestCase {
         let ytcfg = try Extraction.extractYtCfg(from: html)
         XCTAssertEqual(ytcfg.embeddedPlayerEncryptedHostFlags, "test-flags")
     }
+
+    #if canImport(JavaScriptCore)
+    func testApplySignatureSkipsSolverWhenDirectFormatsNeedNoChallenge() throws {
+        let json = #"""
+        {
+            "playabilityStatus": {"status": "OK"},
+            "streamingData": {
+                "adaptiveFormats": [
+                    {
+                        "itag": 140,
+                        "url": "https://rr1.googlevideo.com/videoplayback?expire=2000000000&sparams=dur&sig=ALREADY_SIGNED&dur=190.270",
+                        "mimeType": "audio/mp4; codecs=\"mp4a.40.2\""
+                    }
+                ]
+            }
+        }
+        """#
+        let info = try JSONDecoder().decode(InnerTube.VideoInfo.self, from: Data(json.utf8))
+        var manifest = Extraction.applyDescrambler(streamData: try XCTUnwrap(info.streamingData))
+        XCTAssertFalse(Extraction.needsSignatureOrN(try XCTUnwrap(manifest.first)))
+        try Extraction.applySignature(streamManifest: &manifest, videoInfo: info, js: "invalid player script that throws if executed")
+        XCTAssertEqual(manifest.count, 1)
+        XCTAssertEqual(manifest.first?.url, "https://rr1.googlevideo.com/videoplayback?expire=2000000000&sparams=dur&sig=ALREADY_SIGNED&dur=190.270")
+    }
+    #endif
     
 }
 

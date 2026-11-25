@@ -182,6 +182,8 @@ class Extraction {
         var embeddedPlayerEncryptedHostFlags: String? {
             WEB_PLAYER_CONTEXT_CONFIGS?.WEB_PLAYER_CONTEXT_CONFIG_ID_EMBEDDED_PLAYER?.encryptedHostFlags
         }
+
+        static let empty = YtCfg(VISITOR_DATA: nil, INNERTUBE_CONTEXT: nil, WEB_PLAYER_CONTEXT_CONFIGS: nil)
     }
     
     class func extractYtCfg(from html: String) throws -> YtCfg {
@@ -413,15 +415,21 @@ class Extraction {
         return formats
     }
     
+    class func needsSignatureOrN(_ format: InnerTube.StreamingData.Format) -> Bool {
+        guard let url = format.url, let components = URLComponents(string: url) else { return true }
+        let signatureFound = url.contains("signature") || (format.s == nil && (url.contains("&sig=") || url.contains("&lsig=")))
+        let needsSig = !signatureFound && format.s != nil
+        let needsN = components.queryItems?["n"] != nil
+        return needsSig || needsN
+    }
+
 #if canImport(JavaScriptCore)
     /// apply the decrypted signature to the stream manifest
     class func applySignature(streamManifest: inout [InnerTube.StreamingData.Format], videoInfo: InnerTube.VideoInfo, js: String) throws {
-        let solver = try SignatureSolver(js: js)
-
         var sigInputs: [String] = []
         var nInputs: [String] = []
 
-        // First pass: collect all inputs
+        // First pass: collect only unresolved cipher or n-parameter challenges before touching JSC.
         for stream in streamManifest {
             if let url = stream.url {
                 guard let urlComponents = URLComponents(string: url) else { continue }
@@ -440,9 +448,24 @@ class Extraction {
             }
         }
 
-        // Batch solve all signatures and n-parameters
-        let request = SignatureSolver.SolveRequest(nInputs: nInputs, sigInputs: sigInputs)
-        let response = try solver.batchSolve(request: request)
+        if sigInputs.isEmpty && nInputs.isEmpty {
+            return
+        }
+
+        // Batch solve all signatures and n-parameters, falling back to direct streams if player JS breaks.
+        let response: SignatureSolver.SolveResponse
+        do {
+            let solver = try SignatureSolver(js: js)
+            let request = SignatureSolver.SolveRequest(nInputs: nInputs, sigInputs: sigInputs)
+            response = try solver.batchSolve(request: request)
+        } catch {
+            let directFormats = streamManifest.filter { !needsSignatureOrN($0) }
+            if !directFormats.isEmpty {
+                streamManifest = directFormats
+                return
+            }
+            throw error
+        }
 
         var invalidStreamIndices = [Int]()
 

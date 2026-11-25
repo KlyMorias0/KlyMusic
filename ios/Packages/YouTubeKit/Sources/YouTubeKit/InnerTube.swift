@@ -170,7 +170,9 @@ class InnerTube {
         request.addValue(ytcfg.userAgent ?? "Mozilla/5.0", forHTTPHeaderField: "User-Agent")
         request.addValue("en-US,en", forHTTPHeaderField: "accept-language")
         
-        request.addValue(ytcfg.visitorData ?? "", forHTTPHeaderField: "X-Goog-Visitor-Id")
+        if let visitorData = ytcfg.visitorData, !visitorData.isEmpty {
+            request.addValue(visitorData, forHTTPHeaderField: "X-Goog-Visitor-Id")
+        }
         request.addValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
         
         for (key, value) in headers {
@@ -267,13 +269,15 @@ class InnerTube {
         let context: Context
         let videoId: String
         let params: String?
-        let playbackContext: PlaybackContext
+        let playbackContext: PlaybackContext?
         let contentCheckOk: Bool = true
         let racyCheckOk: Bool = true
     }
     
     private func playerRequest(forVideoID videoID: String) -> PlayerRequest {
-        let playbackContext = PlaybackContext(contentPlaybackContext: PlaybackContext.Context(signatureTimestamp: signatureTimestamp, encryptedHostFlags: encryptedHostFlags))
+        let playbackContext: PlaybackContext? = (signatureTimestamp != nil || encryptedHostFlags != nil)
+            ? PlaybackContext(contentPlaybackContext: PlaybackContext.Context(signatureTimestamp: signatureTimestamp, encryptedHostFlags: encryptedHostFlags))
+            : nil
         return PlayerRequest(context: context, videoId: videoID, params: playerParams, playbackContext: playbackContext)
     }
     

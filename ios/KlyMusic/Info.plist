@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.17.0</string>
+	<string>2.18.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -30,12 +30,8 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>24</string>
+	<string>25</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>

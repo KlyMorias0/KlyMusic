@@ -398,28 +398,86 @@ public class YouTube {
         }
     }
 
-    /// Resolve and validate AAC as clients finish, rather than waiting for every
-    /// client (and every video rendition) before the caller can start playback.
+    private func resolveDirectAudio(client: InnerTube.ClientType,
+                                    ytcfg: Extraction.YtCfg,
+                                    dataSaver: Bool,
+                                    highQuality: Bool,
+                                    availability: AudioAvailabilityState,
+                                    validate: @escaping @Sendable (Stream) async throws -> Bool) async throws -> Stream? {
+        let tube = InnerTube(client: client, signatureTimestamp: nil, ytcfg: ytcfg, useOAuth: useOAuth, allowCache: allowOAuthCache)
+        let info = try await tube.player(videoID: videoID)
+        try Task.checkCancellation()
+        if info.videoDetails?.videoId == nil || info.videoDetails?.videoId == videoID {
+            await availability.record(info.playabilityStatus?.status)
+        }
+        guard info.videoDetails?.videoId == videoID,
+              info.playabilityStatus?.status == "OK", let data = info.streamingData else { return nil }
+        var manifest = Extraction.applyDescrambler(streamData: data)
+        manifest.removeAll { !$0.mimeType.hasPrefix("audio/mp4") || Extraction.needsSignatureOrN($0) }
+        manifest = Extraction.filterOutDubbedAudio(streamManifest: manifest)
+        guard !manifest.isEmpty else { return nil }
+        let candidates = Self.sortAudioStreams(manifest.compactMap { try? Stream(format: $0) }, dataSaver: dataSaver, highQuality: highQuality)
+        for stream in candidates where stream.isNativelyPlayable {
+            try Task.checkCancellation()
+            if try await validate(stream) { return stream }
+        }
+        return nil
+    }
+
+    /// Resolve and validate AAC as clients finish, prioritizing direct zero-JS mobile clients
+    /// before downloading watch HTML or running base.js challenge solvers.
     public func firstPlayableAudioStream(dataSaver: Bool = false,
                                          highQuality: Bool = false,
                                          validate: @escaping @Sendable (Stream) async throws -> Bool) async throws -> Stream {
         let availability = AudioAvailabilityState()
         do {
         return try await AudioExtractionFallback.value(fast: { [self] in
-            #if canImport(JavaScriptCore)
             try Task.checkCancellation()
-            // These cached properties share the watch/player fetch with the full fallback.
+
+            // Tier 1: Direct iOS client requires zero watchHTML, zero visitorData, and zero player JS.
+            if let direct = try? await resolveDirectAudio(client: .ios, ytcfg: .empty, dataSaver: dataSaver, highQuality: highQuality, availability: availability, validate: validate) {
+                return direct
+            }
+            try Task.checkCancellation()
+
+            // Tier 2: Fetch lightweight visitorData only (no 3MB base.js) and race direct mobile/VR clients.
+            if let visitorCfg = try? await FastVisitorCache.shared.value({ [self] in try await self.ytcfg }) {
+                try Task.checkCancellation()
+                let directClients: [InnerTube.ClientType] = [.androidVR, .visionOS, .ios]
+                let tier2Winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
+                    for (index, client) in directClients.enumerated() {
+                        group.addTask { [self] in
+                            do {
+                                if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 120_000_000) }
+                                else if index >= 2 { try await Task.sleep(nanoseconds: 180_000_000) }
+                                return try await self.resolveDirectAudio(client: client, ytcfg: visitorCfg, dataSaver: dataSaver, highQuality: highQuality, availability: availability, validate: validate)
+                            } catch is CancellationError { throw CancellationError() }
+                            catch { try Task.checkCancellation(); return nil }
+                        }
+                    }
+                    defer { group.cancelAll() }
+                    while let result = try await group.next() {
+                        try Task.checkCancellation()
+                        if let result { return result }
+                    }
+                    return nil
+                }
+                if let tier2Winner { return tier2Winner }
+                await FastVisitorCache.shared.invalidate()
+            }
+            try Task.checkCancellation()
+
+            // Tier 3: Full JS-backed extraction path for tracks that require player signature solving.
+            #if canImport(JavaScriptCore)
             let context = try await audioContext()
             let source = context.source
             let timestamp = Extraction.extractSignatureTimestamp(fromJS: source)
             let config = context.config
-            let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .web, .mediaConnectFrontend]
+            let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .androidVR, .web, .mediaConnectFrontend]
             let winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
                 for (index, client) in clients.enumerated() {
                     group.addTask { [videoID, useOAuth, allowOAuthCache] in
                         do {
-                            // Give the primary audio clients a short head start;
-                            // healthy playback need not fan out to every fallback.
                             if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 120_000_000) }
                             else if index >= 2 { try await Task.sleep(nanoseconds: 200_000_000) }
                             let tube = InnerTube(client: client, signatureTimestamp: timestamp, ytcfg: config,
@@ -545,7 +603,7 @@ public class YouTube {
             let signatureTimestamp = try await signatureTimestamp
             let ytcfg = try await ytcfg
             
-            let innertubeClients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .web]
+            let innertubeClients: [InnerTube.ClientType] = [.ios, .androidVR, .tvSamsung, .visionOS, .web]
             
             let results: [Result<InnerTube.VideoInfo, Error>] = await innertubeClients.concurrentMap { [videoID, useOAuth, allowOAuthCache] client in
                 let innertube = InnerTube(client: client, signatureTimestamp: signatureTimestamp, ytcfg: ytcfg, useOAuth: useOAuth, allowCache: allowOAuthCache)
@@ -637,6 +695,61 @@ public class YouTube {
     
 }
 
+
+/// Coalesces lightweight visitorData fetches without downloading large player JS scripts.
+@available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
+actor FastVisitorCache {
+    static let shared = FastVisitorCache()
+    private var cached: (Date, Extraction.YtCfg)?
+    private struct Request {
+        let token: UUID
+        let task: Task<Void, Never>
+        var waiters: [UUID: CheckedContinuation<Extraction.YtCfg, Error>]
+    }
+    private var pending: Request?
+
+    func value(_ loader: @escaping @Sendable () async throws -> Extraction.YtCfg) async throws -> Extraction.YtCfg {
+        try Task.checkCancellation()
+        let waiter = UUID()
+        let config = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Extraction.YtCfg, Error>) in
+                guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+                if let (date, config) = cached, Date().timeIntervalSince(date) < 1800 {
+                    continuation.resume(returning: config)
+                } else if var request = pending {
+                    request.waiters[waiter] = continuation; pending = request
+                } else {
+                    let token = UUID()
+                    let task = Task {
+                        do { self.finish(token: token, result: .success(try await loader())) }
+                        catch { self.finish(token: token, result: .failure(error)) }
+                    }
+                    pending = Request(token: token, task: task, waiters: [waiter: continuation])
+                }
+            }
+        } onCancel: {
+            Task { await self.cancel(waiter: waiter) }
+        }
+        try Task.checkCancellation()
+        return config
+    }
+
+    private func cancel(waiter: UUID) {
+        guard var request = pending, let continuation = request.waiters.removeValue(forKey: waiter) else { return }
+        if request.waiters.isEmpty { pending = nil; request.task.cancel() }
+        else { pending = request }
+        continuation.resume(throwing: CancellationError())
+    }
+
+    private func finish(token: UUID, result: Result<Extraction.YtCfg, Error>) {
+        guard let request = pending, request.token == token else { return }
+        pending = nil
+        if case .success(let config) = result { cached = (Date(), config) }
+        for continuation in request.waiters.values { continuation.resume(with: result) }
+    }
+
+    func invalidate() { cached = nil }
+}
 
 /// Actor isolation coalesces cold watch/player fetches from concurrent song selections.
 @available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
