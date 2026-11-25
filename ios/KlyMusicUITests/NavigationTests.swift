@@ -13,6 +13,7 @@ final class NavigationTests: XCTestCase {
         shot(app, "Redesign-Discover-Dark")
         app.scrollViews.firstMatch.swipeUp()
         shot(app, "Apple-Discover-Charts")
+        app.scrollViews.firstMatch.swipeDown()
         tapTab("nav.radio", label: "Radyo", in: app)
         XCTAssertTrue(app.navigationBars["Radyo"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["radio.play.personal"].waitForExistence(timeout: 5))
@@ -57,6 +58,7 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
         app.navigationBars["Kütüphane ve Veriler"].buttons.firstMatch.tap()
         let about = app.buttons["settings.about"]
+        for _ in 0..<2 { if about.waitForExistence(timeout: 1) && about.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(about.waitForExistence(timeout: 5)); about.tap()
         XCTAssertTrue(app.staticTexts["KlyMusic"].waitForExistence(timeout: 5))
         shot(app, "Music-About-Settings")
@@ -250,10 +252,11 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(bar.waitForExistence(timeout: 10), "The system tab bar must be visible", file: file, line: line)
         // SwiftUI can expose the identifier on either the UITabBar button or its label.
         let candidates = [bar.buttons[identifier], bar.buttons[label], bar.buttons.containing(.any, identifier: identifier).firstMatch]
-        // iOS 26 collapses the other tabs into the previous-tab button while search is open.
+        // iOS 26 collapses the other tabs into the active-tab pill when searching or scrolled down.
         // Expand that native control before asking for another tab.
-        if !candidates.contains(where: { $0.exists }), app.searchFields.firstMatch.exists, bar.buttons.count == 1 {
+        if !candidates.contains(where: { $0.exists }), bar.buttons.count <= 2 {
             bar.buttons.firstMatch.tap()
+            _ = bar.buttons[label].waitForExistence(timeout: 2)
         }
         let button = candidates.first(where: { $0.exists }) ?? bar.buttons[identifier]
         XCTAssertTrue(button.exists, "Missing native tab: \(label)", file: file, line: line)

@@ -67,7 +67,7 @@ struct SettingsView: View {
         List {
             Section {
                 accountHeaderCard
-                    .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
             }
             .listRowBackground(Color.musicElevated)
 
@@ -85,7 +85,7 @@ struct SettingsView: View {
                         Spacer(minLength: 8)
                         SettingsValueText(text: liveActivityEnabled ? L("Açık") : L("Kapalı"))
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.dynamicIsland")
                 .accessibilityValue(liveActivityEnabled ? L("Açık") : L("Kapalı"))
@@ -103,7 +103,7 @@ struct SettingsView: View {
                         Spacer(minLength: 8)
                         SettingsValueText(text: currentDolbyAtmosTitle)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.dolbyAtmos")
                 .accessibilityValue(currentDolbyAtmosTitle)
@@ -121,7 +121,7 @@ struct SettingsView: View {
                         Spacer(minLength: 8)
                         SettingsValueText(text: currentQualityTitle)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.quality")
                 .accessibilityValue(currentQualityTitle)
@@ -141,7 +141,7 @@ struct SettingsView: View {
                             SettingsValueText(text: String(format: L("%lld sn"), Int64(crossfadeSeconds.rounded())))
                         }
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.playback")
                 .settingsCompactRowInsets()
@@ -160,7 +160,7 @@ struct SettingsView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.9)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .tint(Color.coral)
                 .accessibilityIdentifier("settings.wifiOnly")
@@ -175,7 +175,7 @@ struct SettingsView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.9)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .tint(Color.coral)
                 .accessibilityIdentifier("settings.autoDownloadFavorites")
@@ -200,7 +200,7 @@ struct SettingsView: View {
                         Spacer(minLength: 8)
                         SettingsValueText(text: storageSize)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.downloads")
                 .accessibilityValue(storageSize)
@@ -223,7 +223,7 @@ struct SettingsView: View {
                         Spacer(minLength: 8)
                         SettingsValueText(text: currentThemeTitle)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.theme")
                 .accessibilityValue(currentThemeTitle)
@@ -241,7 +241,7 @@ struct SettingsView: View {
                         Spacer(minLength: 8)
                         SettingsValueText(text: currentLanguageTitle)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.language")
                 .accessibilityValue(currentLanguageTitle)
@@ -262,16 +262,11 @@ struct SettingsView: View {
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.data")
                 .settingsCompactRowInsets()
-            } header: {
-                Text(L("Kütüphane"))
-            }
-            .listRowBackground(Color.musicElevated)
 
-            Section {
                 NavigationLink {
                     aboutSettings
                 } label: {
@@ -281,18 +276,15 @@ struct SettingsView: View {
                             .font(.body)
                             .foregroundStyle(.primary)
                             .lineLimit(1)
+                        Spacer(minLength: 8)
+                        SettingsValueText(text: "\(appVersion) (\(appBuild))")
                     }
-                    .frame(minHeight: 34)
+                    .frame(minHeight: 30)
                 }
                 .accessibilityIdentifier("settings.about")
                 .settingsCompactRowInsets()
             } header: {
-                Text(L("Hakkında"))
-            } footer: {
-                Text(String(format: L("Sürüm %@ (%@) · %lld şarkı · %lld liste"), appVersion, appBuild, Int64(library.saved.count), Int64(library.playlists.count)))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 2)
+                Text(L("Kütüphane ve Hakkında"))
             }
             .listRowBackground(Color.musicElevated)
 
@@ -306,8 +298,8 @@ struct SettingsView: View {
                 .listRowBackground(Color.musicElevated)
             }
         }
-        .musicSettingsList(sectionSpacing: 14)
-        .environment(\.defaultMinListRowHeight, 44)
+        .musicSettingsList(sectionSpacing: 8)
+        .environment(\.defaultMinListRowHeight, 36)
         .navigationTitle(L("Ayarlar"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Color.pageBackground, for: .navigationBar)
@@ -322,9 +314,9 @@ struct SettingsView: View {
     }
 
     private var accountHeaderCard: some View {
-        HStack(spacing: 13) {
+        HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [Color(red: 1.0, green: 0.34, blue: 0.44), Color.coral, Color(red: 0.85, green: 0.16, blue: 0.34)],
@@ -333,14 +325,14 @@ struct SettingsView: View {
                         )
                     )
                     .overlay {
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(.white.opacity(0.20), lineWidth: 0.6)
                     }
                 Image(systemName: "music.note")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
             }
-            .frame(width: 50, height: 50)
+            .frame(width: 40, height: 40)
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -1267,17 +1259,17 @@ private struct SettingsIconTile: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(color)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
                 }
             Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
         }
-        .frame(width: 30, height: 30)
+        .frame(width: 28, height: 28)
         .accessibilityHidden(true)
     }
 }
@@ -1285,17 +1277,17 @@ private struct SettingsIconTile: View {
 private struct SettingsDolbyTile: View {
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Color(red: 0.16, green: 0.22, blue: 0.34))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
                 }
             DolbyDoubleDMark()
                 .fill(.white, style: FillStyle(eoFill: true))
-                .frame(width: 17, height: 11.5)
+                .frame(width: 16, height: 10.8)
         }
-        .frame(width: 30, height: 30)
+        .frame(width: 28, height: 28)
         .accessibilityHidden(true)
     }
 }
@@ -1486,6 +1478,6 @@ private extension View {
     }
 
     func settingsCompactRowInsets() -> some View {
-        self.listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+        self.listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
     }
 }
