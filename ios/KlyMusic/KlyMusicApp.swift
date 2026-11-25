@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     @AppStorage("language") private var language = "system"
     @Environment(\.scenePhase) private var scenePhase
     @State private var listeningLocale = ListeningLocale.current
+    @State private var wasInBackground = false
 
     init() {
         do {
@@ -75,8 +76,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                     handleDeepLink(url)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active {
+                    if phase == .background {
+                        wasInBackground = true
+                    } else if phase == .active {
                         listeningLocale = ListeningLocale.current
+                        if wasInBackground {
+                            wasInBackground = false
+                            if player.current != nil && !player.isPresented {
+                                player.isPresented = true
+                            }
+                        }
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in

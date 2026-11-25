@@ -176,8 +176,11 @@ enum RecordingIdentity {
                         guard (!left.ambiguous && !right.ambiguous) || left.explicit || right.explicit else { continue }
                         if equalCredits(left.names, right.names, romanizedContext: romanizedContext) { return true }
                         // A producer-only catalogue entry can match an explicitly credited
-                        // video, but an uploader must already have proved membership.
-                        if b.video, left.names.count == 1, !right.ambiguous,
+                        // video or YouTube song entry, but an uploader must already have proved membership.
+                        let candidateIsYouTube = candidate.source == "youtube" || candidate.id.hasPrefix("youtube:")
+                        let requestedIsYouTube = requested.source == "youtube" || requested.id.hasPrefix("youtube:")
+                        if (b.video || (candidateIsYouTube && !requestedIsYouTube && right.explicit)),
+                           left.names.count == 1, !right.ambiguous,
                            subset(left.names, right.names, romanizedContext: romanizedContext) { return true }
                     }
                 }
@@ -317,7 +320,7 @@ enum RecordingIdentity {
         let names = explicit.split(separator: "|").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !fold($0).isEmpty }
         if names.count > 1 { result.append(Credits(names: unique(names.map(Key.init)), explicit: true)) }
         // Weak separators are never treated as enough evidence on their own.
-        let weak = explicit.replacingOccurrences(of: #"\s+(?:x|and)\s+"#, with: "|", options: [.regularExpression, .caseInsensitive])
+        let weak = explicit.replacingOccurrences(of: #"\s+(?:x|and|ve)\s+"#, with: "|", options: [.regularExpression, .caseInsensitive])
         let weakNames = weak.split(separator: "|").map(String.init).filter { !fold($0).isEmpty }
         if weakNames.count > names.count { result.append(Credits(names: unique(weakNames.map(Key.init)), ambiguous: true)) }
         return result

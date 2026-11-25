@@ -197,6 +197,29 @@ class Extraction {
             return cfg
         }
     }
+
+    /// Fetches a lightweight (~2.5 KB) visitorData configuration from sw.js_data without downloading watch HTML or base.js.
+    class func fetchFastVisitorCfg() async throws -> YtCfg {
+        guard let url = URL(string: "https://www.youtube.com/sw.js_data") else {
+            throw YouTubeKitError.extractError
+        }
+        var request = URLRequest(url: url, timeoutInterval: 5)
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("en-US,en", forHTTPHeaderField: "Accept-Language")
+        request.httpShouldHandleCookies = false
+        let (data, response) = try await YouTubeNetwork.session.data(for: request)
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let text = String(data: data, encoding: .utf8) else {
+            throw YouTubeKitError.extractError
+        }
+        let regex = NSRegularExpression(#""(Cg[A-Za-z0-9_%-]{12,})""#)
+        guard let raw = regex.firstMatch(in: text, group: 1)?.content else {
+            throw YouTubeKitError.extractError
+        }
+        let decoded = raw.removingPercentEncoding ?? raw
+        return YtCfg(VISITOR_DATA: decoded, INNERTUBE_CONTEXT: nil, WEB_PLAYER_CONTEXT_CONFIGS: nil)
+    }
     
     /// Parses input html to find the end of a JavaScript object.
     /// - parameter html: HTML to be parsed for an object.

@@ -489,7 +489,7 @@ actor NativeCatalog {
             guard Self.allowedMediaURL(stream.url), let actualDuration = Self.streamDuration(stream.url, formatDuration: stream.duration),
                   (expectedDuration <= 0 || Self.durationCompatible(expected: expectedDuration, actual: actualDuration)) else { return false }
             var request = URLRequest(url: stream.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 6)
-            request.setValue("bytes=0-63", forHTTPHeaderField: "Range")
+            request.setValue("bytes=0-", forHTTPHeaderField: "Range")
             do { return try await AudioHeaderProbe.check(request, configuration: session.configuration) }
             catch is CancellationError { throw CancellationError() }
             catch { try Task.checkCancellation(); return false }
@@ -632,7 +632,7 @@ actor NativeCatalog {
         guard let url = parts.url, url.scheme == "https" else { throw APIError.invalidResponse }
         var request = URLRequest(url: url)
         request.timeoutInterval = address.contains("youtubei/v1/search") ? 5 : 10
-        request.setValue("KlyMusic/2.18.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.19.0 (iOS)", forHTTPHeaderField: "User-Agent")
         request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
         if let body {
@@ -847,7 +847,7 @@ struct LyricsResolver {
         if !query.isEmpty { components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) } }
         guard let url = components.url else { throw APIError.invalidResponse }
         var request = URLRequest(url: url, timeoutInterval: 8)
-        request.setValue("KlyMusic/2.18.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.19.0 (iOS)", forHTTPHeaderField: "User-Agent")
         request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await fetch(request)

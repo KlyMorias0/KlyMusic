@@ -2140,4 +2140,96 @@ extension CoreTests {
         XCTAssertEqual(defaults.string(forKey: "dolbyAtmosMode") ?? "auto", "auto")
         XCTAssertTrue(defaults.object(forKey: "losslessEnabled") as? Bool ?? true)
     }
+
+    func testTurkishAndAzeriCollaboratorAndProducerCreditsMatchCleanly() {
+        let royaApple = Track(id: "apple:1", title: "Keşkə", artist: "Röya, Isa Melikov & Deyirman", duration: 215)
+        let royaYT = Track(id: "youtube:abcdefghijk", title: "Keşkə", artist: "Röya, Isa Melikov ve Dəyirman", duration: 215, source: "youtube")
+        XCTAssertTrue(RecordingIdentity.same(royaApple, royaYT))
+
+        let lvbelApple = Track(id: "apple:2", title: "TAK TAK TAK", artist: "Lvbel C5", duration: 90.6)
+        let lvbelYT = Track(id: "youtube:abcdefghijk", title: "TAK TAK TAK", artist: "Lvbel C5, AKDO", duration: 91, source: "youtube")
+        XCTAssertTrue(RecordingIdentity.same(lvbelApple, lvbelYT))
+
+        let semicenkApple = Track(id: "apple:3", title: "Çıkmaz Bir Sokakta", artist: "Semicenk", duration: 162.7)
+        let semicenkYT = Track(id: "youtube:abcdefghijk", title: "Çıkmaz Bir Sokakta", artist: "Semicenk, Büken", duration: 163, source: "youtube")
+        XCTAssertTrue(RecordingIdentity.same(semicenkApple, semicenkYT))
+
+        XCTAssertFalse(RecordingIdentity.same(
+            Track(id: "apple:4", title: "Moon", artist: "Alfa ve Beta", duration: 180),
+            Track(id: "youtube:abcdefghijk", title: "Moon", artist: "Alfa x Beta", duration: 180, source: "youtube")
+        ), "Two ambiguous parses must not corroborate each other")
+
+        XCTAssertFalse(RecordingIdentity.same(
+            Track(id: "apple:5", title: "TAK TAK TAK", artist: "Lvbel C5 & AKDO", duration: 91),
+            Track(id: "youtube:abcdefghijk", title: "TAK TAK TAK", artist: "Lvbel C5", duration: 91, source: "youtube")
+        ), "Requested collaborations must still require all requested artists")
+    }
+
+    @MainActor func testLiveTurkishAndAzeriActualAudioPlayback() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard env["KLY_CI_VIRTUAL_AUDIO"] == "1" || env["KLYMUSIC_LIVE_AUDIO_VERIFY"] == "1" else {
+            throw XCTSkip("Live Turkish & Azeri AVPlayer playback test runs on CI / explicit opt-in")
+        }
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        await API.shared.invalidatePlayback()
+
+        let searchQueries: [(query: String, artistToken: String)] = [
+            ("BLOK3 VUR", "blok3"),
+            ("Semicenk Çıkmaz Bir Sokakta", "semicenk"),
+            ("Uzeyir Mehdizade Yaxsi Olar", "uzeyir")
+        ]
+
+        var tracks: [Track] = []
+        for entry in searchQueries {
+            let response = try await API.shared.search(entry.query)
+            let picked = response.tracks.first { NativeCatalog.normalized($0.artist).contains(entry.artistToken) }
+            guard let track = picked else {
+                XCTFail("Search returned no match for '\(entry.query)' containing artist '\(entry.artistToken)' (found \(response.tracks.count) tracks)")
+                return
+            }
+            tracks.append(track)
+        }
+        tracks.append(Track(id: "apple:1617467916", title: "Azeri Mashup 2", artist: "Dj Roshka", duration: 224.365))
+
+        for track in tracks {
+            var verified = false
+            var lastFailure = "unknown failure"
+            for attempt in 1...2 {
+                do {
+                    if attempt > 1 { await API.shared.invalidatePlayback() }
+                    let asset = try await API.shared.resolve(track, quality: "data")
+                    let mediaURL = try API.mediaURL(asset)
+                    XCTAssertTrue(NativeCatalog.allowedMediaURL(mediaURL))
+
+                    let item = AVPlayerItem(url: mediaURL)
+                    let avPlayer = AVPlayer(playerItem: item)
+                    avPlayer.isMuted = true
+                    avPlayer.play()
+                    defer {
+                        avPlayer.pause()
+                        avPlayer.replaceCurrentItem(with: nil)
+                    }
+
+                    var playedSeconds = 0.0
+                    for _ in 0..<200 {
+                        if item.status == .failed { break }
+                        let current = item.currentTime().seconds
+                        if current.isFinite { playedSeconds = current }
+                        if item.status == .readyToPlay && item.error == nil && avPlayer.timeControlStatus == .playing && playedSeconds >= 1.5 {
+                            verified = true
+                            print("LIVE_AUDIO_VERIFIED title=\(track.title) artist=\(track.artist) provider=\(asset.provider) bitrate=\(asset.bitrate) played_s=\(String(format: "%.2f", playedSeconds))")
+                            break
+                        }
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                    if verified { break }
+                    lastFailure = "status=\(item.status.rawValue) tcs=\(avPlayer.timeControlStatus.rawValue) reason=\(avPlayer.reasonForWaitingToPlay?.rawValue ?? "none") sec=\(playedSeconds) err=\(item.error?.localizedDescription ?? "none")"
+                } catch {
+                    lastFailure = "error=\(error.localizedDescription)"
+                }
+            }
+            XCTAssertTrue(verified, "Failed real AVPlayer playback for '\(track.title)' (\(track.artist)): \(lastFailure)")
+        }
+    }
 }

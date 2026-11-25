@@ -434,36 +434,22 @@ public class YouTube {
         return try await AudioExtractionFallback.value(fast: { [self] in
             try Task.checkCancellation()
 
-            // Tier 1: Direct iOS client requires zero watchHTML, zero visitorData, and zero player JS.
-            if let direct = try? await resolveDirectAudio(client: .ios, ytcfg: .empty, dataSaver: dataSaver, highQuality: highQuality, availability: availability, validate: validate) {
-                return direct
+            // Tier 1: Lightweight sw.js_data visitorData (~2.5 KB, cached 30 min) + direct visionOS client (zero watchHTML, zero base.js, supports open-ended Range: bytes=0- in AVPlayer).
+            if let fastCfg = try? await FastVisitorCache.shared.value({ try await Extraction.fetchFastVisitorCfg() }) {
+                try Task.checkCancellation()
+                if let direct = try? await resolveDirectAudio(client: .visionOS, ytcfg: fastCfg, dataSaver: dataSaver, highQuality: highQuality, availability: availability, validate: validate) {
+                    return direct
+                }
+                await FastVisitorCache.shared.invalidate()
             }
             try Task.checkCancellation()
 
-            // Tier 2: Fetch lightweight visitorData only (no 3MB base.js) and race direct mobile/VR clients.
-            if let visitorCfg = try? await FastVisitorCache.shared.value({ [self] in try await self.ytcfg }) {
+            // Tier 2: Watch-page ytcfg + direct visionOS client (still zero base.js / zero SignatureSolver).
+            if let watchCfg = try? await self.ytcfg {
                 try Task.checkCancellation()
-                let directClients: [InnerTube.ClientType] = [.androidVR, .visionOS, .ios]
-                let tier2Winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
-                    for (index, client) in directClients.enumerated() {
-                        group.addTask { [self] in
-                            do {
-                                if dataSaver && index > 0 { try await Task.sleep(nanoseconds: UInt64(index) * 120_000_000) }
-                                else if index >= 2 { try await Task.sleep(nanoseconds: 180_000_000) }
-                                return try await self.resolveDirectAudio(client: client, ytcfg: visitorCfg, dataSaver: dataSaver, highQuality: highQuality, availability: availability, validate: validate)
-                            } catch is CancellationError { throw CancellationError() }
-                            catch { try Task.checkCancellation(); return nil }
-                        }
-                    }
-                    defer { group.cancelAll() }
-                    while let result = try await group.next() {
-                        try Task.checkCancellation()
-                        if let result { return result }
-                    }
-                    return nil
+                if let direct = try? await resolveDirectAudio(client: .visionOS, ytcfg: watchCfg, dataSaver: dataSaver, highQuality: highQuality, availability: availability, validate: validate) {
+                    return direct
                 }
-                if let tier2Winner { return tier2Winner }
-                await FastVisitorCache.shared.invalidate()
             }
             try Task.checkCancellation()
 
@@ -473,7 +459,7 @@ public class YouTube {
             let source = context.source
             let timestamp = Extraction.extractSignatureTimestamp(fromJS: source)
             let config = context.config
-            let clients: [InnerTube.ClientType] = [.tvSamsung, .visionOS, .androidVR, .web, .mediaConnectFrontend]
+            let clients: [InnerTube.ClientType] = [.visionOS, .tvSamsung, .web, .webSafari, .mediaConnectFrontend]
             let winner = try await withThrowingTaskGroup(of: Stream?.self) { group -> Stream? in
                 for (index, client) in clients.enumerated() {
                     group.addTask { [videoID, useOAuth, allowOAuthCache] in
@@ -603,7 +589,7 @@ public class YouTube {
             let signatureTimestamp = try await signatureTimestamp
             let ytcfg = try await ytcfg
             
-            let innertubeClients: [InnerTube.ClientType] = [.ios, .androidVR, .tvSamsung, .visionOS, .web]
+            let innertubeClients: [InnerTube.ClientType] = [.visionOS, .tvSamsung, .web]
             
             let results: [Result<InnerTube.VideoInfo, Error>] = await innertubeClients.concurrentMap { [videoID, useOAuth, allowOAuthCache] client in
                 let innertube = InnerTube(client: client, signatureTimestamp: signatureTimestamp, ytcfg: ytcfg, useOAuth: useOAuth, allowCache: allowOAuthCache)
