@@ -22,6 +22,7 @@ actor NativeCatalog {
     private var recommendationCache: [String: (Date, HomeResponse)] = [:]
     private var albumCache: [String: (Date, AlbumResponse)] = [:]
     private var artistCache: [String: (Date, ArtistResponse)] = [:]
+    private var chartCache: [String: (Date, [Track])] = [:]
     private let recordingMatches = RecordingMatchStore.shared
 
     init(session suppliedSession: URLSession? = nil, streamLoader: StreamLoader? = nil) {
@@ -92,8 +93,19 @@ actor NativeCatalog {
         return HomeResponse(sections: sections)
     }
 
+    func chartTracks(country: String) async throws -> [Track] {
+        let code = country.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let resolved = code.isEmpty ? "tr" : code
+        if let (date, cached) = chartCache[resolved], Date().timeIntervalSince(date) < 1800, !cached.isEmpty {
+            return cached
+        }
+        let tracks = try await charts(resolved)
+        if !tracks.isEmpty { chartCache[resolved] = (.now, tracks) }
+        return tracks
+    }
+
     private func charts(_ country: String) async throws -> [Track] {
-        let root = try await json("https://rss.marketingtools.apple.com/api/v2/\(country)/music/most-played/50/songs.json")
+        let root = try await json("https://rss.marketingtools.apple.com/api/v2/\(country)/music/most-played/25/songs.json")
         let rows = Self.at(root, "feed.results") as? [JSON] ?? []
         return rows.compactMap { row in
             guard let id = row["id"] as? String, let title = row["name"] as? String, let artist = row["artistName"] as? String else { return nil }
@@ -190,7 +202,7 @@ actor NativeCatalog {
         parts.queryItems = [URLQueryItem(name: "q", value: query)]
         guard let url = parts.url else { return [] }
         var request = URLRequest(url: url, timeoutInterval: 4.5)
-        request.setValue("KlyMusic/2.20.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.21.0 (iOS)", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
@@ -703,7 +715,7 @@ actor NativeCatalog {
         guard let url = parts.url, url.scheme == "https" else { throw APIError.invalidResponse }
         var request = URLRequest(url: url)
         request.timeoutInterval = address.contains("youtubei/v1/search") ? 5 : 10
-        request.setValue("KlyMusic/2.20.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.21.0 (iOS)", forHTTPHeaderField: "User-Agent")
         request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
         if let body {
@@ -922,7 +934,7 @@ struct LyricsResolver {
         if !query.isEmpty { components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) } }
         guard let url = components.url else { throw APIError.invalidResponse }
         var request = URLRequest(url: url, timeoutInterval: 8)
-        request.setValue("KlyMusic/2.20.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.21.0 (iOS)", forHTTPHeaderField: "User-Agent")
         request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await fetch(request)

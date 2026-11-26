@@ -40,6 +40,8 @@ struct LibraryView: View {
     @State private var newList = false
     @State private var destination: LibraryDestination?
     @State private var editingCategories = false
+    @State private var importingAudio = false
+    @State private var importAlert: String?
     @AppStorage("libraryLayout-v1") private var layoutValue = ""
     @AppStorage("librarySort-v1") private var sortValue = LibraryCollectionSort.added.rawValue
     @AppStorage("followedArtists") private var followedArtists = ""
@@ -170,6 +172,7 @@ struct LibraryView: View {
             case .recent: TrackListView(title: L("Son dinlenenler"), tracks: library.recent, style: .songs)
             case .albums: SavedAlbumsView()
             case .artists: FollowedArtistsView()
+            case .replay: ListeningReplayView()
             }
         }
         .toolbar {
@@ -187,7 +190,9 @@ struct LibraryView: View {
                 Menu {
                     Button { newList = true } label: { Label(L("Yeni Çalma Listesi…"), systemImage: "text.badge.plus") }.accessibilityIdentifier("playlist.create")
                     Button { editingCategories = true } label: { Label(L("Düzenle"), systemImage: "line.3.horizontal") }.accessibilityIdentifier("library.edit")
+                    Button { importingAudio = true } label: { Label(L("Dosyalardan İçe Aktar…"), systemImage: "folder.badge.plus") }.accessibilityIdentifier("library.importAudio")
                     Divider()
+                    Button { destination = .replay } label: { Label(L("Dinleme Özeti"), systemImage: "chart.bar.xaxis") }.accessibilityIdentifier("library.replay")
                     Button { destination = .favorites } label: { Label(L("Favoriler"), systemImage: "star") }.accessibilityIdentifier("library.favorites")
                     Button { destination = .recent } label: { Label(L("Son dinlenenler"), systemImage: "clock") }.accessibilityIdentifier("library.recent")
                 } label: {
@@ -203,6 +208,25 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $newList) { CreatePlaylistView() }
         .sheet(isPresented: $editingCategories) { LibraryLayoutEditor(storedValue: $layoutValue) }
+        .fileImporter(isPresented: $importingAudio, allowedContentTypes: [.audio], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls):
+                Task {
+                    var failedCount = 0
+                    for url in urls {
+                        if (try? await library.importAudioFile(from: url)) == nil { failedCount += 1 }
+                    }
+                    if failedCount > 0 { importAlert = L("Bazı ses dosyaları içe aktarılamadı.") }
+                }
+            case .failure(let error):
+                importAlert = error.localizedDescription
+            }
+        }
+        .alert(L("İçe Aktarma"), isPresented: Binding(get: { importAlert != nil }, set: { if !$0 { importAlert = nil } })) {
+            Button(L("Tamam"), role: .cancel) { importAlert = nil }
+        } message: {
+            Text(importAlert ?? "")
+        }
     }
 
     @ViewBuilder private func pinTile(_ pin: LibraryPin) -> some View {
@@ -514,7 +538,7 @@ private struct LibraryLayoutEditor: View {
 }
 
 private enum LibraryDestination: Hashable {
-    case playlists, songs, favorites, downloads, recent, albums, artists
+    case playlists, songs, favorites, downloads, recent, albums, artists, replay
 }
 
 struct PlaylistsView: View {
@@ -1233,6 +1257,8 @@ struct DownloadsView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var confirmDelete = false
     @State private var searchText = ""
+    @State private var importingAudio = false
+    @State private var importAlert: String?
 
     private var visibleDownloaded: [Track] {
         TrackListSort.apply(.standard, query: searchText, to: library.downloaded)
@@ -1343,6 +1369,14 @@ struct DownloadsView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { importingAudio = true } label: {
+                    Image(systemName: "folder.badge.plus")
+                        .foregroundStyle(Color.coral)
+                }
+                .accessibilityLabel(L("Dosyalardan İçe Aktar…"))
+                .accessibilityIdentifier("downloads.importAudio")
+            }
             if !library.downloaded.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) { confirmDelete = true } label: {
@@ -1352,6 +1386,25 @@ struct DownloadsView: View {
                     .accessibilityLabel(L("İndirilenleri sil"))
                 }
             }
+        }
+        .fileImporter(isPresented: $importingAudio, allowedContentTypes: [.audio], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls):
+                Task {
+                    var failedCount = 0
+                    for url in urls {
+                        if (try? await library.importAudioFile(from: url)) == nil { failedCount += 1 }
+                    }
+                    if failedCount > 0 { importAlert = L("Bazı ses dosyaları içe aktarılamadı.") }
+                }
+            case .failure(let error):
+                importAlert = error.localizedDescription
+            }
+        }
+        .alert(L("İçe Aktarma"), isPresented: Binding(get: { importAlert != nil }, set: { if !$0 { importAlert = nil } })) {
+            Button(L("Tamam"), role: .cancel) { importAlert = nil }
+        } message: {
+            Text(importAlert ?? "")
         }
         .confirmationDialog(L("Tüm indirilen şarkılar silinsin mi?"), isPresented: $confirmDelete, titleVisibility: .visible) {
             Button(L("İndirilenleri sil"), role: .destructive) { library.downloaded.forEach { library.removeDownload($0) } }
@@ -1563,5 +1616,191 @@ struct FollowedArtistsView: View {
                 }
             }
         }
+    }
+}
+
+struct ListeningReplayView: View {
+    @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var player: MusicPlayer
+
+    private var playedEntries: [SavedTrack] {
+        library.saved
+            .filter { $0.playCount > 0 && $0.track != nil }
+            .sorted { ($0.playCount, $0.lastPlayed ?? .distantPast) > ($1.playCount, $1.lastPlayed ?? .distantPast) }
+    }
+
+    private var totalPlays: Int {
+        playedEntries.reduce(0) { $0 + $1.playCount }
+    }
+
+    private var totalMinutes: Int {
+        let secs = playedEntries.reduce(0.0) { $0 + max(60, $1.track?.duration ?? 180) * Double($1.playCount) }
+        return Int(secs / 60.0)
+    }
+
+    private var topArtists: [(name: String, artistID: String?, artwork: String?, plays: Int)] {
+        var bucket: [String: (artistID: String?, artwork: String?, plays: Int)] = [:]
+        for entry in playedEntries {
+            guard let track = entry.track, !track.artist.isEmpty else { continue }
+            var current = bucket[track.artist] ?? (track.artistID, track.artwork, 0)
+            current.plays += entry.playCount
+            if current.artwork == nil { current.artwork = track.artwork }
+            if current.artistID == nil { current.artistID = track.artistID }
+            bucket[track.artist] = current
+        }
+        return bucket
+            .map { (name: $0.key, artistID: $0.value.artistID, artwork: $0.value.artwork, plays: $0.value.plays) }
+            .sorted { $0.plays > $1.plays }
+            .prefix(8)
+            .map { $0 }
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 24) {
+                if playedEntries.isEmpty {
+                    EmptyState(
+                        symbol: "chart.bar.xaxis",
+                        title: "Henüz Dinleme Verisi Yok",
+                        message: "Şarkı dinledikçe özetin burada oluşur."
+                    )
+                } else {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(L("KlyMusic Replay"))
+                            .font(.title.bold())
+                            .foregroundStyle(.white)
+                        Text(L("En çok dinlediğin şarkılar ve sanatçılar"))
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.84))
+                        HStack(spacing: 12) {
+                            replayStat(String(format: L("%lld Dakika"), Int64(totalMinutes)))
+                            replayStat(String(format: L("%lld Çalma"), Int64(totalPlays)))
+                            replayStat(String(format: L("%lld Sanatçı"), Int64(topArtists.count)))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(20)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.coral, Color(red: 0.56, green: 0.12, blue: 0.44)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+
+                    if !topArtists.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(L("En Çok Dinlenen Sanatçılar"))
+                                .font(.title3.bold())
+                                .padding(.horizontal, 20)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(alignment: .top, spacing: 16) {
+                                    ForEach(topArtists, id: \.name) { artist in
+                                        NavigationLink {
+                                            if let id = artist.artistID, !id.isEmpty, !id.hasPrefix("local:") {
+                                                ArtistDetailView(id: id, name: artist.name)
+                                            } else {
+                                                QueryView(query: artist.name, title: artist.name)
+                                            }
+                                        } label: {
+                                            VStack(spacing: 7) {
+                                                ArtistPortrait(
+                                                    url: artist.artwork,
+                                                    name: artist.name,
+                                                    artistID: artist.artistID,
+                                                    preferEditorialPortrait: true
+                                                )
+                                                .frame(width: 94, height: 94)
+                                                .clipShape(Circle())
+                                                Text(artist.name)
+                                                    .font(.system(size: 13.5, weight: .semibold))
+                                                    .foregroundStyle(.primary)
+                                                    .lineLimit(1)
+                                                    .frame(width: 96)
+                                                Text("\(artist.plays)x")
+                                                    .font(.caption.weight(.medium))
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .buttonStyle(CardButtonStyle())
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                    }
+
+                    let topTracks = Array(playedEntries.prefix(15).compactMap(\.track))
+                    if !topTracks.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(L("En Çok Dinlenen Şarkılar"))
+                                .font(.title3.bold())
+                                .padding(.horizontal, 20)
+                            LazyVStack(spacing: 0) {
+                                ForEach(Array(playedEntries.prefix(15).enumerated()), id: \.element.id) { index, entry in
+                                    if let track = entry.track {
+                                        HStack(spacing: 12) {
+                                            Text("\(index + 1)")
+                                                .font(.system(size: 15, weight: .bold))
+                                                .monospacedDigit()
+                                                .foregroundStyle(index < 3 ? Color.coral : Color.secondary)
+                                                .frame(width: 24, alignment: .trailing)
+                                            Button {
+                                                Haptics.light()
+                                                player.play(track, in: topTracks)
+                                            } label: {
+                                                HStack(spacing: 12) {
+                                                    Artwork(url: track.artwork, radius: 7)
+                                                        .frame(width: 46, height: 46)
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        Text(track.title)
+                                                            .font(.system(size: 15.5, weight: .medium))
+                                                            .foregroundStyle(.primary)
+                                                            .lineLimit(1)
+                                                        Text(track.artist)
+                                                            .font(.system(size: 13))
+                                                            .foregroundStyle(.secondary)
+                                                            .lineLimit(1)
+                                                    }
+                                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                                }
+                                                .contentShape(Rectangle())
+                                            }
+                                            .buttonStyle(TrackRowButtonStyle())
+                                            Text("\(entry.playCount)x")
+                                                .font(.caption.weight(.semibold))
+                                                .monospacedDigit()
+                                                .foregroundStyle(.secondary)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.musicElevated, in: Capsule())
+                                        }
+                                        .padding(.vertical, 6)
+                                        .padding(.horizontal, 20)
+                                        Divider().padding(.leading, 114).padding(.trailing, 20)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 36)
+        }
+        .background(Color.pageBackground)
+        .navigationTitle(L("Dinleme Özeti"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func replayStat(_ label: String) -> some View {
+        Text(label)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.white.opacity(0.2), in: Capsule())
     }
 }

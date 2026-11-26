@@ -2350,4 +2350,51 @@ extension CoreTests {
         XCTAssertEqual(defaults.string(forKey: "eqPreset"), AudioEQPreset.bassBooster.rawValue)
         XCTAssertTrue(LibraryPinsStore.contains(id: "playlist:\(playlist.id.uuidString)", in: defaults.string(forKey: LibraryPinsStore.storageKey) ?? ""))
     }
+
+    func testRealtimeDSPBiquadLowPassAndSingState() {
+        var lpf = BiquadEQFilter.lowPass(cutoffHz: 160, sampleRate: 44100)
+        let bass = lpf.process(0.6)
+        XCTAssertGreaterThan(bass, 0)
+
+        let state = AudioRealtimeDSPState.shared
+        state.update(eqPreset: .vocalBooster, singEnabled: true, singVocalLevel: 0.15)
+        let snap = state.snapshot()
+        XCTAssertEqual(snap.eqPreset, .vocalBooster)
+        XCTAssertTrue(snap.singEnabled)
+        XCTAssertEqual(snap.singVocalLevel, 0.15, accuracy: 0.001)
+        state.update(eqPreset: .off, singEnabled: false, singVocalLevel: 0.22)
+    }
+
+    @MainActor func testSleepTimerCountdownAndLocalImport() async throws {
+        let player = MusicPlayer()
+        player.setSleep(minutes: 15)
+        XCTAssertEqual(player.sleepRemainingSeconds, 900)
+        player.setSleep(minutes: nil)
+        XCTAssertNil(player.sleepRemainingSeconds)
+
+        var wav = Data()
+        let sampleRate: UInt32 = 8000
+        let sampleCount: UInt32 = 8000
+        let dataBytes: UInt32 = sampleCount * 2
+        let riffSize: UInt32 = 36 + dataBytes
+        func appendU32(_ v: UInt32) { var le = v.littleEndian; wav.append(Data(bytes: &le, count: 4)) }
+        func appendU16(_ v: UInt16) { var le = v.littleEndian; wav.append(Data(bytes: &le, count: 2)) }
+        wav.append(Data("RIFF".utf8)); appendU32(riffSize)
+        wav.append(Data("WAVEfmt ".utf8)); appendU32(16); appendU16(1); appendU16(1)
+        appendU32(sampleRate); appendU32(sampleRate * 2); appendU16(2); appendU16(16)
+        wav.append(Data("data".utf8)); appendU32(dataBytes)
+        wav.append(Data(count: Int(dataBytes)))
+
+        let tempWav = FileManager.default.temporaryDirectory.appendingPathComponent("test-import-\(UUID().uuidString).wav")
+        try wav.write(to: tempWav)
+        defer { try? FileManager.default.removeItem(at: tempWav) }
+
+        let container = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = LibraryStore(context: ModelContext(container))
+        let imported = try await store.importAudioFile(from: tempWav)
+        XCTAssertTrue(imported.id.hasPrefix("local:"))
+        XCTAssertGreaterThan(imported.duration, 0.5)
+        XCTAssertNotNil(store.localURL(imported.id))
+        store.removeDownload(imported)
+    }
 }

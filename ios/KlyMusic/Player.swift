@@ -1,5 +1,6 @@
 import AVFoundation
 import MediaPlayer
+import MediaToolbox
 import SwiftUI
 import UIKit
 import OSLog
@@ -123,11 +124,201 @@ struct BiquadEQFilter {
         a2 = (1 - alpha / a) / norm
     }
 
+    private init(b0: Float, b1: Float, b2: Float, a1: Float, a2: Float) {
+        self.b0 = b0; self.b1 = b1; self.b2 = b2; self.a1 = a1; self.a2 = a2
+    }
+
+    static func lowPass(cutoffHz: Float, sampleRate: Float, q: Float = 0.707) -> BiquadEQFilter {
+        let w0 = 2 * Float.pi * cutoffHz / max(8000, sampleRate)
+        let cosW0 = cosf(w0)
+        let alpha = sinf(w0) / (2 * max(0.25, q))
+        let norm = 1 + alpha
+        return BiquadEQFilter(
+            b0: ((1 - cosW0) * 0.5) / norm,
+            b1: (1 - cosW0) / norm,
+            b2: ((1 - cosW0) * 0.5) / norm,
+            a1: (-2 * cosW0) / norm,
+            a2: (1 - alpha) / norm
+        )
+    }
+
     mutating func process(_ x: Float) -> Float {
         let y = b0 * x + z1
         z1 = b1 * x - a1 * y + z2
         z2 = b2 * x - a2 * y
         return y
+    }
+}
+
+final class AudioRealtimeDSPState: @unchecked Sendable {
+    static let shared = AudioRealtimeDSPState()
+    private let lock = NSLock()
+    private var _eqPreset: AudioEQPreset = AudioEQPreset(rawValue: UserDefaults.standard.string(forKey: "eqPreset") ?? "off") ?? .off
+    private var _singEnabled = false
+    private var _singVocalLevel: Float = 0.22
+
+    struct Snapshot {
+        let eqPreset: AudioEQPreset
+        let singEnabled: Bool
+        let singVocalLevel: Float
+    }
+
+    func update(eqPreset: AudioEQPreset? = nil, singEnabled: Bool? = nil, singVocalLevel: Float? = nil) {
+        lock.lock()
+        if let eqPreset { _eqPreset = eqPreset }
+        if let singEnabled { _singEnabled = singEnabled }
+        if let singVocalLevel { _singVocalLevel = min(1.0, max(0.0, singVocalLevel)) }
+        lock.unlock()
+    }
+
+    func snapshot() -> Snapshot {
+        lock.lock()
+        let value = Snapshot(eqPreset: _eqPreset, singEnabled: _singEnabled, singVocalLevel: _singVocalLevel)
+        lock.unlock()
+        return value
+    }
+}
+
+private final class AudioTapContext {
+    var sampleRate: Float = 44100
+    var isFloatPCM = false
+    var isNonInterleaved = true
+    var channels: Int = 2
+    private var configuredPreset: AudioEQPreset = .off
+    private var lowL = BiquadEQFilter(centerHz: 95, sampleRate: 44100, q: 0.8, gainDB: 0)
+    private var midL = BiquadEQFilter(centerHz: 1100, sampleRate: 44100, q: 0.9, gainDB: 0)
+    private var highL = BiquadEQFilter(centerHz: 7500, sampleRate: 44100, q: 0.8, gainDB: 0)
+    private var lowR = BiquadEQFilter(centerHz: 95, sampleRate: 44100, q: 0.8, gainDB: 0)
+    private var midR = BiquadEQFilter(centerHz: 1100, sampleRate: 44100, q: 0.9, gainDB: 0)
+    private var highR = BiquadEQFilter(centerHz: 7500, sampleRate: 44100, q: 0.8, gainDB: 0)
+    private var singBassL = BiquadEQFilter.lowPass(cutoffHz: 160, sampleRate: 44100)
+    private var singBassR = BiquadEQFilter.lowPass(cutoffHz: 160, sampleRate: 44100)
+
+    func prepare(format: AudioStreamBasicDescription) {
+        sampleRate = max(8000, Float(format.mSampleRate))
+        channels = max(1, Int(format.mChannelsPerFrame))
+        isFloatPCM = (format.mFormatFlags & kAudioFormatFlagIsFloat) != 0 && format.mBitsPerChannel == 32
+        isNonInterleaved = (format.mFormatFlags & kAudioFormatFlagIsNonInterleaved) != 0
+        rebuildFilters(for: AudioRealtimeDSPState.shared.snapshot().eqPreset)
+        singBassL = BiquadEQFilter.lowPass(cutoffHz: 160, sampleRate: sampleRate)
+        singBassR = BiquadEQFilter.lowPass(cutoffHz: 160, sampleRate: sampleRate)
+    }
+
+    private func rebuildFilters(for preset: AudioEQPreset) {
+        configuredPreset = preset
+        let bands = preset.bandGainsDB
+        lowL = BiquadEQFilter(centerHz: 95, sampleRate: sampleRate, q: 0.8, gainDB: Float(bands.low))
+        midL = BiquadEQFilter(centerHz: 1100, sampleRate: sampleRate, q: 0.9, gainDB: Float(bands.mid))
+        highL = BiquadEQFilter(centerHz: 7500, sampleRate: sampleRate, q: 0.8, gainDB: Float(bands.high))
+        lowR = BiquadEQFilter(centerHz: 95, sampleRate: sampleRate, q: 0.8, gainDB: Float(bands.low))
+        midR = BiquadEQFilter(centerHz: 1100, sampleRate: sampleRate, q: 0.9, gainDB: Float(bands.mid))
+        highR = BiquadEQFilter(centerHz: 7500, sampleRate: sampleRate, q: 0.8, gainDB: Float(bands.high))
+    }
+
+    func process(bufferList: UnsafeMutablePointer<AudioBufferList>, frameCount: Int) {
+        guard isFloatPCM, frameCount > 0 else { return }
+        let snap = AudioRealtimeDSPState.shared.snapshot()
+        guard snap.eqPreset != .off || snap.singEnabled else { return }
+        if snap.eqPreset != configuredPreset { rebuildFilters(for: snap.eqPreset) }
+        let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
+
+        if isNonInterleaved && buffers.count >= 2,
+           let ptrL = buffers[0].mData?.assumingMemoryBound(to: Float.self),
+           let ptrR = buffers[1].mData?.assumingMemoryBound(to: Float.self) {
+            for i in 0..<frameCount {
+                var l = ptrL[i]
+                var r = ptrR[i]
+                if snap.singEnabled {
+                    let bassL = singBassL.process(l)
+                    let bassR = singBassR.process(r)
+                    let hiL = l - bassL
+                    let hiR = r - bassR
+                    let mid = 0.5 * (hiL + hiR)
+                    let side = 0.5 * (hiL - hiR)
+                    l = bassL + side + snap.singVocalLevel * mid
+                    r = bassR - side + snap.singVocalLevel * mid
+                }
+                if snap.eqPreset != .off {
+                    l = highL.process(midL.process(lowL.process(l)))
+                    r = highR.process(midR.process(lowR.process(r)))
+                }
+                ptrL[i] = min(0.99, max(-0.99, l))
+                ptrR[i] = min(0.99, max(-0.99, r))
+            }
+        } else if !isNonInterleaved, let ptr = buffers.first?.mData?.assumingMemoryBound(to: Float.self) {
+            if channels >= 2 {
+                for i in 0..<frameCount {
+                    let base = i * channels
+                    var l = ptr[base]
+                    var r = ptr[base + 1]
+                    if snap.singEnabled {
+                        let bassL = singBassL.process(l)
+                        let bassR = singBassR.process(r)
+                        let hiL = l - bassL
+                        let hiR = r - bassR
+                        let mid = 0.5 * (hiL + hiR)
+                        let side = 0.5 * (hiL - hiR)
+                        l = bassL + side + snap.singVocalLevel * mid
+                        r = bassR - side + snap.singVocalLevel * mid
+                    }
+                    if snap.eqPreset != .off {
+                        l = highL.process(midL.process(lowL.process(l)))
+                        r = highR.process(midR.process(lowR.process(r)))
+                    }
+                    ptr[base] = min(0.99, max(-0.99, l))
+                    ptr[base + 1] = min(0.99, max(-0.99, r))
+                }
+            } else if snap.eqPreset != .off {
+                for i in 0..<frameCount {
+                    let s = highL.process(midL.process(lowL.process(ptr[i])))
+                    ptr[i] = min(0.99, max(-0.99, s))
+                }
+            }
+        }
+    }
+}
+
+enum AudioTapEngine {
+    @MainActor static func attachIfPossible(to item: AVPlayerItem) async {
+        guard item.audioMix == nil else { return }
+        guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first else { return }
+        let context = AudioTapContext()
+        var callbacks = MTAudioProcessingTapCallbacks(
+            version: kMTAudioProcessingTapCallbacksVersion_0,
+            clientInfo: Unmanaged.passRetained(context).toOpaque(),
+            init: { _, clientInfo, tapStorageOut in
+                tapStorageOut.pointee = clientInfo
+            },
+            finalize: { tap in
+                let storage = MTAudioProcessingTapGetStorage(tap)
+                Unmanaged<AudioTapContext>.fromOpaque(storage).release()
+            },
+            prepare: { tap, _, processingFormat in
+                let ctx = Unmanaged<AudioTapContext>.fromOpaque(MTAudioProcessingTapGetStorage(tap)).takeUnretainedValue()
+                ctx.prepare(format: processingFormat.pointee)
+            },
+            unprepare: { _ in },
+            process: { tap, numberFrames, _, bufferListInOut, numberFramesOut, flagsOut in
+                guard MTAudioProcessingTapGetSourceAudio(tap, numberFrames, bufferListInOut, flagsOut, nil, numberFramesOut) == noErr else {
+                    return
+                }
+                let frames = Int(numberFramesOut.pointee)
+                guard frames > 0 else { return }
+                let ctx = Unmanaged<AudioTapContext>.fromOpaque(MTAudioProcessingTapGetStorage(tap)).takeUnretainedValue()
+                ctx.process(bufferList: bufferListInOut, frameCount: frames)
+            }
+        )
+        var tap: MTAudioProcessingTap?
+        let status = MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &tap)
+        guard status == noErr, let tap else {
+            Unmanaged<AudioTapContext>.fromOpaque(callbacks.clientInfo!).release()
+            return
+        }
+        let params = AVMutableAudioMixInputParameters(track: track)
+        params.audioTapProcessor = tap
+        let mix = AVMutableAudioMix()
+        mix.inputParameters = [params]
+        if item.audioMix == nil { item.audioMix = mix }
     }
 }
 
@@ -170,6 +361,13 @@ enum AudioLevelProcessor {
     @Published var activeStationTitle: String? = nil
     @Published var isLiveStream = false
     @Published var requestedNavigation: AppNavigationTarget? = nil
+    @Published var singModeEnabled = false {
+        didSet { AudioRealtimeDSPState.shared.update(singEnabled: singModeEnabled) }
+    }
+    @Published var singVocalLevel: Double = 0.22 {
+        didSet { AudioRealtimeDSPState.shared.update(singVocalLevel: Float(singVocalLevel)) }
+    }
+    @Published var sleepRemainingSeconds: Int? = nil
     weak var library: LibraryStore?
     let engine = AVQueuePlayer()
     private let tailPlayer = AVPlayer()
@@ -257,7 +455,24 @@ enum AudioLevelProcessor {
                 }
                 let liveDuration = self.isLiveStream ? 0 : Self.playbackDuration(liveItem)
                 if !self.isLiveStream, liveDuration > 0, abs(self.duration - liveDuration) > 0.1 { self.duration = liveDuration }
-                if let until = self.sleepUntil, until <= .now { self.engine.pause(); self.sleepUntil = nil }
+                if let until = self.sleepUntil {
+                    let rem = until.timeIntervalSinceNow
+                    if rem <= 0 {
+                        self.engine.pause()
+                        self.sleepUntil = nil
+                        self.sleepRemainingSeconds = nil
+                        self.applyAudioSettings()
+                    } else {
+                        let secs = Int(ceil(rem))
+                        if self.sleepRemainingSeconds != secs { self.sleepRemainingSeconds = secs }
+                        if rem <= 5.0 && self.crossfadeTask == nil {
+                            let base = self.currentTargetVolume(for: self.current, bitrate: self.bitrate)
+                            self.engine.volume = base * Float(max(0.05, rem / 5.0))
+                        }
+                    }
+                } else if self.sleepRemainingSeconds != nil {
+                    self.sleepRemainingSeconds = nil
+                }
                 if !self.isLiveStream,
                    self.isPlaying,
                    self.repeatMode != .one,
@@ -340,14 +555,20 @@ enum AudioLevelProcessor {
         var playbackTrack = track
         if let url = library?.localURL(track.id), source == "auto" {
             let expected = track.duration > 0 ? track.duration : library?.saved.first(where: { $0.id == track.id })?.track?.duration ?? 0
-            guard expected > 0 else {
-                throw APIError.server(L("Bu indirmenin parça bilgisi eski. Şarkıyı silip yeniden indir."))
-            }
             let local = AVURLAsset(url: url)
             let actual = try await local.load(.duration).seconds
             try Task.checkCancellation()
-            guard NativeCatalog.durationCompatible(expected: expected, actual: actual) else {
-                throw APIError.server(L("İndirilen dosya bu şarkıyla eşleşmiyor. Şarkıyı silip yeniden indir."))
+            if track.id.hasPrefix("local:") {
+                guard actual.isFinite, actual > 0 else {
+                    throw APIError.server(L("Bu ses dosyası okunamıyor."))
+                }
+            } else {
+                guard expected > 0 else {
+                    throw APIError.server(L("Bu indirmenin parça bilgisi eski. Şarkıyı silip yeniden indir."))
+                }
+                guard NativeCatalog.durationCompatible(expected: expected, actual: actual) else {
+                    throw APIError.server(L("İndirilen dosya bu şarkıyla eşleşmiyor. Şarkıyı silip yeniden indir."))
+                }
             }
             playbackTrack.duration = actual
             mediaURL = url
@@ -502,6 +723,9 @@ enum AudioLevelProcessor {
         provider = isLiveStream ? "live" : (stream?.provider ?? "offline"); bitrate = stream?.bitrate ?? 0
         if crossfadeTask == nil {
             engine.volume = currentTargetVolume(for: track, bitrate: bitrate)
+        }
+        if !isLiveStream {
+            Task { await AudioTapEngine.attachIfPossible(to: item) }
         }
         itemStatusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] observed, _ in
             Task { @MainActor in
@@ -679,6 +903,8 @@ enum AudioLevelProcessor {
         position = target; updateNowPlaying()
     }
     func applyAudioSettings() {
+        let preset = AudioEQPreset(rawValue: UserDefaults.standard.string(forKey: "eqPreset") ?? "off") ?? .off
+        AudioRealtimeDSPState.shared.update(eqPreset: preset)
         guard crossfadeTask == nil else { return }
         engine.volume = currentTargetVolume(for: current, bitrate: bitrate)
     }
@@ -1004,8 +1230,14 @@ enum AudioLevelProcessor {
             }
         }
     }
-    func setSleep(minutes: Int?) { sleepAtEnd = false; sleepEndItem = nil; sleepUntil = minutes.map { Date().addingTimeInterval(Double($0 * 60)) } }
-    func setSleepAtEnd() { sleepUntil = nil; sleepEndItem = engine.currentItem; sleepAtEnd = sleepEndItem != nil }
+    func setSleep(minutes: Int?) {
+        sleepAtEnd = false
+        sleepEndItem = nil
+        sleepUntil = minutes.map { Date().addingTimeInterval(Double($0 * 60)) }
+        sleepRemainingSeconds = minutes.map { $0 * 60 }
+        if minutes == nil { applyAudioSettings() }
+    }
+    func setSleepAtEnd() { sleepUntil = nil; sleepRemainingSeconds = nil; sleepEndItem = engine.currentItem; sleepAtEnd = sleepEndItem != nil; applyAudioSettings() }
     private func updateNowPlaying() {
         guard let track = current else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil

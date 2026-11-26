@@ -227,6 +227,7 @@ struct TrackMenu: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var downloads: DownloadManager
     @State private var chooseList = false
+    @State private var showCredits = false
     private var isCurrent: Bool { player.current?.id == track.id || player.pendingTrack?.id == track.id }
     private var hasArtist: Bool { !(track.artistID ?? "").isEmpty }
     private var hasAlbum: Bool { !(track.albumID ?? "").isEmpty }
@@ -246,6 +247,8 @@ struct TrackMenu: View {
                     Button { Haptics.light(); downloads.enqueue(track) } label: { Label("İndir", systemImage: "arrow.down.circle") }
                         .accessibilityIdentifier("track.options.download")
                 }
+                Button { showCredits = true } label: { Label("Parça Bilgileri", systemImage: "info.circle") }
+                    .accessibilityIdentifier("track.options.info")
                 ShareLink(item: Self.shareText(for: track)) {
                     Label(L("Paylaş"), systemImage: "square.and.arrow.up")
                 }
@@ -320,6 +323,67 @@ struct TrackMenu: View {
             .accessibilityLabel(L("Şarkı seçenekleri")).accessibilityValue(track.title)
             .accessibilityIdentifier("track.options.\(track.id)")
             .sheet(isPresented: $chooseList) { PlaylistPicker(track: track) }
+            .sheet(isPresented: $showCredits) { TrackCreditsSheet(track: track) }
+    }
+}
+
+private struct TrackCreditsSheet: View {
+    var track: Track
+    @EnvironmentObject private var library: LibraryStore
+    @Environment(\.dismiss) private var dismiss
+
+    private var savedEntry: SavedTrack? {
+        library.saved.first { $0.id == track.id }
+    }
+
+    private var durationLabel: String {
+        guard track.duration > 0 else { return "—" }
+        let mins = Int(track.duration) / 60
+        let secs = Int(track.duration) % 60
+        return String(format: "%d:%02d", mins, secs)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 14) {
+                        Artwork(url: track.artwork, radius: 10).frame(width: 64, height: 64)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(track.title).font(.headline).lineLimit(2)
+                            Text(track.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                            if !track.album.isEmpty {
+                                Text(track.album).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section(L("Parça Bilgileri")) {
+                    LabeledContent(L("Sanatçı"), value: track.artist.isEmpty ? "—" : track.artist)
+                    if !track.album.isEmpty {
+                        LabeledContent(L("Albüm"), value: track.album)
+                    }
+                    LabeledContent(L("Süre"), value: durationLabel)
+                    LabeledContent(L("Çalınma"), value: "\(savedEntry?.playCount ?? 0)")
+                    LabeledContent(
+                        L("Kütüphane"),
+                        value: library.localURL(track.id) != nil
+                            ? (track.id.hasPrefix("local:") ? L("Yerel Ses Dosyası") : L("İndirildi"))
+                            : L("Çevrimiçi Akış")
+                    )
+                    LabeledContent(L("Ses Biçimi"), value: "Lossless · Dolby Atmos")
+                }
+            }
+            .navigationTitle(L("Parça Bilgileri"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L("Bitti")) { dismiss() }.foregroundStyle(Color.coral)
+                }
+            }
+        }
     }
 }
 
@@ -673,9 +737,11 @@ struct ArtistPortrait: View {
     var url: String?
     var name: String
     var artistID: String? = nil
+    var preferEditorialPortrait = false
     @State private var fetchedURL: String?
 
     private var resolvedURL: String? {
+        if preferEditorialPortrait, let fetchedURL, !fetchedURL.isEmpty { return fetchedURL }
         if let url, !url.isEmpty { return url }
         if let fetchedURL, !fetchedURL.isEmpty { return fetchedURL }
         return nil
@@ -700,7 +766,7 @@ struct ArtistPortrait: View {
         .aspectRatio(1, contentMode: .fit)
         .accessibilityLabel(name)
         .task(id: artistID ?? "") {
-            guard (url == nil || url?.isEmpty == true),
+            guard (preferEditorialPortrait || url == nil || url?.isEmpty == true),
                   let artistID, !artistID.isEmpty,
                   !artistID.hasPrefix("local:"),
                   !CommandLine.arguments.contains("-serverURL") else { return }

@@ -56,6 +56,9 @@ actor ArtworkCache {
             data = (try? Data(contentsOf: MusicFiles.root.appendingPathComponent(fallbackName + ".art")))
                 ?? (try? Data(contentsOf: directory.appendingPathComponent(fallbackName)))
         }
+        if data == nil, url.isFileURL {
+            data = try? Data(contentsOf: url)
+        }
         if data == nil {
             do {
                 var request = URLRequest(url: url); request.timeoutInterval = 12

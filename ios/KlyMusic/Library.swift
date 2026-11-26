@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import SwiftData
 import CryptoKit
 import SwiftUI
@@ -214,6 +215,65 @@ struct LibraryRecentEntry: Identifiable {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
     func markDownloaded(_ track: Track, filename: String) { record(track).downloadFile = filename; commit() }
+    func importAudioFile(from externalURL: URL) async throws -> Track {
+        let scoped = externalURL.startAccessingSecurityScopedResource()
+        defer { if scoped { externalURL.stopAccessingSecurityScopedResource() } }
+        let ext = externalURL.pathExtension.isEmpty ? "mp3" : externalURL.pathExtension.lowercased()
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "." + ext)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        try FileManager.default.copyItem(at: externalURL, to: tempURL)
+
+        let asset = AVURLAsset(url: tempURL)
+        let playable = (try? await asset.load(.isPlayable)) ?? false
+        let duration = (try? await asset.load(.duration).seconds) ?? 0
+        guard playable, duration.isFinite, duration > 0 else {
+            throw APIError.server(L("Bu ses dosyası okunamıyor."))
+        }
+
+        let metadata = (try? await asset.load(.commonMetadata)) ?? []
+        var title = externalURL.deletingPathExtension().lastPathComponent
+        var artist = L("Bilinmeyen Sanatçı")
+        var album = L("Yerel Dosyalar")
+        var artworkData: Data?
+        for item in metadata {
+            switch item.commonKey {
+            case .commonKeyTitle:
+                if let value = try? await item.load(.stringValue), !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    title = value
+                }
+            case .commonKeyArtist:
+                if let value = try? await item.load(.stringValue), !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    artist = value
+                }
+            case .commonKeyAlbumName:
+                if let value = try? await item.load(.stringValue), !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    album = value
+                }
+            case .commonKeyArtwork:
+                if artworkData == nil { artworkData = try? await item.load(.dataValue) }
+            default:
+                break
+            }
+        }
+
+        let fileSize = (try? tempURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let trackID = "local:" + MusicFiles.filename("\(externalURL.lastPathComponent)|\(Int(duration * 1000))|\(fileSize)")
+        var artworkURLString: String?
+        if let artworkData, !artworkData.isEmpty, UIImage(data: artworkData) != nil {
+            let artURL = MusicFiles.root.appendingPathComponent(MusicFiles.filename(trackID) + ".art.jpg")
+            try? artworkData.write(to: artURL, options: .atomic)
+            artworkURLString = artURL.absoluteString
+        }
+
+        let storedFilename = MusicFiles.filename(trackID) + "." + ext
+        let destination = MusicFiles.downloads.appendingPathComponent(storedFilename)
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.copyItem(at: tempURL, to: destination)
+
+        let track = Track(id: trackID, title: title, artist: artist, album: album, duration: duration, artwork: artworkURLString)
+        markDownloaded(track, filename: storedFilename)
+        return track
+    }
     func removeDownload(_ track: Track) {
         if let url = localURL(track.id) {
             do { try FileManager.default.removeItem(at: url) } catch { self.error = error.localizedDescription; return }

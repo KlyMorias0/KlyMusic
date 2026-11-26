@@ -91,9 +91,31 @@ struct MiniPlayer: View {
                 Button { player.next() } label: { Image(systemName: "forward.fill").font(.system(size: 21)).frame(width: 34, height: 44) }.buttonStyle(.plain).accessibilityLabel("Sonraki şarkı")
             }
         }.padding(.horizontal, isCompact ? 8 : 12).padding(.vertical, isCompact ? 0 : 6)
+            .overlay(alignment: .bottom) {
+                if !isCompact && !player.isLiveStream {
+                    MiniProgress()
+                        .frame(height: 2)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 1)
+                }
+            }
             .background {
                 if !inSystemAccessory { RoundedRectangle(cornerRadius: 21).fill(.regularMaterial) }
             }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 32)
+                    .onEnded { value in
+                        guard !isCompact, !player.isLiveStream,
+                              abs(value.translation.width) > abs(value.translation.height) else { return }
+                        if value.translation.width < -48 {
+                            Haptics.light()
+                            player.next()
+                        } else if value.translation.width > 48 {
+                            Haptics.light()
+                            player.previous()
+                        }
+                    }
+            )
     }
 }
 
@@ -130,38 +152,47 @@ struct NowPlayingView: View {
                             Capsule().fill(Color.primary.opacity(0.3)).frame(width: 38, height: 5)
                                 .frame(maxWidth: .infinity).frame(height: 28).contentShape(Rectangle())
                         }.accessibilityLabel("Kapat").accessibilityIdentifier("player.close")
-                        ZStack {
-                            if showLyrics {
-                                LyricsView().padding(.horizontal, 4).transition(.opacity)
-                            } else {
-                                Artwork(url: displayed?.artwork, radius: 15)
-                                    .frame(width: side, height: side)
-                                    .shadow(color: .black.opacity(player.isPlaying ? 0.34 : 0.16), radius: player.isPlaying ? 26 : 12, y: player.isPlaying ? 14 : 6)
-                                    .scaleEffect((player.isPlaying || reduceMotion || !animatedArtwork) ? 1.0 : 0.86)
-                                    .offset(x: coverDragOffset)
-                                    .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.76), value: player.isPlaying)
-                                    .gesture(
-                                        DragGesture(minimumDistance: 28)
-                                            .onChanged { value in
-                                                guard !player.isLiveStream, abs(value.translation.width) > abs(value.translation.height) else { return }
-                                                coverDragOffset = max(-60, min(60, value.translation.width * 0.45))
-                                            }
-                                            .onEnded { value in
-                                                withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.78)) { coverDragOffset = 0 }
-                                                guard !player.isLiveStream, abs(value.translation.width) > abs(value.translation.height) else { return }
-                                                if value.translation.width < -55 { Haptics.light(); player.next() }
-                                                else if value.translation.width > 55 { Haptics.light(); player.previous() }
-                                            }
-                                    )
-                                    .accessibilityIdentifier("player.cover").transition(.opacity)
-                            }
-                        }.frame(height: side).frame(maxWidth: .infinity)
-                            .padding(.top, 10).padding(.bottom, 25)
-                        appleMetadata.padding(.bottom, 15)
-                        ApplePlaybackTimeline().padding(.bottom, 12)
-                        appleTransport.padding(.bottom, 18)
-                        AppleVolumeBar().padding(.bottom, 12)
-                        Spacer(minLength: 8)
+                        if showQueue {
+                            InlineQueuePanel(showQueue: $showQueue)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: side + 208)
+                                .padding(.top, 8)
+                                .padding(.bottom, 12)
+                                .transition(.opacity)
+                        } else {
+                            ZStack {
+                                if showLyrics {
+                                    LyricsView().padding(.horizontal, 4).transition(.opacity)
+                                } else {
+                                    Artwork(url: displayed?.artwork, radius: 15)
+                                        .frame(width: side, height: side)
+                                        .shadow(color: .black.opacity(player.isPlaying ? 0.34 : 0.16), radius: player.isPlaying ? 26 : 12, y: player.isPlaying ? 14 : 6)
+                                        .scaleEffect((player.isPlaying || reduceMotion || !animatedArtwork) ? 1.0 : 0.86)
+                                        .offset(x: coverDragOffset)
+                                        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.76), value: player.isPlaying)
+                                        .gesture(
+                                            DragGesture(minimumDistance: 28)
+                                                .onChanged { value in
+                                                    guard !player.isLiveStream, abs(value.translation.width) > abs(value.translation.height) else { return }
+                                                    coverDragOffset = max(-60, min(60, value.translation.width * 0.45))
+                                                }
+                                                .onEnded { value in
+                                                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.78)) { coverDragOffset = 0 }
+                                                    guard !player.isLiveStream, abs(value.translation.width) > abs(value.translation.height) else { return }
+                                                    if value.translation.width < -55 { Haptics.light(); player.next() }
+                                                    else if value.translation.width > 55 { Haptics.light(); player.previous() }
+                                                }
+                                        )
+                                        .accessibilityIdentifier("player.cover").transition(.opacity)
+                                }
+                            }.frame(height: side).frame(maxWidth: .infinity)
+                                .padding(.top, 10).padding(.bottom, 25)
+                            appleMetadata.padding(.bottom, 15)
+                            ApplePlaybackTimeline().padding(.bottom, 12)
+                            appleTransport.padding(.bottom, 18)
+                            AppleVolumeBar().padding(.bottom, 12)
+                            Spacer(minLength: 8)
+                        }
                         appleTools.padding(.bottom, 14)
                     }
                     .padding(.horizontal, 28).frame(maxWidth: 560)
@@ -170,7 +201,6 @@ struct NowPlayingView: View {
             }
         }
         .buttonStyle(.plain).presentationBackground(Color.canvas)
-        .sheet(isPresented: $showQueue) { QueueView() }
     }
 
     private var appleMetadata: some View {
@@ -270,7 +300,10 @@ struct NowPlayingView: View {
         HStack(spacing: 0) {
             Button {
                 Haptics.selection()
-                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)) { showLyrics.toggle() }
+                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)) {
+                    showQueue = false
+                    showLyrics.toggle()
+                }
                 if showLyrics { player.loadLyrics() }
             } label: {
                 Image(systemName: showLyrics ? "quote.bubble.fill" : "quote.bubble")
@@ -288,13 +321,24 @@ struct NowPlayingView: View {
                 .frame(width: 46, height: 46)
                 .frame(maxWidth: .infinity)
                 .accessibilityLabel("AirPlay")
-            Button { Haptics.selection(); showQueue = true } label: {
+            Button {
+                Haptics.selection()
+                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)) {
+                    showLyrics = false
+                    showQueue.toggle()
+                }
+            } label: {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(Color.playerSecondary)
+                    .foregroundStyle(showQueue ? Color.playerPrimary : Color.playerSecondary)
+                    .frame(width: 38, height: 34)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.playerPrimary.opacity(showQueue ? 0.14 : 0))
+                    )
                     .frame(maxWidth: .infinity, minHeight: 46)
                     .contentShape(Rectangle())
-            }.accessibilityLabel("Çalma sırası").accessibilityIdentifier("player.queue")
+            }.accessibilityLabel("Çalma sırası").accessibilityIdentifier("player.queue").accessibilityValue(showQueue ? "visible" : "hidden")
         }
     }
 
@@ -573,6 +617,42 @@ struct LyricsView: View {
                             guard following, !voiceOver, id >= 0 else { return }
                             scroll(to: id, proxy: proxy)
                         }
+                        if !player.isLiveStream {
+                            HStack(spacing: 8) {
+                                Button {
+                                    Haptics.selection()
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        player.singModeEnabled.toggle()
+                                    }
+                                } label: {
+                                    Image(systemName: player.singModeEnabled ? "music.mic.circle.fill" : "music.mic")
+                                        .font(.system(size: 17, weight: .semibold))
+                                        .foregroundStyle(player.singModeEnabled ? .white : Color.playerPrimary)
+                                        .frame(width: 34, height: 34)
+                                        .background(
+                                            Circle().fill(player.singModeEnabled ? Color.coral : Color.playerPrimary.opacity(0.14))
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(L("Sing Vokal Ayarı"))
+                                .accessibilityIdentifier("lyrics.singToggle")
+                                .accessibilityValue(player.singModeEnabled ? "on" : "off")
+
+                                if player.singModeEnabled {
+                                    Slider(value: $player.singVocalLevel, in: 0...1)
+                                        .tint(Color.coral)
+                                        .frame(width: 108)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.black.opacity(0.32), in: Capsule())
+                                        .accessibilityLabel(L("Vokal Düzeyi"))
+                                        .accessibilityIdentifier("lyrics.singSlider")
+                                }
+                                Spacer(minLength: 8)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.bottom, 6)
+                        }
                         if !following {
                             Button {
                                 following = true
@@ -804,12 +884,36 @@ private struct AnimatedLyricLine: View {
 }
 
 struct QueueView: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        ZStack {
+            AlbumBackdrop(artwork: nil, isPlaying: false)
+            InlineQueuePanel(showQueue: nil, onDismiss: { dismiss() })
+                .padding(.top, 12)
+        }
+        .presentationBackground(Color.canvas)
+        .presentationDragIndicator(.visible)
+    }
+}
+
+struct InlineQueuePanel: View {
+    var showQueue: Binding<Bool>?
+    var onDismiss: (() -> Void)? = nil
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var library: LibraryStore
-    @Environment(\.dismiss) private var dismiss
     @AppStorage("infiniteAutoplay") private var infiniteAutoplay = true
     @State private var showHistory = false
     @State private var confirmClear = false
+
+    private var sleepBadgeText: String? {
+        if let rem = player.sleepRemainingSeconds, rem > 0 {
+            return String(format: "%d:%02d", rem / 60, rem % 60)
+        }
+        if player.sleepAtEnd {
+            return L("Şarkı bitince")
+        }
+        return nil
+    }
 
     var body: some View {
         let currentTrack = player.pendingTrack ?? player.current
@@ -818,208 +922,262 @@ struct QueueView: View {
             if !player.historyTracks.isEmpty { return Array(player.historyTracks.reversed()) }
             return Array(library.recent.filter { $0.id != currentTrack?.id }.prefix(10))
         }()
-        NavigationStack {
-            ZStack {
-                AlbumBackdrop(artwork: currentTrack?.artwork, isPlaying: player.isPlaying)
-                List {
-                    if showHistory {
-                        Section {
-                            if history.isEmpty {
-                                Text(L("Henüz çalınan şarkı yok"))
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.vertical, 8)
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Text(L("Çalma sırası"))
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(Color.playerPrimary)
+                if let sleepBadgeText {
+                    HStack(spacing: 4) {
+                        Image(systemName: "moon.fill").font(.system(size: 10))
+                        Text(sleepBadgeText).font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                    }
+                    .foregroundStyle(Color.coral)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.coral.opacity(0.14), in: Capsule())
+                    .accessibilityIdentifier("queue.sleepBadge")
+                }
+                Spacer(minLength: 0)
+                Menu {
+                    Menu {
+                        Button {
+                            player.setSleep(minutes: nil)
+                        } label: {
+                            if player.sleepUntil == nil && !player.sleepAtEnd {
+                                Label(L("Kapalı"), systemImage: "checkmark")
                             } else {
-                                ForEach(history) { track in
-                                    Button {
-                                        Haptics.selection()
-                                        if player.historyTracks.contains(where: { $0.id == track.id }) {
-                                            player.playFromHistory(id: track.id)
-                                        } else {
-                                            player.play(track)
-                                        }
-                                    } label: {
-                                        HStack(spacing: 13) {
-                                            queueArtwork(track)
-                                            queueMetadata(track)
-                                        }.padding(.vertical, 6).contentShape(Rectangle())
-                                    }.buttonStyle(TrackRowButtonStyle())
-                                        .accessibilityIdentifier("queue.history.\(track.id)")
-                                }
+                                Text(L("Kapalı"))
                             }
-                        } header: {
-                            Text(L("Geçmiş")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.playerSecondary).textCase(nil)
                         }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                    }
-                    if let current = currentTrack {
-                        Section {
-                            HStack(spacing: 13) {
-                                queueArtwork(current)
-                                queueMetadata(current)
-                                Spacer(minLength: 8)
-                                if player.pendingTrack != nil {
-                                    ProgressView().controlSize(.small)
-                                } else if player.isPlaying {
-                                    NowPlayingBars(isPlaying: true, color: .coral, size: 15)
+                        Button {
+                            player.setSleepAtEnd()
+                        } label: {
+                            if player.sleepAtEnd {
+                                Label(L("Şarkı bitince"), systemImage: "checkmark")
+                            } else {
+                                Text(L("Şarkı bitince"))
+                            }
+                        }
+                        ForEach([15, 30, 60], id: \.self) { minutes in
+                            let label = String(format: L("%lld dakika"), Int64(minutes))
+                            Button {
+                                player.setSleep(minutes: minutes)
+                            } label: {
+                                if let rem = player.sleepRemainingSeconds,
+                                   rem <= minutes * 60,
+                                   rem > (minutes == 15 ? 0 : (minutes == 30 ? 15 * 60 : 30 * 60)) {
+                                    Label(label, systemImage: "checkmark")
                                 } else {
-                                    Image(systemName: "pause.fill")
-                                        .font(.system(size: 16)).foregroundStyle(.secondary)
+                                    Text(label)
                                 }
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(.white.opacity(0.08), lineWidth: 0.5)
-                            )
-                            .padding(.vertical, 2)
-                            .accessibilityIdentifier("queue.current")
-                        } header: {
-                            Text("Şimdi çalıyor").font(.subheadline.weight(.semibold)).foregroundStyle(Color.playerSecondary).textCase(nil)
                         }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                    } label: { Label(L("Uyku zamanlayıcısı"), systemImage: "moon") }
+                    if !upcoming.isEmpty {
+                        Section {
+                            Button(role: .destructive) { confirmClear = true } label: { Label(L("Sırayı temizle"), systemImage: "trash") }
+                                .accessibilityIdentifier("queue.clear")
+                        }
                     }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.playerPrimary)
+                        .frame(width: 34, height: 34)
+                        .background(Color.playerPrimary.opacity(0.12), in: Circle())
+                        .contentShape(Circle())
+                }
+                .accessibilityLabel(L("Sıra seçenekleri")).accessibilityIdentifier("queue.options")
+
+                if onDismiss != nil || showQueue != nil {
+                    Button {
+                        Haptics.selection()
+                        if let onDismiss { onDismiss() }
+                        else { showQueue?.wrappedValue = false }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.playerPrimary)
+                            .frame(width: 34, height: 34)
+                            .background(Color.playerPrimary.opacity(0.12), in: Circle())
+                    }
+                    .accessibilityLabel(L("Kapat"))
+                }
+            }
+            .padding(.horizontal, 4)
+
+            List {
+                if showHistory {
                     Section {
-                        if upcoming.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(L("Sıra boş")).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
-                                Text(L("Şarkı menüsünden sıraya ekleyebilirsin.")).font(.footnote).foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 16)
-                            .accessibilityIdentifier("queue.empty")
+                        if history.isEmpty {
+                            Text(L("Henüz çalınan şarkı yok"))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 8)
                         } else {
-                            ForEach(upcoming) { track in
-                                VStack(spacing: 0) {
-                                    Button { player.playUpcoming(id: track.id) } label: {
-                                        HStack(spacing: 13) {
-                                            queueArtwork(track)
-                                            queueMetadata(track)
-                                        }.padding(.vertical, 8).contentShape(Rectangle())
-                                    }.buttonStyle(TrackRowButtonStyle())
-                                        .accessibilityLabel("\(track.title), \(track.artist)")
-                                        .accessibilityHint(L("Çal")).accessibilityIdentifier("queue.track.\(track.id)")
-                                        .contextMenu {
-                                            Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
-                                            Button(role: .destructive) { player.removeUpcoming(id: track.id) } label: { Label("Sıradan kaldır", systemImage: "minus.circle") }
-                                        }
-                                    Divider().overlay(Color.primary.opacity(0.08)).padding(.leading, 61)
-                                }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        Haptics.light()
-                                        player.removeUpcoming(id: track.id)
-                                    } label: {
-                                        Label(L("Sıradan kaldır"), systemImage: "minus.circle")
+                            ForEach(history) { track in
+                                Button {
+                                    Haptics.selection()
+                                    if player.historyTracks.contains(where: { $0.id == track.id }) {
+                                        player.playFromHistory(id: track.id)
+                                    } else {
+                                        player.play(track)
                                     }
-                                }
-                            }.onMove { offsets, destination in
-                                player.moveUpcoming(from: offsets, to: destination, snapshot: upcoming)
+                                } label: {
+                                    HStack(spacing: 13) {
+                                        queueArtwork(track)
+                                        queueMetadata(track)
+                                    }.padding(.vertical, 6).contentShape(Rectangle())
+                                }.buttonStyle(TrackRowButtonStyle())
+                                    .accessibilityIdentifier("queue.history.\(track.id)")
                             }
                         }
                     } header: {
-                        HStack(spacing: 6) {
-                            Text(L("Sıradaki")).font(.headline).foregroundStyle(.primary)
-                            if !upcoming.isEmpty { Text("\(upcoming.count)").font(.subheadline).foregroundStyle(.secondary) }
-                            Spacer(minLength: 0)
-                            Button {
-                                Haptics.selection()
-                                withAnimation(.easeInOut(duration: 0.2)) { showHistory.toggle() }
-                            } label: {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(showHistory ? Color.white : Color.playerSecondary)
-                                    .frame(width: 34, height: 30)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                            .fill(showHistory ? Color.coral : Color.primary.opacity(0.08))
-                                    )
-                                    .frame(width: 36, height: 38)
-                                    .contentShape(Rectangle())
-                            }.accessibilityLabel(L("Geçmiş")).accessibilityIdentifier("queue.historyToggle")
-                            Button { Haptics.selection(); player.toggleShuffle() } label: {
-                                Image(systemName: "shuffle")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(player.shuffle ? Color.white : Color.playerSecondary)
-                                    .frame(width: 34, height: 30)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                            .fill(player.shuffle ? Color.coral : Color.primary.opacity(0.08))
-                                    )
-                                    .frame(width: 36, height: 38)
-                                    .contentShape(Rectangle())
-                            }.accessibilityLabel(L("Karıştır")).accessibilityValue(player.shuffle ? L("Açık") : L("Kapalı"))
-                            Button { Haptics.selection(); player.cycleRepeat() } label: {
-                                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(player.repeatMode == .off ? Color.playerSecondary : Color.white)
-                                    .frame(width: 34, height: 30)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                            .fill(player.repeatMode == .off ? Color.primary.opacity(0.08) : Color.coral)
-                                    )
-                                    .frame(width: 36, height: 38)
-                                    .contentShape(Rectangle())
-                            }.accessibilityLabel(L("Tekrarlama")).accessibilityValue(player.repeatMode == .off ? L("Kapalı") : (player.repeatMode == .one ? L("Bir Şarkı") : L("Tümü")))
-                            Button {
-                                Haptics.selection()
-                                infiniteAutoplay.toggle()
-                                if infiniteAutoplay { player.prepareNext() }
-                            } label: {
-                                Image(systemName: "infinity")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(infiniteAutoplay ? Color.white : Color.playerSecondary)
-                                    .frame(width: 34, height: 30)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                            .fill(infiniteAutoplay ? Color.coral : Color.primary.opacity(0.08))
-                                    )
-                                    .frame(width: 36, height: 38)
-                                    .contentShape(Rectangle())
-                            }.accessibilityLabel(L("Otomatik Çal")).accessibilityIdentifier("queue.autoplayToggle")
-                        }.textCase(nil)
+                        Text(L("Geçmiş")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.playerSecondary).textCase(nil)
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 18))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
                 }
-                .listStyle(.plain).listSectionSpacing(18).scrollContentBackground(.hidden)
-                .environment(\.editMode, .constant(.active))
-            }
-            .navigationTitle(L("Çalma sırası")).navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }
-                        .accessibilityLabel(L("Kapat"))
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Menu {
-                            Button(L("Kapalı")) { player.setSleep(minutes: nil) }
-                            Button(L("Şarkı bitince")) { player.setSleepAtEnd() }
-                            ForEach([15, 30, 60], id: \.self) { minutes in
-                                Button(String(format: L("%lld dakika"), Int64(minutes))) { player.setSleep(minutes: minutes) }
-                            }
-                        } label: { Label(L("Uyku zamanlayıcısı"), systemImage: "moon") }
-                        if !upcoming.isEmpty {
-                            Section {
-                                Button(role: .destructive) { confirmClear = true } label: { Label(L("Sırayı temizle"), systemImage: "trash") }
-                                    .accessibilityIdentifier("queue.clear")
+                if let current = currentTrack {
+                    Section {
+                        HStack(spacing: 13) {
+                            queueArtwork(current)
+                            queueMetadata(current)
+                            Spacer(minLength: 8)
+                            if player.pendingTrack != nil {
+                                ProgressView().controlSize(.small)
+                            } else if player.isPlaying {
+                                NowPlayingBars(isPlaying: true, color: .coral, size: 15)
+                            } else {
+                                Image(systemName: "pause.fill")
+                                    .font(.system(size: 16)).foregroundStyle(.secondary)
                             }
                         }
-                    } label: { Image(systemName: "ellipsis") }
-                        .accessibilityLabel(L("Sıra seçenekleri")).accessibilityIdentifier("queue.options")
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(.white.opacity(0.08), lineWidth: 0.5)
+                        )
+                        .padding(.vertical, 2)
+                        .accessibilityIdentifier("queue.current")
+                    } header: {
+                        Text("Şimdi çalıyor").font(.subheadline.weight(.semibold)).foregroundStyle(Color.playerSecondary).textCase(nil)
+                    }
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
                 }
-            }.tint(.primary)
-            .confirmationDialog(L("Sıradaki şarkılar kaldırılsın mı?"), isPresented: $confirmClear, titleVisibility: .visible) {
-                Button(L("Sırayı temizle"), role: .destructive) { player.clearUpcoming() }
-                Button(L("Vazgeç"), role: .cancel) { }
-            } message: { Text(L("Çalan şarkı devam eder.")) }
+                Section {
+                    if upcoming.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(L("Sıra boş")).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                            Text(L("Şarkı menüsünden sıraya ekleyebilirsin.")).font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 16)
+                        .accessibilityIdentifier("queue.empty")
+                    } else {
+                        ForEach(upcoming) { track in
+                            VStack(spacing: 0) {
+                                Button { player.playUpcoming(id: track.id) } label: {
+                                    HStack(spacing: 13) {
+                                        queueArtwork(track)
+                                        queueMetadata(track)
+                                    }.padding(.vertical, 8).contentShape(Rectangle())
+                                }.buttonStyle(TrackRowButtonStyle())
+                                    .accessibilityLabel("\(track.title), \(track.artist)")
+                                    .accessibilityHint(L("Çal")).accessibilityIdentifier("queue.track.\(track.id)")
+                                    .contextMenu {
+                                        Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
+                                        Button(role: .destructive) { player.removeUpcoming(id: track.id) } label: { Label("Sıradan kaldır", systemImage: "minus.circle") }
+                                    }
+                                Divider().overlay(Color.primary.opacity(0.08)).padding(.leading, 61)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Haptics.light()
+                                    player.removeUpcoming(id: track.id)
+                                } label: {
+                                    Label(L("Sıradan kaldır"), systemImage: "minus.circle")
+                                }
+                            }
+                        }.onMove { offsets, destination in
+                            player.moveUpcoming(from: offsets, to: destination, snapshot: upcoming)
+                        }
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Text(L("Sıradaki")).font(.headline).foregroundStyle(.primary)
+                        if !upcoming.isEmpty { Text("\(upcoming.count)").font(.subheadline).foregroundStyle(.secondary) }
+                        Spacer(minLength: 0)
+                        Button {
+                            Haptics.selection()
+                            withAnimation(.easeInOut(duration: 0.2)) { showHistory.toggle() }
+                        } label: {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(showHistory ? Color.white : Color.playerSecondary)
+                                .frame(width: 34, height: 30)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .fill(showHistory ? Color.coral : Color.primary.opacity(0.08))
+                                )
+                                .frame(width: 36, height: 38)
+                                .contentShape(Rectangle())
+                        }.accessibilityLabel(L("Geçmiş")).accessibilityIdentifier("queue.historyToggle")
+                        Button { Haptics.selection(); player.toggleShuffle() } label: {
+                            Image(systemName: "shuffle")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(player.shuffle ? Color.white : Color.playerSecondary)
+                                .frame(width: 34, height: 30)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .fill(player.shuffle ? Color.coral : Color.primary.opacity(0.08))
+                                )
+                                .frame(width: 36, height: 38)
+                                .contentShape(Rectangle())
+                        }.accessibilityLabel(L("Karıştır")).accessibilityValue(player.shuffle ? L("Açık") : L("Kapalı"))
+                        Button { Haptics.selection(); player.cycleRepeat() } label: {
+                            Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(player.repeatMode == .off ? Color.playerSecondary : Color.white)
+                                .frame(width: 34, height: 30)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .fill(player.repeatMode == .off ? Color.primary.opacity(0.08) : Color.coral)
+                                )
+                                .frame(width: 36, height: 38)
+                                .contentShape(Rectangle())
+                        }.accessibilityLabel(L("Tekrarlama")).accessibilityValue(player.repeatMode == .off ? L("Kapalı") : (player.repeatMode == .one ? L("Bir Şarkı") : L("Tümü")))
+                        Button {
+                            Haptics.selection()
+                            infiniteAutoplay.toggle()
+                            if infiniteAutoplay { player.prepareNext() }
+                        } label: {
+                            Image(systemName: "infinity")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(infiniteAutoplay ? Color.white : Color.playerSecondary)
+                                .frame(width: 34, height: 30)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .fill(infiniteAutoplay ? Color.coral : Color.primary.opacity(0.08))
+                                )
+                                .frame(width: 36, height: 38)
+                                .contentShape(Rectangle())
+                        }.accessibilityLabel(L("Otomatik Çal")).accessibilityIdentifier("queue.autoplayToggle")
+                    }.textCase(nil)
+                }
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 2))
+            }
+            .listStyle(.plain).listSectionSpacing(14).scrollContentBackground(.hidden)
+            .environment(\.editMode, .constant(.active))
         }
-        .presentationBackground(Color.canvas).presentationDragIndicator(.visible)
+        .confirmationDialog(L("Sıradaki şarkılar kaldırılsın mı?"), isPresented: $confirmClear, titleVisibility: .visible) {
+            Button(L("Sırayı temizle"), role: .destructive) { player.clearUpcoming() }
+            Button(L("Vazgeç"), role: .cancel) { }
+        } message: { Text(L("Çalan şarkı devam eder.")) }
     }
 
     private func queueArtwork(_ track: Track) -> some View {

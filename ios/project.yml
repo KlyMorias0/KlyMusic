@@ -30,8 +30,8 @@ targets:
       path: KlyMusic/Info.plist
       properties:
         CFBundleDisplayName: KlyMusic
-        CFBundleShortVersionString: "2.20.0"
-        CFBundleVersion: "27"
+        CFBundleShortVersionString: "2.21.0"
+        CFBundleVersion: "28"
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         CFBundleURLTypes:

@@ -266,6 +266,45 @@ struct HomeView: View {
                     HomeArtistsShelf(artists: favoriteArtists)
                 }
 
+                if !CommandLine.arguments.contains("-serverURL"), library.saved.contains(where: { $0.playCount > 0 }) {
+                    NavigationLink {
+                        ListeningReplayView()
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "chart.bar.xaxis")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.coral, Color(red: 0.72, green: 0.14, blue: 0.42)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                )
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L("KlyMusic Replay"))
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                Text(L("En çok dinlediğin şarkılar ve sanatçılar"))
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(14)
+                        .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .padding(.horizontal, 20)
+                    }
+                    .buttonStyle(CardButtonStyle())
+                    .accessibilityIdentifier("replay.open")
+                }
+
                 if !spatialTracks.isEmpty {
                     HomeSpatialShelf(title: "Uzamsal Ses", tracks: spatialTracks)
                 }
@@ -881,7 +920,7 @@ private struct HomeArtistsShelf: View {
                             }
                         } label: {
                             VStack(spacing: 8) {
-                                ArtistPortrait(url: artist.artwork, name: artist.name)
+                                ArtistPortrait(url: artist.artwork, name: artist.name, artistID: artist.id, preferEditorialPortrait: true)
                                     .frame(width: 104, height: 104)
                                     .clipShape(Circle())
                                 Text(artist.name)
@@ -1240,6 +1279,7 @@ private struct TopChartCardModel: Identifiable {
     let region: String
     let subtitle: String
     let query: String
+    var countryCode: String? = nil
     let symbol: String
     let colors: [Color]
 }
@@ -1252,8 +1292,19 @@ private struct TopChartsShelf: View {
             region: "Türkiye",
             subtitle: "Günlük Listeler",
             query: "Türkçe Pop",
+            countryCode: "tr",
             symbol: "chart.bar.fill",
             colors: [Color(red: 0.96, green: 0.16, blue: 0.28), Color(red: 0.58, green: 0.06, blue: 0.22)]
+        ),
+        .init(
+            id: "az",
+            title: "Top 25: Azerbaycan",
+            region: "Azerbaycan",
+            subtitle: "Günlük Listeler",
+            query: "Azərbaycan",
+            countryCode: "az",
+            symbol: "sparkles",
+            colors: [Color(red: 0.06, green: 0.56, blue: 0.68), Color(red: 0.12, green: 0.18, blue: 0.42)]
         ),
         .init(
             id: "global",
@@ -1261,6 +1312,7 @@ private struct TopChartsShelf: View {
             region: "Global",
             subtitle: "Dünya Geneli",
             query: "Pop Hits",
+            countryCode: "us",
             symbol: "globe.europe.africa.fill",
             colors: [Color(red: 0.16, green: 0.42, blue: 0.94), Color(red: 0.12, green: 0.16, blue: 0.56)]
         ),
@@ -1291,7 +1343,11 @@ private struct TopChartsShelf: View {
                 LazyHStack(alignment: .top, spacing: 14) {
                     ForEach(charts) { chart in
                         NavigationLink {
-                            QueryView(query: chart.query, title: L(chart.title))
+                            if let code = chart.countryCode {
+                                CountryChartDetailView(countryCode: code, title: L(chart.title), colors: chart.colors, symbol: chart.symbol)
+                            } else {
+                                QueryView(query: chart.query, title: L(chart.title))
+                            }
                         } label: {
                             TopChartCard(chart: chart)
                         }
@@ -1303,6 +1359,126 @@ private struct TopChartsShelf: View {
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned)
+        }
+    }
+}
+
+private struct CountryChartDetailView: View {
+    var countryCode: String
+    var title: String
+    var colors: [Color]
+    var symbol: String
+    @State private var tracks: [Track] = []
+    @State private var loading = true
+    @State private var failure: String?
+    @EnvironmentObject private var player: MusicPlayer
+    @EnvironmentObject private var library: LibraryStore
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                ZStack(alignment: .bottomLeading) {
+                    LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Image(systemName: symbol)
+                        .font(.system(size: 72, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.18))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(18)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L("GÜNLÜK TOP 25"))
+                            .font(.caption.weight(.bold))
+                            .tracking(0.8)
+                            .foregroundStyle(.white.opacity(0.85))
+                        Text(title)
+                            .font(.title.bold())
+                            .foregroundStyle(.white)
+                    }
+                    .padding(18)
+                }
+                .frame(height: 156)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+
+                if !tracks.isEmpty {
+                    CollectionPlayButtons(tracks: tracks)
+                        .padding(.horizontal, 20)
+                }
+
+                if loading && tracks.isEmpty {
+                    ProgressView()
+                        .tint(Color.coral)
+                        .frame(maxWidth: .infinity)
+                        .padding(40)
+                } else if let failure, tracks.isEmpty {
+                    ErrorState(message: failure) { Task { await load() } }
+                        .padding(.horizontal, 20)
+                } else {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                            HStack(spacing: 12) {
+                                Text("\(index + 1)")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(index < 3 ? Color.coral : Color.secondary)
+                                    .frame(width: 26, alignment: .trailing)
+                                Button {
+                                    Haptics.light()
+                                    player.play(track, in: tracks)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Artwork(url: track.artwork, radius: 7)
+                                            .frame(width: 48, height: 48)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(track.title)
+                                                .font(.system(size: 15.5, weight: .medium))
+                                                .foregroundStyle(player.current?.id == track.id ? Color.coral : Color.primary)
+                                                .lineLimit(1)
+                                            HStack(spacing: 4) {
+                                                if library.localURL(track.id) != nil {
+                                                    Image(systemName: "arrow.down.circle.fill").font(.system(size: 10))
+                                                }
+                                                Text(track.artist).lineLimit(1)
+                                            }
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(.secondary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(TrackRowButtonStyle())
+                                .accessibilityIdentifier("chart.row.\(track.id)")
+                                TrackMenu(track: track)
+                            }
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 20)
+                            Divider().padding(.leading, 118).padding(.trailing, 20)
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color.pageBackground)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+    }
+
+    private func load() async {
+        loading = true
+        failure = nil
+        defer { loading = false }
+        do {
+            let result = try await API.shared.chartTracks(country: countryCode)
+            tracks = Array(result.prefix(25))
+            if tracks.isEmpty {
+                tracks = try await API.shared.search(countryCode == "az" ? "Azərbaycan" : "Top Hits").tracks
+            }
+        } catch is CancellationError {
+        } catch {
+            failure = error.localizedDescription
         }
     }
 }
@@ -2114,7 +2290,7 @@ struct SearchView: View {
                 }
             }
             .padding(.top, 8)
-            .padding(.bottom, 28)
+            .padding(.bottom, 104)
         }
         .background(Color.pageBackground)
         .navigationTitle(L("Ara"))
@@ -2656,6 +2832,7 @@ private struct AlbumCard: View {
 struct AlbumDetailView: View {
     var collection: MusicCollection
     @State private var tracks: [Track] = []
+    @State private var moreAlbums: [MusicCollection] = []
     @State private var failure: String?
     @State private var loading = true
     @EnvironmentObject private var player: MusicPlayer
@@ -2668,6 +2845,18 @@ struct AlbumDetailView: View {
             return String(date.prefix(4))
         }
         return nil
+    }
+
+    private var formattedReleaseDate: String? {
+        guard let raw = collection.releaseDate, !raw.isEmpty else { return nil }
+        let iso = ISO8601DateFormatter()
+        if let date = iso.date(from: raw) {
+            let f = DateFormatter()
+            f.dateStyle = .long
+            f.timeStyle = .none
+            return f.string(from: date)
+        }
+        return releaseYear
     }
 
     private var totalMinutes: Int64 {
@@ -2770,8 +2959,8 @@ struct AlbumDetailView: View {
                     .padding(.horizontal, 20)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        if let year = releaseYear {
-                            Text(year)
+                        if let fullDate = formattedReleaseDate {
+                            Text(fullDate)
                         }
                         Text(String(format: L("%lld şarkı, %lld dakika"), Int64(tracks.count), totalMinutes))
                     }
@@ -2780,6 +2969,41 @@ struct AlbumDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
+
+                    if !moreAlbums.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            BrowseShelfHeading(title: "Sanatçının Diğer Albümleri")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(alignment: .top, spacing: 14) {
+                                    ForEach(moreAlbums) { album in
+                                        NavigationLink {
+                                            AlbumDetailView(collection: album)
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 7) {
+                                                Artwork(url: album.artwork, radius: 10)
+                                                    .frame(width: 148, height: 148)
+                                                    .shadow(color: .black.opacity(0.16), radius: 6, y: 3)
+                                                Text(album.title)
+                                                    .font(.system(size: 13.5, weight: .semibold))
+                                                    .foregroundStyle(.primary)
+                                                    .lineLimit(1)
+                                                Text(album.releaseDate.map { String($0.prefix(4)) } ?? album.artist)
+                                                    .font(.system(size: 12))
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
+                                            }
+                                            .frame(width: 148, alignment: .leading)
+                                        }
+                                        .buttonStyle(CardButtonStyle())
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .scrollTargetLayout()
+                            }
+                            .scrollTargetBehavior(.viewAligned)
+                        }
+                        .padding(.top, 14)
+                    }
                 }
             }
             .padding(.bottom, 32)
@@ -2834,7 +3058,18 @@ struct AlbumDetailView: View {
         failure = nil
         defer { loading = false }
         do {
-            tracks = try await API.shared.album(collection.id).tracks
+            let loaded = try await API.shared.album(collection.id).tracks
+            tracks = loaded
+            if let artistID = loaded.first?.artistID, !artistID.isEmpty,
+               !CommandLine.arguments.contains("-serverURL"),
+               moreAlbums.isEmpty {
+                Task {
+                    if let profile = try? await API.shared.artist(artistID) {
+                        let filtered = profile.albums.filter { $0.id != collection.id }
+                        if !filtered.isEmpty { moreAlbums = Array(filtered.prefix(10)) }
+                    }
+                }
+            }
         } catch is CancellationError {
         } catch {
             failure = error.localizedDescription
