@@ -13,6 +13,7 @@ actor NativeCatalog {
     private var homeCache: (key: String, date: Date, response: HomeResponse)?
     private var homeTask: (key: String, token: UUID, task: Task<HomeResponse, Error>)?
     private var searches: [String: (Date, SearchResponse)] = [:]
+    private var suggestionCache: [String: (Date, [String])] = [:]
     private var youtubeSearches: [String: (Date, [Track])] = [:]
     private var details: [String: (Date, Track)] = [:]
     private let candidateRequests = MatchRequestPool()
@@ -124,20 +125,90 @@ actor NativeCatalog {
             let ids = Set(tracks.map(\.id))
             tracks.append(contentsOf: extra.filter { !ids.contains($0.id) })
         }
+        if terms.count >= 3 && (tracks.isEmpty || (tracks.map(relevance).max() ?? 0) < 0.65) {
+            let lyricTracks = await lyricMatchedTracks(query)
+            try Task.checkCancellation()
+            let ids = Set(tracks.map(\.id))
+            tracks.append(contentsOf: lyricTracks.filter { !ids.contains($0.id) })
+        }
         if tracks.isEmpty && songRows == nil { throw APIError.server(L("Katalog bağlantısı şu anda kullanılamıyor.")) }
         tracks.sort { relevance($0) > relevance($1) }
         let collections: [MusicCollection] = (albumRows ?? []).compactMap { row in
             guard let id = row["collectionId"] as? NSNumber, let title = row["collectionName"] as? String else { return nil }
             return MusicCollection(id: id.stringValue, title: title, artist: row["artistName"] as? String ?? "", artwork: Self.art(row["artworkUrl100"] as? String))
         }
-        let people: [MusicArtist] = (artistRows ?? []).compactMap { row in
+        let rawArtists: [MusicArtist] = (artistRows ?? []).compactMap { row in
             guard let id = row["artistId"] as? NSNumber, let name = row["artistName"] as? String else { return nil }
             return MusicArtist(id: id.stringValue, name: name, artwork: nil)
         }
+        let people = Self.enrichArtistArtworks(rawArtists, tracks: tracks, albums: collections)
         let result = SearchResponse(tracks: tracks, albums: collections, artists: people)
         Self.trimTimedCache(&searches, limit: 60)
         searches[key] = (.now, result)
         return result
+    }
+
+    static func enrichArtistArtworks(_ artists: [MusicArtist], tracks: [Track], albums: [MusicCollection]) -> [MusicArtist] {
+        artists.map { artist in
+            if let existing = artist.artwork, !existing.isEmpty { return artist }
+            let byID = tracks.first { $0.artistID == artist.id && !($0.artwork ?? "").isEmpty }?.artwork
+            let key = normalized(artist.name)
+            let byTrack = tracks.first { !key.isEmpty && normalized($0.artist) == key && !($0.artwork ?? "").isEmpty }?.artwork
+            let byAlbum = albums.first { !key.isEmpty && normalized($0.artist) == key && !($0.artwork ?? "").isEmpty }?.artwork
+            var updated = artist
+            updated.artwork = byID ?? byTrack ?? byAlbum
+            return updated
+        }
+    }
+
+    func searchSuggestions(_ prefix: String) async -> [String] {
+        let trimmed = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { return [] }
+        let key = ListeningLocale.current.cacheKey + "|" + trimmed.lowercased()
+        if let (date, cached) = suggestionCache[key], Date().timeIntervalSince(date) < 300 { return cached }
+        guard let rows = try? await appleSearch(trimmed, entity: "song", limit: 8), !Task.isCancelled else { return [] }
+        var seen = Set<String>()
+        var output: [String] = []
+        let needle = Self.normalized(trimmed)
+        for track in rows.compactMap(Self.appleTrack) {
+            let candidate = "\(track.title) — \(track.artist)"
+            let norm = Self.normalized(track.title + " " + track.artist)
+            if (norm.contains(needle) || output.count < 5), seen.insert(candidate.lowercased()).inserted {
+                output.append(candidate)
+            }
+            if output.count >= 5 { break }
+        }
+        if !output.isEmpty {
+            Self.trimTimedCache(&suggestionCache, limit: 40)
+            suggestionCache[key] = (.now, output)
+        }
+        return output
+    }
+
+    private func lyricMatchedTracks(_ query: String) async -> [Track] {
+        guard var parts = URLComponents(string: "https://lrclib.net/api/search") else { return [] }
+        parts.queryItems = [URLQueryItem(name: "q", value: query)]
+        guard let url = parts.url else { return [] }
+        var request = URLRequest(url: url, timeoutInterval: 4.5)
+        request.setValue("KlyMusic/2.20.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let records = try? JSONDecoder().decode([LRCLyricsRecord].self, from: data) else { return [] }
+        var seen = Set<String>()
+        var found: [Track] = []
+        for record in records {
+            guard let title = record.trackName, let artist = record.artistName,
+                  !title.isEmpty, !artist.isEmpty else { continue }
+            let pairKey = Self.normalized(title) + "|" + Self.normalized(artist)
+            guard seen.insert(pairKey).inserted else { continue }
+            if let rows = try? await appleSearch("\(artist) \(title)", limit: 3),
+               let matched = rows.compactMap(Self.appleTrack).first(where: { Self.normalized($0.title).contains(Self.normalized(title)) }) {
+                found.append(matched)
+            }
+            if found.count >= 4 { break }
+        }
+        return found
     }
 
     private struct CategoryCache: Codable { var saved: Date; var categories: [BrowseCategory] }
@@ -632,7 +703,7 @@ actor NativeCatalog {
         guard let url = parts.url, url.scheme == "https" else { throw APIError.invalidResponse }
         var request = URLRequest(url: url)
         request.timeoutInterval = address.contains("youtubei/v1/search") ? 5 : 10
-        request.setValue("KlyMusic/2.19.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.20.0 (iOS)", forHTTPHeaderField: "User-Agent")
         request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
         if let body {
@@ -654,6 +725,10 @@ actor NativeCatalog {
     static func allowedMediaURL(_ url: URL) -> Bool {
         guard url.scheme == "https", let host = url.host?.lowercased(), url.user == nil, url.password == nil, url.port == nil || url.port == 443 else { return false }
         return ["googlevideo.com", "saavncdn.com"].contains { host == $0 || host.hasSuffix("." + $0) }
+    }
+    static func allowedLiveRadioURL(_ url: URL) -> Bool {
+        guard url.scheme == "https", let host = url.host?.lowercased(), url.user == nil, url.password == nil, url.port == nil || url.port == 443 else { return false }
+        return ["listen.powerapp.com.tr", "icecast.livetv.az", "ice4.somafm.com"].contains(host)
     }
     static func normalized(_ value: String) -> String {
         value.replacingOccurrences(of: "ı", with: "i").replacingOccurrences(of: "ə", with: "e").replacingOccurrences(of: "Ə", with: "E").folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
@@ -847,7 +922,7 @@ struct LyricsResolver {
         if !query.isEmpty { components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) } }
         guard let url = components.url else { throw APIError.invalidResponse }
         var request = URLRequest(url: url, timeoutInterval: 8)
-        request.setValue("KlyMusic/2.19.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic/2.20.0 (iOS)", forHTTPHeaderField: "User-Agent")
         request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await fetch(request)

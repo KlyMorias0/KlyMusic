@@ -48,6 +48,102 @@ struct LyricsCacheEntry: Codable {
     }
 }
 
+enum AppNavigationTarget: Identifiable, Hashable {
+    case artist(id: String, name: String)
+    case album(MusicCollection)
+    case query(title: String, query: String)
+
+    var id: String {
+        switch self {
+        case .artist(let id, let name): return "artist|\(id)|\(name)"
+        case .album(let c): return "album|\(c.id)"
+        case .query(let t, let q): return "query|\(t)|\(q)"
+        }
+    }
+}
+
+enum AudioEQPreset: String, CaseIterable, Identifiable {
+    case off, acoustic, bassBooster, bassReducer, classical, dance, lateNight, pop, rnb, rock, vocalBooster
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .off: return "Kapalı"
+        case .acoustic: return "Akustik"
+        case .bassBooster: return "Bas Güçlendirici"
+        case .bassReducer: return "Bas Azaltıcı"
+        case .classical: return "Klasik"
+        case .dance: return "Dans"
+        case .lateNight: return "Gece Modu"
+        case .pop: return "Pop"
+        case .rnb: return "R&B ve Hip-Hop"
+        case .rock: return "Rock"
+        case .vocalBooster: return "Vokal Güçlendirici"
+        }
+    }
+    var gainsDB: (low: Float, mid: Float, high: Float) {
+        switch self {
+        case .off: return (0, 0, 0)
+        case .acoustic: return (2.5, 1.5, 3.0)
+        case .bassBooster: return (6.0, -0.5, 0.5)
+        case .bassReducer: return (-5.0, 0.5, 1.5)
+        case .classical: return (1.5, 1.0, 2.5)
+        case .dance: return (4.5, 0.5, 3.5)
+        case .lateNight: return (-1.0, 3.0, -2.0)
+        case .pop: return (1.5, 2.5, 2.0)
+        case .rnb: return (5.0, 0.5, 2.0)
+        case .rock: return (3.5, 1.5, 3.5)
+        case .vocalBooster: return (-2.0, 4.5, 1.5)
+        }
+    }
+    var preampGain: Float {
+        switch self {
+        case .off: return 1.0
+        case .bassBooster, .rnb, .dance: return 0.84
+        case .rock, .vocalBooster, .acoustic: return 0.88
+        case .pop, .classical: return 0.92
+        case .lateNight: return 0.86
+        case .bassReducer: return 0.96
+        }
+    }
+}
+
+struct BiquadEQFilter {
+    private let b0: Float, b1: Float, b2: Float, a1: Float, a2: Float
+    private var z1: Float = 0, z2: Float = 0
+
+    init(centerHz: Float, sampleRate: Float, q: Float, gainDB: Float) {
+        let a = powf(10, gainDB / 40)
+        let w0 = 2 * Float.pi * centerHz / max(8000, sampleRate)
+        let alpha = sinf(w0) / (2 * max(0.25, q))
+        let norm = 1 + alpha / a
+        b0 = (1 + alpha * a) / norm
+        b1 = (-2 * cosf(w0)) / norm
+        b2 = (1 - alpha * a) / norm
+        a1 = b1
+        a2 = (1 - alpha / a) / norm
+    }
+
+    mutating func process(_ x: Float) -> Float {
+        let y = b0 * x + z1
+        z1 = b1 * x - a1 * y + z2
+        z2 = b2 * x - a2 * y
+        return y
+    }
+}
+
+enum AudioLevelProcessor {
+    static func targetVolume(for track: Track?, bitrate: Int, soundCheck: Bool, eqPreset: AudioEQPreset) -> Float {
+        var gain: Float = eqPreset.preampGain
+        if soundCheck {
+            let text = ((track?.title ?? "") + " " + (track?.album ?? "")).lowercased()
+            let gentle = text.contains("acoustic") || text.contains("akustik") || text.contains("pian") || text.contains("classical") || text.contains("chill")
+            let reference: Float = gentle ? 0.94 : (bitrate >= 192 ? 0.84 : 0.86)
+            gain *= reference
+        }
+        return min(1.0, max(0.58, gain))
+    }
+}
+
 @MainActor final class MusicPlayer: ObservableObject {
     enum RepeatMode: String, CaseIterable { case off, all, one }
     @Published var current: Track?
@@ -72,15 +168,18 @@ struct LyricsCacheEntry: Codable {
     @Published var sleepAtEnd = false
     @Published var lastTransitionMS: Double = 0
     @Published var activeStationTitle: String? = nil
+    @Published var isLiveStream = false
+    @Published var requestedNavigation: AppNavigationTarget? = nil
     weak var library: LibraryStore?
     let engine = AVQueuePlayer()
+    private let tailPlayer = AVPlayer()
     private var originalQueue: [Track] = []
     private var activeStationQuery: String? = nil
     private var stationReplenishTask: Task<Void, Never>? = nil
     private var autoplayReplenishTask: Task<Void, Never>? = nil
     private var autoplayAttemptedTrackID: String?
     private var nowPlayingArtwork: (id: String, artwork: MPMediaItemArtwork)?
-    private var itemTracks: [ObjectIdentifier: (Track, PlaybackAsset?)] = [:]
+    private var itemTracks: [ObjectIdentifier: (Track, PlaybackAsset?, URL?)] = [:]
     private var matchingTask: Task<Void, Never>?
     private var matchingIDs: [String] = []
     private var warmupTask: Task<Void, Never>?
@@ -97,6 +196,10 @@ struct LyricsCacheEntry: Codable {
     private var itemStatusObservation: NSKeyValueObservation?
     private weak var synchronizedItem: AVPlayerItem?
     private var bufferingTask: Task<Void, Never>?
+    private var crossfadingTrackID: String?
+    private var crossfadeTask: Task<Void, Never>?
+    private var radioWatchdogTask: Task<Void, Never>?
+    private var pendingResumePosition: (id: String, seconds: Double)?
     private var periodic: Any?
     private var notifications: [NSObjectProtocol] = []
     private var generation = UUID()
@@ -146,15 +249,32 @@ struct LyricsCacheEntry: Codable {
                 self.itemChanged(liveItem)
                 // Read after the actor hop: a callback may have been queued by the preceding song.
                 let time = liveItem.currentTime().seconds
-                let nextPosition = time.isFinite ? min(max(0, time), max(0, self.duration)) : 0
-                if abs(self.position - nextPosition) > 0.03 { self.position = nextPosition }
-                if self.isPlaying, let current = self.current, Int(nextPosition) % 5 == 0 {
+                let nextPosition = self.isLiveStream ? 0 : (time.isFinite ? min(max(0, time), max(0, self.duration)) : 0)
+                if !self.isLiveStream, abs(self.position - nextPosition) > 0.03 { self.position = nextPosition }
+                if self.isPlaying, !self.isLiveStream, let current = self.current, Int(nextPosition) % 5 == 0 {
                     UserDefaults.standard.set(current.id, forKey: "resumeTrackID")
                     UserDefaults.standard.set(nextPosition, forKey: "resumePosition")
                 }
-                let liveDuration = Self.playbackDuration(liveItem)
-                if liveDuration > 0, abs(self.duration - liveDuration) > 0.1 { self.duration = liveDuration }
+                let liveDuration = self.isLiveStream ? 0 : Self.playbackDuration(liveItem)
+                if !self.isLiveStream, liveDuration > 0, abs(self.duration - liveDuration) > 0.1 { self.duration = liveDuration }
                 if let until = self.sleepUntil, until <= .now { self.engine.pause(); self.sleepUntil = nil }
+                if !self.isLiveStream,
+                   self.isPlaying,
+                   self.repeatMode != .one,
+                   UserDefaults.standard.bool(forKey: "crossfadeEnabled"),
+                   self.engine.items().count > 1,
+                   let current = self.current,
+                   self.crossfadingTrackID != current.id {
+                    let configuredFade = UserDefaults.standard.object(forKey: "crossfadeSeconds") as? Double ?? 4.0
+                    let fadeSeconds = min(12.0, max(1.0, configuredFade))
+                    let effectiveDuration = self.duration > 0 ? self.duration : liveDuration
+                    let remaining = effectiveDuration - nextPosition
+                    if effectiveDuration > fadeSeconds + 4.0, remaining <= fadeSeconds, remaining > 0.5 {
+                        self.crossfadingTrackID = current.id
+                        let outgoingURL = self.itemTracks[ObjectIdentifier(liveItem)]?.2
+                        self.performCrossfade(duration: min(fadeSeconds, remaining), outgoingURL: outgoingURL, outgoingTime: nextPosition)
+                    }
+                }
             }
         }
         let center = NotificationCenter.default
@@ -192,6 +312,8 @@ struct LyricsCacheEntry: Codable {
     }
 
     deinit {
+        crossfadeTask?.cancel()
+        radioWatchdogTask?.cancel()
         for obs in observations { obs.invalidate() }
         if let periodic { engine.removeTimeObserver(periodic) }
         for note in notifications { NotificationCenter.default.removeObserver(note) }
@@ -214,6 +336,7 @@ struct LyricsCacheEntry: Codable {
         try Task.checkCancellation()
         let item: AVPlayerItem
         var stream: PlaybackAsset?
+        var mediaURL: URL?
         var playbackTrack = track
         if let url = library?.localURL(track.id), source == "auto" {
             let expected = track.duration > 0 ? track.duration : library?.saved.first(where: { $0.id == track.id })?.track?.duration ?? 0
@@ -227,11 +350,13 @@ struct LyricsCacheEntry: Codable {
                 throw APIError.server(L("İndirilen dosya bu şarkıyla eşleşmiyor. Şarkıyı silip yeniden indir."))
             }
             playbackTrack.duration = actual
+            mediaURL = url
             item = AVPlayerItem(asset: local)
         } else {
             stream = try await asset(track, source: source)
             try Task.checkCancellation()
             let url = try API.mediaURL(stream!)
+            mediaURL = url
             item = AVPlayerItem(url: url)
             item.preferredForwardBufferDuration = PlaybackPreferences.savesData() ? 22 : 45
             if let stream, stream.duration.isFinite, stream.duration > 0 {
@@ -240,7 +365,7 @@ struct LyricsCacheEntry: Codable {
                 if playbackTrack.duration <= 0 { playbackTrack.duration = stream.duration }
             }
         }
-        itemTracks[ObjectIdentifier(item)] = (playbackTrack, stream)
+        itemTracks[ObjectIdentifier(item)] = (playbackTrack, stream, mediaURL)
         return item
     }
 
@@ -304,6 +429,12 @@ struct LyricsCacheEntry: Codable {
     }
 
     private func startPlayback(_ track: Track, in tracks: [Track]? = nil, source: String = "auto", keepStation: Bool) {
+        stopCrossfade()
+        radioWatchdogTask?.cancel()
+        radioWatchdogTask = nil
+        isLiveStream = false
+        pendingResumePosition = nil
+        crossfadingTrackID = nil
         if !keepStation {
             stationReplenishTask?.cancel()
             stationReplenishTask = nil
@@ -361,14 +492,17 @@ struct LyricsCacheEntry: Codable {
             return
         }
         guard synchronizedItem !== item else { return }
-        guard let (track, stream) = itemTracks[ObjectIdentifier(item)] else { return }
+        guard let (track, stream, _) = itemTracks[ObjectIdentifier(item)] else { return }
         synchronizedItem = item
         let liveItems = Set(engine.items().map(ObjectIdentifier.init))
         itemTracks = itemTracks.filter { liveItems.contains($0.key) }
         let trackChanged = current?.id != track.id
         current = track; position = 0; duration = stream?.duration ?? track.duration
         index = queue.firstIndex { $0.id == track.id } ?? index
-        provider = stream?.provider ?? "offline"; bitrate = stream?.bitrate ?? 0
+        provider = isLiveStream ? "live" : (stream?.provider ?? "offline"); bitrate = stream?.bitrate ?? 0
+        if crossfadeTask == nil {
+            engine.volume = currentTargetVolume(for: track, bitrate: bitrate)
+        }
         itemStatusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] observed, _ in
             Task { @MainActor in
                 guard let self, self.engine.currentItem === observed, observed.status == .failed else { return }
@@ -500,32 +634,223 @@ struct LyricsCacheEntry: Codable {
     }
 
     func toggle() {
+        stopCrossfade()
         if isPlaying { engine.pause() }
         else if engine.currentItem?.status == .failed, let current {
             Task {
                 await API.shared.invalidatePlayback()
+                if isLiveStream {
+                    activeStationQuery = nil; isLiveStream = false
+                }
                 play(current)
             }
         }
         else if engine.currentItem != nil { try? activateSession(); engine.play() }
-        else if let current { play(current) }
+        else if let current {
+            if let pending = pendingResumePosition, pending.id == current.id {
+                pendingResumePosition = nil
+                resume(current)
+            } else {
+                play(current)
+            }
+        }
     }
     func next() {
+        stopCrossfade()
+        guard !isLiveStream else { return }
         guard !queue.isEmpty else { return }
         if index + 1 < queue.count { play(queue[index + 1]) }
         else if repeatMode != .off { play(queue[0]) }
         else { engine.pause() }
     }
     func previous() {
+        stopCrossfade()
+        guard !isLiveStream else { return }
         if position > 3 { seek(0) }
         else if index > 0 { play(queue[index - 1]) }
         else { seek(0) }
     }
     func seek(_ seconds: Double) {
+        stopCrossfade()
+        guard !isLiveStream else { return }
         guard seconds.isFinite, duration.isFinite else { return }
         let target = min(max(0, seconds), max(0, duration))
         engine.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         position = target; updateNowPlaying()
+    }
+    func applyAudioSettings() {
+        guard crossfadeTask == nil else { return }
+        engine.volume = currentTargetVolume(for: current, bitrate: bitrate)
+    }
+
+    private func currentTargetVolume(for track: Track?, bitrate: Int) -> Float {
+        let defaults = UserDefaults.standard
+        let soundCheck = defaults.object(forKey: "soundCheckEnabled") as? Bool ?? true
+        let preset = AudioEQPreset(rawValue: defaults.string(forKey: "eqPreset") ?? "off") ?? .off
+        return AudioLevelProcessor.targetVolume(for: track, bitrate: bitrate, soundCheck: soundCheck, eqPreset: preset)
+    }
+
+    private func stopCrossfade() {
+        crossfadeTask?.cancel()
+        crossfadeTask = nil
+        tailPlayer.pause()
+        tailPlayer.replaceCurrentItem(with: nil)
+    }
+
+    private func performCrossfade(duration fadeDuration: Double, outgoingURL: URL?, outgoingTime: Double) {
+        crossfadeTask?.cancel()
+        guard engine.items().count > 1 else { return }
+        let startGain = max(0.2, engine.volume)
+        let nextTrack = engine.items().dropFirst().first.flatMap { itemTracks[ObjectIdentifier($0)]?.0 }
+        let nextBitrate = engine.items().dropFirst().first.flatMap { itemTracks[ObjectIdentifier($0)]?.1?.bitrate ?? 0 } ?? 0
+        let targetGain = currentTargetVolume(for: nextTrack, bitrate: nextBitrate)
+
+        crossfadeTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.tailPlayer.pause()
+                self.tailPlayer.replaceCurrentItem(with: nil)
+                self.crossfadeTask = nil
+            }
+            var tailReady = false
+            if let outgoingURL {
+                let tailItem = AVPlayerItem(url: outgoingURL)
+                self.tailPlayer.volume = startGain
+                self.tailPlayer.replaceCurrentItem(with: tailItem)
+                await self.tailPlayer.seek(to: CMTime(seconds: max(0, outgoingTime), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+                for _ in 0..<12 {
+                    if Task.isCancelled { return }
+                    if tailItem.status == .readyToPlay { tailReady = true; break }
+                    if tailItem.status == .failed { break }
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+            }
+            if Task.isCancelled || self.engine.items().count <= 1 { return }
+            if tailReady {
+                self.tailPlayer.play()
+                self.engine.volume = 0
+                self.engine.advanceToNextItem()
+                self.itemChanged(self.engine.currentItem)
+                self.engine.play()
+                let steps = 20
+                let stepNanoseconds = UInt64((max(0.5, fadeDuration) / Double(steps)) * 1_000_000_000)
+                for step in 1...steps {
+                    if Task.isCancelled { return }
+                    let t = Float(step) / Float(steps)
+                    self.tailPlayer.volume = startGain * cosf(t * (.pi / 2))
+                    self.engine.volume = targetGain * sinf(t * (.pi / 2))
+                    try? await Task.sleep(nanoseconds: stepNanoseconds)
+                }
+            } else {
+                self.engine.volume = 0
+                self.engine.advanceToNextItem()
+                self.itemChanged(self.engine.currentItem)
+                self.engine.play()
+                let steps = 10
+                for step in 1...steps {
+                    if Task.isCancelled { return }
+                    self.engine.volume = targetGain * (Float(step) / Float(steps))
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
+            self.engine.volume = targetGain
+        }
+    }
+
+    func restoreLastSessionIfNeeded() {
+        guard !CommandLine.arguments.contains("-serverURL"),
+              current == nil,
+              pendingTrack == nil,
+              let data = UserDefaults.standard.data(forKey: "lastTrack"),
+              let track = try? JSONDecoder().decode(Track.self, from: data) else { return }
+        current = track
+        queue = [track]
+        originalQueue = [track]
+        index = 0
+        duration = track.duration.isFinite && track.duration > 0 ? track.duration : 0
+        if UserDefaults.standard.string(forKey: "resumeTrackID") == track.id {
+            let saved = UserDefaults.standard.double(forKey: "resumePosition")
+            if saved.isFinite, saved > 0, (duration <= 0 || saved < duration - 3) {
+                position = saved
+                pendingResumePosition = (track.id, saved)
+            }
+        }
+        updateNowPlaying()
+    }
+
+    func playLiveRadio(id: String, title: String, subtitle: String, streamURL: URL?, artwork: String?, fallbackQuery: String, fallbackSeeds: [Track] = []) {
+        stopCrossfade()
+        radioWatchdogTask?.cancel()
+        radioWatchdogTask = nil
+        selectionTask?.cancel()
+        nextTask?.cancel()
+        autoplayReplenishTask?.cancel()
+        stationReplenishTask?.cancel()
+        generation = UUID(); let token = generation
+
+        guard !CommandLine.arguments.contains("-serverURL"),
+              let streamURL, NativeCatalog.allowedLiveRadioURL(streamURL) else {
+            Task { [weak self] in
+                guard let self else { return }
+                let tracks = !fallbackSeeds.isEmpty ? fallbackSeeds : ((try? await API.shared.search(fallbackQuery).tracks) ?? [])
+                guard self.generation == token, !tracks.isEmpty else { return }
+                self.startStation(title: title, query: fallbackQuery, seedTracks: tracks)
+            }
+            return
+        }
+
+        isLiveStream = true
+        activeStationTitle = title
+        activeStationQuery = fallbackQuery
+        let liveTrack = Track(id: "live:" + id, title: title, artist: subtitle, album: L("CANLI İSTASYON"), duration: 0, artwork: artwork, source: "live")
+        queue = [liveTrack]
+        originalQueue = [liveTrack]
+        index = 0
+        current = liveTrack
+        pendingTrack = liveTrack
+        position = 0
+        duration = 0
+        error = nil
+        switchStarted = CFAbsoluteTimeGetCurrent()
+
+        do {
+            try activateSession()
+            let item = AVPlayerItem(url: streamURL)
+            manualSwitch = true
+            engine.removeAllItems()
+            itemTracks = [ObjectIdentifier(item): (liveTrack, nil, streamURL)]
+            engine.insert(item, after: nil)
+            manualSwitch = false
+            itemChanged(item)
+            engine.volume = currentTargetVolume(for: liveTrack, bitrate: 128)
+            engine.play()
+
+            radioWatchdogTask = Task { [weak self] in
+                for _ in 0..<70 {
+                    if Task.isCancelled { return }
+                    guard let self, self.generation == token else { return }
+                    if self.engine.timeControlStatus == .playing {
+                        self.pendingTrack = nil
+                        self.error = nil
+                        return
+                    }
+                    if item.status == .failed { break }
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                guard let self, self.generation == token, self.isLiveStream else { return }
+                self.isLiveStream = false
+                let tracks = !fallbackSeeds.isEmpty ? fallbackSeeds : ((try? await API.shared.search(fallbackQuery).tracks) ?? [])
+                guard self.generation == token, !tracks.isEmpty else {
+                    self.pendingTrack = nil
+                    return
+                }
+                self.startStation(title: title, query: fallbackQuery, seedTracks: tracks)
+            }
+        } catch {
+            isLiveStream = false
+            pendingTrack = nil
+            self.error = error.localizedDescription
+        }
     }
     func toggleShuffle() {
         shuffle.toggle()
@@ -542,9 +867,19 @@ struct LyricsCacheEntry: Codable {
         return queue.firstIndex { $0.id == id }
     }
 
-    /// The queue retains history for Previous; the sheet shows only future songs.
+    /// The queue retains history for Previous; upcoming tracks exclude the current song.
+    var historyTracks: [Track] {
+        guard let activeQueueIndex, activeQueueIndex > 0 else { return [] }
+        return Array(queue.prefix(activeQueueIndex))
+    }
+
     var upcomingTracks: [Track] {
         Array(queue.dropFirst(activeQueueIndex.map { $0 + 1 } ?? 0))
+    }
+
+    func playFromHistory(id: String) {
+        guard let track = historyTracks.first(where: { $0.id == id }) else { return }
+        play(track)
     }
 
     func playUpcoming(id: String) {
@@ -682,12 +1017,12 @@ struct LyricsCacheEntry: Codable {
             MPMediaItemPropertyTitle: track.title,
             MPMediaItemPropertyArtist: track.artist,
             MPMediaItemPropertyAlbumTitle: track.album,
-            MPMediaItemPropertyPlaybackDuration: duration,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
+            MPMediaItemPropertyPlaybackDuration: isLiveStream ? 0.0 : duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: isLiveStream ? 0.0 : position,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(max(engine.rate, 1.0)) : 0.0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
-            MPNowPlayingInfoPropertyIsLiveStream: false,
+            MPNowPlayingInfoPropertyIsLiveStream: isLiveStream,
             MPNowPlayingInfoPropertyExternalContentIdentifier: track.id
         ]
         if let nowPlayingArtwork, nowPlayingArtwork.id == track.id {

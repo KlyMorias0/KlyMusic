@@ -406,6 +406,7 @@ struct LibraryBackup: Codable {
     var tracks: [BackupTrack]
     var playlists: [BackupPlaylist]
     var settings: [String: String]
+    var playlistDescriptions: [String: String]? = nil
     struct BackupTrack: Codable { var track: Track; var favorite: Bool; var lastPlayed: Date?; var playCount: Int; var addedAt: Date? = nil }
     struct BackupPlaylist: Codable { var id: UUID; var name: String; var trackIDs: [String]; var createdAt: Date? = nil }
 }

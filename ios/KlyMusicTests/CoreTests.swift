@@ -2232,4 +2232,122 @@ extension CoreTests {
             XCTAssertTrue(verified, "Failed real AVPlayer playback for '\(track.title)' (\(track.artist)): \(lastFailure)")
         }
     }
+
+    func testEqualizerPresetsBiquadAndSoundCheckTargetVolume() {
+        XCTAssertEqual(AudioEQPreset.allCases.count, 11)
+        for preset in AudioEQPreset.allCases {
+            XCTAssertGreaterThanOrEqual(preset.preampGain, 0.7)
+            XCTAssertLessThanOrEqual(preset.preampGain, 1.0)
+        }
+        var filter = BiquadEQFilter(centerHz: 120, sampleRate: 44100, q: 1.0, gainDB: 6.0)
+        var inSq: Float = 0
+        var outSq: Float = 0
+        for i in 0..<2000 {
+            let sample = 0.25 * sinf(2 * .pi * 120 * Float(i) / 44100)
+            let processed = filter.process(sample)
+            if i >= 200 {
+                inSq += sample * sample
+                outSq += processed * processed
+            }
+        }
+        XCTAssertGreaterThan(outSq, inSq * 2.0, "Bass boost filter must amplify 120 Hz energy")
+        let popTrack = Track(id: "apple:1", title: "Dance Floor", artist: "Artist", album: "Club")
+        let acousticTrack = Track(id: "apple:2", title: "Gece (Acoustic)", artist: "Artist", album: "Akustik")
+        XCTAssertEqual(AudioLevelProcessor.targetVolume(for: popTrack, bitrate: 128, soundCheck: false, eqPreset: .off), 1.0, accuracy: 0.001)
+        let soundChecked = AudioLevelProcessor.targetVolume(for: popTrack, bitrate: 128, soundCheck: true, eqPreset: .bassBooster)
+        let acousticGain = AudioLevelProcessor.targetVolume(for: acousticTrack, bitrate: 128, soundCheck: true, eqPreset: .off)
+        XCTAssertLessThan(soundChecked, 0.85)
+        XCTAssertGreaterThan(acousticGain, soundChecked)
+    }
+
+    @MainActor func testColdStartSessionRestoreAndQueueHistorySeparation() {
+        let defaults = UserDefaults.standard
+        let oldTrack = defaults.data(forKey: "lastTrack")
+        let oldResumeID = defaults.string(forKey: "resumeTrackID")
+        let oldResumePos = defaults.object(forKey: "resumePosition")
+        defer {
+            if let oldTrack { defaults.set(oldTrack, forKey: "lastTrack") } else { defaults.removeObject(forKey: "lastTrack") }
+            if let oldResumeID { defaults.set(oldResumeID, forKey: "resumeTrackID") } else { defaults.removeObject(forKey: "resumeTrackID") }
+            if let oldResumePos { defaults.set(oldResumePos, forKey: "resumePosition") } else { defaults.removeObject(forKey: "resumePosition") }
+        }
+        let track = Track(id: "restore:test1", title: "Yaxsi Olar", artist: "Uzeyir Mehdizade", duration: 210)
+        defaults.set(try? JSONEncoder().encode(track), forKey: "lastTrack")
+        defaults.set(track.id, forKey: "resumeTrackID")
+        defaults.set(42.5, forKey: "resumePosition")
+
+        let player = MusicPlayer()
+        player.restoreLastSessionIfNeeded()
+        XCTAssertEqual(player.current?.id, track.id)
+        XCTAssertEqual(player.position, 42.5, accuracy: 0.01)
+
+        let tracks = (1...4).map { Track(id: "q:\($0)", title: "Song \($0)", artist: "Artist \($0)", duration: 180) }
+        player.queue = tracks
+        player.pendingTrack = tracks[2]
+        XCTAssertEqual(player.historyTracks.map(\.id), ["q:1", "q:2"])
+        XCTAssertEqual(player.upcomingTracks.map(\.id), ["q:4"])
+    }
+
+    func testSearchArtistArtworkEnrichmentAndLiveRadioAllowlist() throws {
+        let tracks = [
+            Track(id: "apple:1", title: "VUR", artist: "BLOK3", duration: 150, artwork: "https://is1-ssl.mzstatic.com/image/thumb/1/600x600bb.jpg", artistID: "1001"),
+            Track(id: "apple:2", title: "Çıkmaz Bir Sokakta", artist: "Semicenk", duration: 163, artwork: "https://is1-ssl.mzstatic.com/image/thumb/2/600x600bb.jpg", artistID: "1002")
+        ]
+        let artists = [
+            MusicArtist(id: "1001", name: "BLOK3", artwork: nil),
+            MusicArtist(id: "9999", name: "semicenk", artwork: nil),
+            MusicArtist(id: "8888", name: "Unmatched", artwork: nil)
+        ]
+        let enriched = NativeCatalog.enrichArtistArtworks(artists, tracks: tracks, albums: [])
+        XCTAssertEqual(enriched[0].artwork, "https://is1-ssl.mzstatic.com/image/thumb/1/600x600bb.jpg")
+        XCTAssertEqual(enriched[1].artwork, "https://is1-ssl.mzstatic.com/image/thumb/2/600x600bb.jpg")
+        XCTAssertNil(enriched[2].artwork)
+
+        for allowed in ["https://listen.powerapp.com.tr/powerturk/128/chunks.m3u8", "https://icecast.livetv.az/yurdfm", "https://ice4.somafm.com/groovesalad-128-aac"] {
+            XCTAssertTrue(NativeCatalog.allowedLiveRadioURL(try XCTUnwrap(URL(string: allowed))))
+        }
+        for rejected in ["http://listen.powerapp.com.tr/powerturk/128/chunks.m3u8", "https://evil.example/stream.m3u8", "https://listen.powerapp.com.tr:8443/stream"] {
+            XCTAssertFalse(NativeCatalog.allowedLiveRadioURL(try XCTUnwrap(URL(string: rejected))))
+        }
+    }
+
+    @MainActor func testPlaylistCustomizationAndCompleteLibraryBackupRoundTrip() throws {
+        let defaults = UserDefaults.standard
+        let oldEQ = defaults.string(forKey: "eqPreset")
+        let oldPins = defaults.string(forKey: LibraryPinsStore.storageKey)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container1 = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: config)
+        let store1 = LibraryStore(context: ModelContext(container1))
+        let listName = "Gece Özel \(UUID().uuidString)"
+        store1.createPlaylist(listName)
+        let playlist = try XCTUnwrap(store1.playlists.first(where: { $0.name == listName }))
+        defer {
+            PlaylistCustomizationStore.shared.removeMetadata(for: playlist.id)
+            if let oldEQ { defaults.set(oldEQ, forKey: "eqPreset") } else { defaults.removeObject(forKey: "eqPreset") }
+            if let oldPins { defaults.set(oldPins, forKey: LibraryPinsStore.storageKey) } else { defaults.removeObject(forKey: LibraryPinsStore.storageKey) }
+        }
+        PlaylistCustomizationStore.shared.setDescription("Gece yürüyüşü", for: playlist.id)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16))
+        let jpeg = renderer.jpegData(withCompressionQuality: 0.8) { ctx in
+            UIColor.systemRed.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 16, height: 16))
+        }
+        PlaylistCustomizationStore.shared.setCustomCoverData(jpeg, for: playlist.id)
+        XCTAssertTrue(PlaylistCustomizationStore.shared.hasCustomCover(for: playlist.id))
+        XCTAssertNotNil(PlaylistCustomizationStore.shared.coverImage(for: playlist.id))
+
+        defaults.set(AudioEQPreset.bassBooster.rawValue, forKey: "eqPreset")
+        defaults.set(LibraryPinsStore.toggle(LibraryPin(id: "playlist:\(playlist.id.uuidString)", kind: "playlist", targetID: playlist.id.uuidString, title: listName, subtitle: "Çalma Listesi", artwork: nil), in: ""), forKey: LibraryPinsStore.storageKey)
+
+        let data = try store1.backup()
+        PlaylistCustomizationStore.shared.setDescription("", for: playlist.id)
+        defaults.set(AudioEQPreset.off.rawValue, forKey: "eqPreset")
+        defaults.set("", forKey: LibraryPinsStore.storageKey)
+
+        let container2 = try ModelContainer(for: SavedTrack.self, SavedPlaylist.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store2 = LibraryStore(context: ModelContext(container2))
+        try store2.restore(data)
+        XCTAssertEqual(PlaylistCustomizationStore.shared.description(for: playlist.id), "Gece yürüyüşü")
+        XCTAssertEqual(defaults.string(forKey: "eqPreset"), AudioEQPreset.bassBooster.rawValue)
+        XCTAssertTrue(LibraryPinsStore.contains(id: "playlist:\(playlist.id.uuidString)", in: defaults.string(forKey: LibraryPinsStore.storageKey) ?? ""))
+    }
 }

@@ -20,6 +20,74 @@ enum MusicFiles {
     }
     static func filename(_ id: String) -> String { SHA256.hash(data: Data(id.utf8)).map { String(format: "%02x", $0) }.joined() }
     static func lyrics(_ id: String) -> URL { root.appendingPathComponent(filename(id) + ".lyrics.json") }
+    static func playlistCover(_ id: UUID) -> URL { root.appendingPathComponent("playlist-cover-\(id.uuidString).jpg") }
+}
+
+@MainActor final class PlaylistCustomizationStore: ObservableObject {
+    static let shared = PlaylistCustomizationStore()
+    private let descriptionsKey = "playlistDescriptions-v1"
+    private let defaults: UserDefaults
+    @Published private(set) var descriptions: [String: String]
+    @Published private(set) var coverRevision: [UUID: Int] = [:]
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.descriptions = defaults.dictionary(forKey: "playlistDescriptions-v1") as? [String: String] ?? [:]
+    }
+
+    func description(for id: UUID) -> String {
+        descriptions[id.uuidString] ?? ""
+    }
+
+    func setDescription(_ text: String, for id: UUID) {
+        let clean = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(280))
+        if clean.isEmpty {
+            descriptions.removeValue(forKey: id.uuidString)
+        } else {
+            descriptions[id.uuidString] = clean
+        }
+        defaults.set(descriptions, forKey: descriptionsKey)
+    }
+
+    func allDescriptions() -> [String: String] { descriptions }
+
+    func mergeDescriptions(_ incoming: [String: String]) {
+        for (k, v) in incoming where !v.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if descriptions[k]?.isEmpty ?? true {
+                descriptions[k] = String(v.trimmingCharacters(in: .whitespacesAndNewlines).prefix(280))
+            }
+        }
+        defaults.set(descriptions, forKey: descriptionsKey)
+    }
+
+    func hasCustomCover(for id: UUID) -> Bool {
+        _ = coverRevision[id]
+        return FileManager.default.fileExists(atPath: MusicFiles.playlistCover(id).path)
+    }
+
+    func coverImage(for id: UUID) -> UIImage? {
+        _ = coverRevision[id]
+        let url = MusicFiles.playlistCover(id)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return UIImage(data: data)
+    }
+
+    func setCustomCoverData(_ rawData: Data?, for id: UUID) {
+        let url = MusicFiles.playlistCover(id)
+        if let rawData, let image = UIImage(data: rawData), let jpeg = image.jpegData(compressionQuality: 0.85) {
+            try? jpeg.write(to: url, options: .atomic)
+        } else {
+            try? FileManager.default.removeItem(at: url)
+        }
+        coverRevision[id, default: 0] += 1
+    }
+
+    func removeMetadata(for id: UUID) {
+        descriptions.removeValue(forKey: id.uuidString)
+        defaults.set(descriptions, forKey: descriptionsKey)
+        try? FileManager.default.removeItem(at: MusicFiles.playlistCover(id))
+        coverRevision.removeValue(forKey: id)
+    }
 }
 
 struct LibraryRecentEntry: Identifiable {
@@ -158,7 +226,10 @@ struct LibraryRecentEntry: Identifiable {
         let list = SavedPlaylist(name: clean); list.createdAt = now()
         context.insert(list); commit()
     }
-    func deletePlaylist(_ list: SavedPlaylist) { context.delete(list); commit() }
+    func deletePlaylist(_ list: SavedPlaylist) {
+        PlaylistCustomizationStore.shared.removeMetadata(for: list.id)
+        context.delete(list); commit()
+    }
     func add(_ track: Track, to list: SavedPlaylist) {
         _ = record(track)
         if !list.trackIDs.contains(track.id) { list.trackIDs.append(track.id) }
@@ -174,11 +245,24 @@ struct LibraryRecentEntry: Identifiable {
             guard let track = item.track else { return nil }
             return .init(track: track, favorite: item.favorite, lastPlayed: item.lastPlayed, playCount: item.playCount, addedAt: Date(timeIntervalSince1970: dates[item.id] ?? Date.distantPast.timeIntervalSince1970))
         }
-        var settings = ["quality", "theme", "language", "wifiOnly", "followedArtists", "libraryLayout-v1", "librarySort-v1"].reduce(into: [String:String]()) { result, key in
+        let settingKeys = [
+            "quality", "theme", "language", "wifiOnly", "followedArtists",
+            "libraryLayout-v1", "librarySort-v1", "libraryPins-v1",
+            "dolbyAtmosMode", "crossfadeEnabled", "crossfadeSeconds",
+            "soundCheckEnabled", "infiniteAutoplay", "useListeningHistory",
+            "animatedArtwork", "autoDownloadFavorites", "eqPreset"
+        ]
+        var settings = settingKeys.reduce(into: [String:String]()) { result, key in
             if let value = UserDefaults.standard.object(forKey: key) { result[key] = String(describing: value) }
         }
         settings["lowDataMode"] = String(PlaybackPreferences.savesData())
-        let payload = LibraryBackup(tracks: tracks, playlists: playlists.map { .init(id: $0.id, name: $0.name, trackIDs: $0.trackIDs, createdAt: $0.createdAt) }, settings: settings)
+        let descriptions = PlaylistCustomizationStore.shared.allDescriptions()
+        let payload = LibraryBackup(
+            tracks: tracks,
+            playlists: playlists.map { .init(id: $0.id, name: $0.name, trackIDs: $0.trackIDs, createdAt: $0.createdAt) },
+            settings: settings,
+            playlistDescriptions: descriptions.isEmpty ? nil : descriptions
+        )
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(payload)
     }
@@ -212,10 +296,20 @@ struct LibraryRecentEntry: Identifiable {
             list.trackIDs.append(contentsOf: entry.trackIDs.filter { known.contains($0) && contained.insert($0).inserted })
             if let date = entry.createdAt, date < list.createdAt { list.createdAt = date }
         }
-        for key in ["quality", "theme", "language", "followedArtists"] {
+        for key in ["quality", "theme", "language", "followedArtists", "dolbyAtmosMode"] {
             if let value = backup.settings[key] { UserDefaults.standard.set(value, forKey: key) }
         }
-        if let value = backup.settings["wifiOnly"] { UserDefaults.standard.set(value == "true" || value == "1", forKey: "wifiOnly") }
+        for boolKey in ["wifiOnly", "crossfadeEnabled", "soundCheckEnabled", "infiniteAutoplay", "useListeningHistory", "animatedArtwork", "autoDownloadFavorites"] {
+            if let value = backup.settings[boolKey] {
+                UserDefaults.standard.set(value == "true" || value == "1", forKey: boolKey)
+            }
+        }
+        if let rawSeconds = backup.settings["crossfadeSeconds"], let seconds = Double(rawSeconds), seconds.isFinite {
+            UserDefaults.standard.set(min(12, max(1, seconds)), forKey: "crossfadeSeconds")
+        }
+        if let rawEQ = backup.settings["eqPreset"], AudioEQPreset(rawValue: rawEQ) != nil {
+            UserDefaults.standard.set(rawEQ, forKey: "eqPreset")
+        }
         if let value = backup.settings["lowDataMode"] { UserDefaults.standard.set(value == "true" || value == "1", forKey: "lowDataMode") }
         else if let quality = backup.settings["quality"] { UserDefaults.standard.set(quality == "data", forKey: "lowDataMode") }
         if let value = backup.settings["libraryLayout-v1"],
@@ -224,6 +318,14 @@ struct LibraryRecentEntry: Identifiable {
         }
         if let value = backup.settings["librarySort-v1"], LibraryCollectionSort(rawValue: value) != nil {
             UserDefaults.standard.set(value, forKey: "librarySort-v1")
+        }
+        if let rawPins = backup.settings["libraryPins-v1"],
+           let pinsData = rawPins.data(using: .utf8),
+           (try? JSONDecoder().decode([LibraryPin].self, from: pinsData)) != nil {
+            UserDefaults.standard.set(LibraryPinsStore.encode(LibraryPinsStore.decode(rawPins)), forKey: LibraryPinsStore.storageKey)
+        }
+        if let descriptions = backup.playlistDescriptions {
+            PlaylistCustomizationStore.shared.mergeDescriptions(descriptions)
         }
         commit()
     }

@@ -51,7 +51,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             "crossfadeEnabled": false,
             "crossfadeSeconds": 4.0,
             "losslessEnabled": true,
-            "autoDownloadFavorites": false
+            "autoDownloadFavorites": false,
+            "eqPreset": "off"
         ])
     }
 
@@ -71,6 +72,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                 .environment(\.locale, Locale(identifier: AppLanguage.current))
                 .task {
                     player.library = library; downloads.library = library; downloads.reconnect()
+                    player.restoreLastSessionIfNeeded()
+                    player.applyAudioSettings()
                 }
                 .onOpenURL { url in
                     handleDeepLink(url)
@@ -144,36 +147,36 @@ struct RootView: View {
         if #available(iOS 18.0, *) {
             TabView(selection: $tab) {
                 Tab(L("Dinle"), systemImage: "house.fill", value: 0) {
-                    TabShell { HomeView() }
+                    TabShell(isSelected: tab == 0) { HomeView() }
                 }.accessibilityIdentifier("nav.home")
                 Tab(L("Keşfet"), systemImage: "square.grid.2x2.fill", value: 1) {
-                    TabShell { DiscoverView() }
+                    TabShell(isSelected: tab == 1) { DiscoverView() }
                 }.accessibilityIdentifier("nav.discover")
                 Tab(L("Radyo"), systemImage: "dot.radiowaves.left.and.right", value: 2) {
-                    TabShell { RadioView() }
+                    TabShell(isSelected: tab == 2) { RadioView() }
                 }.accessibilityIdentifier("nav.radio")
                 Tab(L("Kütüphane"), systemImage: Self.libraryTabSymbol, value: 3) {
-                    TabShell { LibraryView() }
+                    TabShell(isSelected: tab == 3) { LibraryView() }
                 }.accessibilityIdentifier("nav.library")
                 Tab(L("Ara"), systemImage: "magnifyingglass", value: 4, role: .search) {
-                    TabShell { SearchView() }
+                    TabShell(isSelected: tab == 4) { SearchView() }
                 }.accessibilityIdentifier("nav.search")
             }
         } else {
             TabView(selection: $tab) {
-                TabShell { HomeView() }
+                TabShell(isSelected: tab == 0) { HomeView() }
                     .tabItem { Label(L("Dinle"), systemImage: "house.fill").accessibilityIdentifier("nav.home") }
                     .tag(0)
-                TabShell { DiscoverView() }
+                TabShell(isSelected: tab == 1) { DiscoverView() }
                     .tabItem { Label(L("Keşfet"), systemImage: "square.grid.2x2.fill").accessibilityIdentifier("nav.discover") }
                     .tag(1)
-                TabShell { RadioView() }
+                TabShell(isSelected: tab == 2) { RadioView() }
                     .tabItem { Label(L("Radyo"), systemImage: "dot.radiowaves.left.and.right").accessibilityIdentifier("nav.radio") }
                     .tag(2)
-                TabShell { LibraryView() }
+                TabShell(isSelected: tab == 3) { LibraryView() }
                     .tabItem { Label(L("Kütüphane"), systemImage: Self.libraryTabSymbol).accessibilityIdentifier("nav.library") }
                     .tag(3)
-                TabShell { SearchView() }
+                TabShell(isSelected: tab == 4) { SearchView() }
                     .tabItem { Label(L("Ara"), systemImage: "magnifyingglass").accessibilityIdentifier("nav.search") }
                     .tag(4)
             }
@@ -189,13 +192,25 @@ struct RootView: View {
 }
 
 struct TabShell<Content: View>: View {
+    var isSelected: Bool = false
     @EnvironmentObject private var player: MusicPlayer
+    @State private var pushedTarget: AppNavigationTarget?
     @ViewBuilder var content: () -> Content
     var body: some View {
         NavigationStack {
             content()
                 .background(Color.musicBackground)
                 .toolbarBackground(Color.musicBackground.opacity(0.96), for: .navigationBar)
+                .navigationDestination(item: $pushedTarget) { target in
+                    switch target {
+                    case .artist(let id, let name):
+                        ArtistDetailView(id: id, name: name)
+                    case .album(let collection):
+                        AlbumDetailView(collection: collection)
+                    case .query(let title, let query):
+                        QueryView(query: query, title: title)
+                    }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if #available(iOS 26.0, *) {
                         EmptyView()
@@ -203,6 +218,11 @@ struct TabShell<Content: View>: View {
                         MiniPlayer().padding(.horizontal, 12).padding(.vertical, 6)
                     }
                 }
+        }
+        .onChange(of: player.requestedNavigation) { _, target in
+            guard isSelected, let target else { return }
+            pushedTarget = target
+            player.requestedNavigation = nil
         }
     }
 }

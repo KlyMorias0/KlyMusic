@@ -238,15 +238,16 @@ struct AlbumBackdrop: View {
     var artwork: String?
     var isPlaying: Bool = false
     var intense: Bool = false
+    @AppStorage("animatedArtwork") private var animatedArtwork = true
     @State private var palette = ArtworkPalette.fallback
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: !isPlaying || reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: !isPlaying || !animatedArtwork || reduceMotion)) { timeline in
             let phase = BackdropPhase.compute(
                 at: timeline.date,
-                isPlaying: isPlaying,
+                isPlaying: isPlaying && animatedArtwork,
                 intense: intense,
                 dark: scheme == .dark,
                 reduceMotion: reduceMotion

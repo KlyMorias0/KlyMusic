@@ -287,7 +287,7 @@ actor API {
         if !query.isEmpty { parts.queryItems = query }
         guard let url = parts.url else { throw APIError.configuration }
         var request = URLRequest(url: url)
-        request.setValue("KlyMusic-iOS/2.19.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("KlyMusic-iOS/2.20.0", forHTTPHeaderField: "User-Agent")
         if let body {
             request.httpMethod = "POST"; request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -309,6 +309,10 @@ actor API {
     func search(_ text: String, source: String = "all") async throws -> SearchResponse {
         if Self.endpoint == "native" { return try await catalog.search(text, source: source) }
         return try await request("v1/search", query: [.init(name: "q", value: text), .init(name: "source", value: source)])
+    }
+    func searchSuggestions(_ prefix: String) async -> [String] {
+        guard Self.endpoint == "native" else { return [] }
+        return await catalog.searchSuggestions(prefix)
     }
     func categories() async throws -> [BrowseCategory] {
         if Self.endpoint == "native" { return try await catalog.categories() }

@@ -511,3 +511,29 @@
 "ŞİMDİ DİNLE" = "LISTEN NOW";
 "Global" = "Global";
 "Kütüphane ve Hakkında" = "Library & About";
+
+// Added in 2.20.0 functional perfection update
+"Ekolayzer" = "Equalizer";
+"Frekans Dengesi" = "Frequency Balance";
+"Bas Güçlendirici" = "Bass Booster";
+"Bas Azaltıcı" = "Bass Reducer";
+"Dans" = "Dance";
+"Gece Modu" = "Late Night";
+"R&B ve Hip-Hop" = "R&B & Hip-Hop";
+"Vokal Güçlendirici" = "Vocal Booster";
+"CANLI YAYIN" = "LIVE";
+"Azerbaycan Canlı Radyo" = "Azerbaijan Live Radio";
+"Bakü'den kesintisiz canlı müzik yayını" = "Nonstop live music broadcast from Baku";
+"Henüz çalınan şarkı yok" = "No recently played songs yet";
+"Sözleri Paylaş…" = "Share Lyrics…";
+"Satır seç (en fazla 4)" = "Select lines (up to 4)";
+"Kartı Paylaş" = "Share Card";
+"Şarkı Sözü Kartı" = "Lyric Card";
+"Paylaş" = "Share";
+"Tüm Albümü Göster" = "Show Complete Album";
+"Kapak Fotoğrafı Seç" = "Choose Cover Photo";
+"Açıklama (isteğe bağlı)" = "Description (optional)";
+"Şarkı Ekle" = "Add Songs";
+"Açıklamayı Düzenle" = "Edit Description";
+"Kapağı Değiştir" = "Change Cover";
+"Özel Kapağı Kaldır" = "Remove Custom Cover";

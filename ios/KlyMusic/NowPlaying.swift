@@ -112,8 +112,10 @@ struct NowPlayingView: View {
     @EnvironmentObject private var downloads: DownloadManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("animatedArtwork") private var animatedArtwork = true
     @State private var showLyrics = false
     @State private var showQueue = false
+    @State private var coverDragOffset: CGFloat = 0
     private var displayed: Track? { player.pendingTrack ?? player.current }
     private var waitingForFirstTrack: Bool { player.current == nil && player.pendingTrack != nil }
 
@@ -135,8 +137,22 @@ struct NowPlayingView: View {
                                 Artwork(url: displayed?.artwork, radius: 15)
                                     .frame(width: side, height: side)
                                     .shadow(color: .black.opacity(player.isPlaying ? 0.34 : 0.16), radius: player.isPlaying ? 26 : 12, y: player.isPlaying ? 14 : 6)
-                                    .scaleEffect(player.isPlaying || reduceMotion ? 1.0 : 0.86)
+                                    .scaleEffect((player.isPlaying || reduceMotion || !animatedArtwork) ? 1.0 : 0.86)
+                                    .offset(x: coverDragOffset)
                                     .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.76), value: player.isPlaying)
+                                    .gesture(
+                                        DragGesture(minimumDistance: 28)
+                                            .onChanged { value in
+                                                guard !player.isLiveStream, abs(value.translation.width) > abs(value.translation.height) else { return }
+                                                coverDragOffset = max(-60, min(60, value.translation.width * 0.45))
+                                            }
+                                            .onEnded { value in
+                                                withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.78)) { coverDragOffset = 0 }
+                                                guard !player.isLiveStream, abs(value.translation.width) > abs(value.translation.height) else { return }
+                                                if value.translation.width < -55 { Haptics.light(); player.next() }
+                                                else if value.translation.width > 55 { Haptics.light(); player.previous() }
+                                            }
+                                    )
                                     .accessibilityIdentifier("player.cover").transition(.opacity)
                             }
                         }.frame(height: side).frame(maxWidth: .infinity)
@@ -165,10 +181,34 @@ struct NowPlayingView: View {
                     .font(.system(size: 21, weight: .bold))
                     .foregroundStyle(Color.playerPrimary)
                     .lineLimit(1)
-                Text(displayed?.artist ?? "")
-                    .font(.system(size: 19, weight: .regular))
-                    .foregroundStyle(Color.playerSecondary)
-                    .lineLimit(1)
+                if let artist = displayed?.artist, !artist.isEmpty, !player.isLiveStream {
+                    Button {
+                        Haptics.selection()
+                        let target: AppNavigationTarget
+                        if let artistID = displayed?.artistID, !artistID.isEmpty {
+                            target = .artist(id: artistID, name: artist)
+                        } else {
+                            target = .query(title: artist, query: artist)
+                        }
+                        player.isPresented = false
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(220))
+                            player.requestedNavigation = target
+                        }
+                    } label: {
+                        Text(artist)
+                            .font(.system(size: 19, weight: .regular))
+                            .foregroundStyle(Color.playerSecondary)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(TrackRowButtonStyle())
+                    .accessibilityIdentifier("player.openArtist")
+                } else {
+                    Text(displayed?.artist ?? "")
+                        .font(.system(size: 19, weight: .regular))
+                        .foregroundStyle(Color.playerSecondary)
+                        .lineLimit(1)
+                }
                 if player.pendingTrack != nil {
                     Text(L("Hazırlanıyor…"))
                         .font(.caption)
@@ -177,7 +217,7 @@ struct NowPlayingView: View {
             }.frame(maxWidth: .infinity, alignment: .leading)
             if let displayed {
                 HStack(spacing: 10) {
-                    Button { library.toggleFavorite(displayed) } label: {
+                    Button { Haptics.light(); library.toggleFavorite(displayed) } label: {
                         Image(systemName: library.isFavorite(displayed) ? "star.fill" : "star")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(library.isFavorite(displayed) ? Color.coral : Color.playerPrimary)
@@ -187,7 +227,7 @@ struct NowPlayingView: View {
                             .contentShape(Rectangle())
                     }.accessibilityIdentifier("player.favorite")
                         .accessibilityLabel(library.isFavorite(displayed) ? L("Favorilerden çıkar") : L("Favorilere ekle"))
-                    TrackMenu(track: displayed, pill: true)
+                    TrackMenu(track: displayed, pill: true, inNowPlayingSheet: true)
                 }
             }
         }
@@ -229,6 +269,7 @@ struct NowPlayingView: View {
     private var appleTools: some View {
         HStack(spacing: 0) {
             Button {
+                Haptics.selection()
                 withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)) { showLyrics.toggle() }
                 if showLyrics { player.loadLyrics() }
             } label: {
@@ -247,7 +288,7 @@ struct NowPlayingView: View {
                 .frame(width: 46, height: 46)
                 .frame(maxWidth: .infinity)
                 .accessibilityLabel("AirPlay")
-            Button { showQueue = true } label: {
+            Button { Haptics.selection(); showQueue = true } label: {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 19, weight: .medium))
                     .foregroundStyle(Color.playerSecondary)
@@ -263,6 +304,7 @@ private struct ApplePlaybackTimeline: View {
     @EnvironmentObject private var clock: PlaybackClock
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var library: LibraryStore
+    @AppStorage("dolbyAtmosMode") private var dolbyAtmosMode = "auto"
     @State private var scrubbing = false
     @State private var scrub = 0.0
     private var value: Double { scrubbing ? scrub : clock.position }
@@ -273,55 +315,77 @@ private struct ApplePlaybackTimeline: View {
 
     var body: some View {
         VStack(spacing: 3) {
-            GeometryReader { geometry in
-                let fraction = max(0, min(1, value / max(1, clock.duration)))
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.playerPrimary.opacity(0.18))
-                    Capsule().fill(Color.playerPrimary.opacity(scrubbing ? 0.96 : 0.72))
-                        .frame(width: fraction * geometry.size.width)
-                }.frame(height: scrubbing ? 9 : 5).frame(height: 22)
-                    .frame(maxHeight: .infinity)
-                    .contentShape(Rectangle())
-                    .animation(.easeOut(duration: 0.14), value: scrubbing)
-                    .gesture(DragGesture(minimumDistance: 0).onChanged { event in
-                        scrubbing = true
-                        scrub = min(max(0, event.location.x / max(1, geometry.size.width)), 1) * max(0, clock.duration)
-                    }.onEnded { _ in player.seek(scrub); scrubbing = false })
-            }.frame(height: 22)
-                .accessibilityElement().accessibilityLabel("Oynatma konumu")
-                .accessibilityValue(Track.time(value)).accessibilityIdentifier("player.scrubber")
-                .accessibilityAdjustableAction { direction in
-                    switch direction {
-                    case .increment: player.seek(clock.position + 5)
-                    case .decrement: player.seek(clock.position - 5)
-                    @unknown default: break
-                    }
-                }
-            ZStack {
-                HStack(spacing: 0) {
-                    Text(Track.time(value))
-                        .accessibilityIdentifier("player.elapsed")
-                        .accessibilityValue(String(Int(clock.position)))
-                    Spacer(minLength: 0)
-                    Text("−" + Track.time(max(0, clock.duration - value)))
-                }
+            if player.isLiveStream {
+                Capsule().fill(Color.playerPrimary.opacity(0.28))
+                    .overlay(Capsule().fill(Color.coral.opacity(0.65)))
+                    .frame(height: 5)
+                    .frame(height: 22)
+                    .accessibilityElement()
+                    .accessibilityLabel(L("CANLI YAYIN"))
+                    .accessibilityIdentifier("player.scrubber")
                 HStack(spacing: 6) {
-                    DolbyAtmosBadge(color: .playerSecondary)
-                    if isOfflineTrack {
-                        Text("·")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.playerSecondary)
-                            .accessibilityHidden(true)
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text(L("Çevrimdışı"))
-                                .font(.system(size: 10.5, weight: .semibold))
-                        }
-                        .foregroundStyle(Color.playerSecondary)
-                    }
+                    Circle().fill(Color.coral).frame(width: 6, height: 6)
+                    Text(L("CANLI YAYIN"))
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(0.8)
                 }
-            }.font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(Color.playerSecondary)
+                .foregroundStyle(Color.playerSecondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                GeometryReader { geometry in
+                    let fraction = max(0, min(1, value / max(1, clock.duration)))
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.playerPrimary.opacity(0.18))
+                        Capsule().fill(Color.playerPrimary.opacity(scrubbing ? 0.96 : 0.72))
+                            .frame(width: fraction * geometry.size.width)
+                    }.frame(height: scrubbing ? 9 : 5).frame(height: 22)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .animation(.easeOut(duration: 0.14), value: scrubbing)
+                        .gesture(DragGesture(minimumDistance: 0).onChanged { event in
+                            scrubbing = true
+                            scrub = min(max(0, event.location.x / max(1, geometry.size.width)), 1) * max(0, clock.duration)
+                        }.onEnded { _ in Haptics.light(); player.seek(scrub); scrubbing = false })
+                }.frame(height: 22)
+                    .accessibilityElement().accessibilityLabel("Oynatma konumu")
+                    .accessibilityValue(Track.time(value)).accessibilityIdentifier("player.scrubber")
+                    .accessibilityAdjustableAction { direction in
+                        switch direction {
+                        case .increment: player.seek(clock.position + 5)
+                        case .decrement: player.seek(clock.position - 5)
+                        @unknown default: break
+                        }
+                    }
+                ZStack {
+                    HStack(spacing: 0) {
+                        Text(Track.time(value))
+                            .accessibilityIdentifier("player.elapsed")
+                            .accessibilityValue(String(Int(clock.position)))
+                        Spacer(minLength: 0)
+                        Text("−" + Track.time(max(0, clock.duration - value)))
+                    }
+                    HStack(spacing: 6) {
+                        if dolbyAtmosMode != "off" {
+                            DolbyAtmosBadge(color: .playerSecondary)
+                        }
+                        if isOfflineTrack {
+                            if dolbyAtmosMode != "off" {
+                                Text("·")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Color.playerSecondary)
+                                    .accessibilityHidden(true)
+                            }
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text(L("Çevrimdışı"))
+                                    .font(.system(size: 10.5, weight: .semibold))
+                            }
+                            .foregroundStyle(Color.playerSecondary)
+                        }
+                    }
+                }.font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(Color.playerSecondary)
+            }
         }.accessibilityElement(children: .contain).accessibilityIdentifier("player.timeline")
     }
 }
@@ -421,6 +485,7 @@ struct LyricsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     @State private var following = true
+    @State private var sharedLyricItem: SharedLyricPayload?
     private var lines: [LyricLine] { player.lyrics?.lines ?? [] }
     private var active: Int { lines.last(where: { $0.time <= clock.position })?.id ?? -1 }
 
@@ -449,6 +514,7 @@ struct LyricsView: View {
                                         }
                                         Button {
                                             following = true
+                                            Haptics.selection()
                                             player.seek(line.time)
                                             scroll(to: line.id, proxy: proxy)
                                         } label: {
@@ -461,6 +527,24 @@ struct LyricsView: View {
                                                 progress: progress(for: line)
                                             )
                                         }.buttonStyle(LyricLineButtonStyle())
+                                            .contextMenu {
+                                                Button {
+                                                    following = true
+                                                    Haptics.selection()
+                                                    player.seek(line.time)
+                                                    scroll(to: line.id, proxy: proxy)
+                                                } label: {
+                                                    Label(L("Bu satırdan çal"), systemImage: "play.fill")
+                                                }
+                                                if let track = player.current ?? player.pendingTrack {
+                                                    Button {
+                                                        Haptics.light()
+                                                        sharedLyricItem = makeLyricPayload(for: track, around: line)
+                                                    } label: {
+                                                        Label(L("Sözleri Paylaş…"), systemImage: "square.and.arrow.up")
+                                                    }
+                                                }
+                                            }
                                             .accessibilityIdentifier("lyrics.line.\(line.id)")
                                             .accessibilityLabel(line.text)
                                             .accessibilityHint(L("Bu satırdan çal"))
@@ -531,6 +615,20 @@ struct LyricsView: View {
         }
         .accessibilityIdentifier("lyrics.content")
         .task(id: player.current?.id) { following = true; player.loadLyrics() }
+        .sheet(item: $sharedLyricItem) { payload in LyricShareSheet(payload: payload) }
+    }
+
+    private func makeLyricPayload(for track: Track, around line: LyricLine) -> SharedLyricPayload {
+        guard let idx = lines.firstIndex(where: { $0.id == line.id }) else {
+            return SharedLyricPayload(track: track, candidateLines: [line.text], selectedIndices: [0])
+        }
+        let lower = max(0, idx - 1)
+        let upper = min(lines.count - 1, idx + 3)
+        let window = Array(lines[lower...upper].map(\.text))
+        let initialOffset = idx - lower
+        var selected: Set<Int> = [initialOffset]
+        if initialOffset + 1 < window.count { selected.insert(initialOffset + 1) }
+        return SharedLyricPayload(track: track, candidateLines: window, selectedIndices: selected)
     }
 
     private func isInstrumentalGap(before line: LyricLine) -> Bool {
@@ -707,16 +805,54 @@ private struct AnimatedLyricLine: View {
 
 struct QueueView: View {
     @EnvironmentObject private var player: MusicPlayer
+    @EnvironmentObject private var library: LibraryStore
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("infiniteAutoplay") private var infiniteAutoplay = true
+    @State private var showHistory = false
     @State private var confirmClear = false
 
     var body: some View {
         let currentTrack = player.pendingTrack ?? player.current
         let upcoming = player.upcomingTracks
+        let history: [Track] = {
+            if !player.historyTracks.isEmpty { return Array(player.historyTracks.reversed()) }
+            return Array(library.recent.filter { $0.id != currentTrack?.id }.prefix(10))
+        }()
         NavigationStack {
             ZStack {
                 AlbumBackdrop(artwork: currentTrack?.artwork, isPlaying: player.isPlaying)
                 List {
+                    if showHistory {
+                        Section {
+                            if history.isEmpty {
+                                Text(L("Henüz çalınan şarkı yok"))
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 8)
+                            } else {
+                                ForEach(history) { track in
+                                    Button {
+                                        Haptics.selection()
+                                        if player.historyTracks.contains(where: { $0.id == track.id }) {
+                                            player.playFromHistory(id: track.id)
+                                        } else {
+                                            player.play(track)
+                                        }
+                                    } label: {
+                                        HStack(spacing: 13) {
+                                            queueArtwork(track)
+                                            queueMetadata(track)
+                                        }.padding(.vertical, 6).contentShape(Rectangle())
+                                    }.buttonStyle(TrackRowButtonStyle())
+                                        .accessibilityIdentifier("queue.history.\(track.id)")
+                                }
+                            }
+                        } header: {
+                            Text(L("Geçmiş")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.playerSecondary).textCase(nil)
+                        }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                    }
                     if let current = currentTrack {
                         Section {
                             HStack(spacing: 13) {
@@ -772,39 +908,78 @@ struct QueueView: View {
                                         }
                                     Divider().overlay(Color.primary.opacity(0.08)).padding(.leading, 61)
                                 }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        Haptics.light()
+                                        player.removeUpcoming(id: track.id)
+                                    } label: {
+                                        Label(L("Sıradan kaldır"), systemImage: "minus.circle")
+                                    }
+                                }
                             }.onMove { offsets, destination in
                                 player.moveUpcoming(from: offsets, to: destination, snapshot: upcoming)
                             }
                         }
                     } header: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Text(L("Sıradaki")).font(.headline).foregroundStyle(.primary)
                             if !upcoming.isEmpty { Text("\(upcoming.count)").font(.subheadline).foregroundStyle(.secondary) }
                             Spacer(minLength: 0)
-                            Button { player.toggleShuffle() } label: {
+                            Button {
+                                Haptics.selection()
+                                withAnimation(.easeInOut(duration: 0.2)) { showHistory.toggle() }
+                            } label: {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(showHistory ? Color.white : Color.playerSecondary)
+                                    .frame(width: 34, height: 30)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .fill(showHistory ? Color.coral : Color.primary.opacity(0.08))
+                                    )
+                                    .frame(width: 36, height: 38)
+                                    .contentShape(Rectangle())
+                            }.accessibilityLabel(L("Geçmiş")).accessibilityIdentifier("queue.historyToggle")
+                            Button { Haptics.selection(); player.toggleShuffle() } label: {
                                 Image(systemName: "shuffle")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(player.shuffle ? Color.white : Color.playerSecondary)
-                                    .frame(width: 36, height: 32)
+                                    .frame(width: 34, height: 30)
                                     .background(
                                         RoundedRectangle(cornerRadius: 9, style: .continuous)
                                             .fill(player.shuffle ? Color.coral : Color.primary.opacity(0.08))
                                     )
-                                    .frame(width: 40, height: 40)
+                                    .frame(width: 36, height: 38)
                                     .contentShape(Rectangle())
                             }.accessibilityLabel(L("Karıştır")).accessibilityValue(player.shuffle ? L("Açık") : L("Kapalı"))
-                            Button { player.cycleRepeat() } label: {
+                            Button { Haptics.selection(); player.cycleRepeat() } label: {
                                 Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(player.repeatMode == .off ? Color.playerSecondary : Color.white)
-                                    .frame(width: 36, height: 32)
+                                    .frame(width: 34, height: 30)
                                     .background(
                                         RoundedRectangle(cornerRadius: 9, style: .continuous)
                                             .fill(player.repeatMode == .off ? Color.primary.opacity(0.08) : Color.coral)
                                     )
-                                    .frame(width: 40, height: 40)
+                                    .frame(width: 36, height: 38)
                                     .contentShape(Rectangle())
                             }.accessibilityLabel(L("Tekrarlama")).accessibilityValue(player.repeatMode == .off ? L("Kapalı") : (player.repeatMode == .one ? L("Bir Şarkı") : L("Tümü")))
+                            Button {
+                                Haptics.selection()
+                                infiniteAutoplay.toggle()
+                                if infiniteAutoplay { player.prepareNext() }
+                            } label: {
+                                Image(systemName: "infinity")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(infiniteAutoplay ? Color.white : Color.playerSecondary)
+                                    .frame(width: 34, height: 30)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .fill(infiniteAutoplay ? Color.coral : Color.primary.opacity(0.08))
+                                    )
+                                    .frame(width: 36, height: 38)
+                                    .contentShape(Rectangle())
+                            }.accessibilityLabel(L("Otomatik Çal")).accessibilityIdentifier("queue.autoplayToggle")
                         }.textCase(nil)
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -890,4 +1065,187 @@ struct VolumeControl: UIViewRepresentable {
             }
         }
     }
+}
+
+struct SharedLyricPayload: Identifiable {
+    let id = UUID()
+    let track: Track
+    let candidateLines: [String]
+    let selectedIndices: Set<Int>
+}
+
+private struct LyricShareSheet: View {
+    let payload: SharedLyricPayload
+    @Environment(\.dismiss) private var dismiss
+    @State private var selected: Set<Int>
+    @State private var coverImage: UIImage?
+    @State private var palette = ArtworkPalette.fallback
+    @State private var shareImage: UIImage?
+
+    init(payload: SharedLyricPayload) {
+        self.payload = payload
+        _selected = State(initialValue: payload.selectedIndices)
+    }
+
+    private var activeLines: [String] {
+        selected.sorted().compactMap { payload.candidateLines.indices.contains($0) ? payload.candidateLines[$0] : nil }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 18) {
+                    LyricShareCardView(track: payload.track, lines: activeLines, cover: coverImage, palette: palette)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .shadow(color: .black.opacity(0.32), radius: 20, y: 10)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 10)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L("Satır seç (en fazla 4)"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 24)
+                        ForEach(Array(payload.candidateLines.enumerated()), id: \.offset) { idx, text in
+                            let on = selected.contains(idx)
+                            Button {
+                                Haptics.selection()
+                                if on {
+                                    if selected.count > 1 { selected.remove(idx) }
+                                } else if selected.count < 4 {
+                                    selected.insert(idx)
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(on ? Color.coral : .secondary)
+                                    Text(text)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                        .multilineTextAlignment(.leading)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 10)
+                                .background(Color.musicElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 20)
+                        }
+                    }
+
+                    Button {
+                        Haptics.light()
+                        renderAndShare()
+                    } label: {
+                        Label(L("Kartı Paylaş"), systemImage: "square.and.arrow.up")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.coral, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(CardButtonStyle())
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                }
+            }
+            .background(Color.pageBackground)
+            .navigationTitle(L("Şarkı Sözü Kartı"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L("Vazgeç")) { dismiss() }.foregroundStyle(Color.coral)
+                }
+            }
+            .task {
+                if let url = ArtworkRequest.sized(payload.track.artworkURL, pixels: 480),
+                   let img = await ArtworkCache.shared.image(url, fallback: payload.track.artworkURL, maxPixels: 480) {
+                    coverImage = img
+                    if let p = await ArtworkCache.shared.palette(img) { palette = p }
+                }
+            }
+            .sheet(item: Binding(
+                get: { shareImage.map { IdentifiableImage(image: $0) } },
+                set: { if $0 == nil { shareImage = nil } }
+            )) { item in
+                ActivityView(items: [item.image, "\(payload.track.title) — \(payload.track.artist)"])
+            }
+        }
+    }
+
+    @MainActor private func renderAndShare() {
+        let card = LyricShareCardView(track: payload.track, lines: activeLines, cover: coverImage, palette: palette)
+            .frame(width: 360)
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = 3.0
+        if let rendered = renderer.uiImage {
+            shareImage = rendered
+        }
+    }
+}
+
+private struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+private struct LyricShareCardView: View {
+    let track: Track
+    let lines: [String]
+    let cover: UIImage?
+    let palette: ArtworkPalette
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                Group {
+                    if let cover {
+                        Image(uiImage: cover).resizable().scaledToFill()
+                    } else {
+                        ZStack { Color.white.opacity(0.14); Image(systemName: "music.note").foregroundStyle(.white) }
+                    }
+                }
+                .frame(width: 52, height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title).font(.headline.bold()).foregroundStyle(.white).lineLimit(1)
+                    Text(track.artist).font(.subheadline).foregroundStyle(.white.opacity(0.84)).lineLimit(1)
+                }
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineSpacing(3)
+                }
+            }
+            .padding(.vertical, 8)
+
+            HStack {
+                Image(systemName: "music.note").font(.caption.bold())
+                Text("KlyMusic").font(.caption.weight(.bold))
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.82))
+        }
+        .padding(24)
+        .background(
+            LinearGradient(
+                colors: [palette.top.color, palette.left.color, palette.bottom.color],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+    }
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

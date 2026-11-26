@@ -1,4 +1,20 @@
 import SwiftUI
+import UIKit
+
+@MainActor enum Haptics {
+    static func selection() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+    static func light() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+    static func medium() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+}
 
 extension Color {
     static let pageBackground = Color.musicBackground
@@ -109,6 +125,17 @@ struct TrackCard: View {
                 }
             }.frame(width: size, alignment: .leading).contentShape(Rectangle())
         }.buttonStyle(CardButtonStyle()).accessibilityLabel("\(track.title), \(track.artist)").accessibilityHint(L("Çal"))
+            .contextMenu {
+                Button { Haptics.light(); player.playNext(track) } label: {
+                    Label(L("Sıradaki çal"), systemImage: "text.line.first.and.arrowtriangle.forward")
+                }
+                Button { Haptics.light(); player.addToQueue(track) } label: {
+                    Label(L("Sıraya ekle"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                }
+                ShareLink(item: TrackMenu.shareText(for: track)) {
+                    Label(L("Paylaş"), systemImage: "square.and.arrow.up")
+                }
+            }
     }
 }
 
@@ -172,6 +199,21 @@ struct TrackRow: View {
                 }.padding(.vertical, 6).contentShape(Rectangle())
             }.buttonStyle(TrackRowButtonStyle()).accessibilityLabel("\(track.title), \(track.artist)")
                 .accessibilityHint(L("Çal")).accessibilityIdentifier("track.row.\(track.id)")
+                .contextMenu {
+                    Button { Haptics.light(); library.toggleFavorite(track) } label: {
+                        Label(library.isFavorite(track) ? L("Favorilerden çıkar") : L("Favorilere ekle"),
+                              systemImage: library.isFavorite(track) ? "star.slash" : "star")
+                    }
+                    Button { Haptics.light(); player.playNext(track) } label: {
+                        Label(L("Sıradaki çal"), systemImage: "text.line.first.and.arrowtriangle.forward")
+                    }
+                    Button { Haptics.light(); player.addToQueue(track) } label: {
+                        Label(L("Sıraya ekle"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                    }
+                    ShareLink(item: TrackMenu.shareText(for: track)) {
+                        Label(L("Paylaş"), systemImage: "square.and.arrow.up")
+                    }
+                }
             TrackMenu(track: track)
         }
     }
@@ -180,6 +222,7 @@ struct TrackRow: View {
 struct TrackMenu: View {
     var track: Track
     var pill = false
+    var inNowPlayingSheet = false
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var downloads: DownloadManager
@@ -187,44 +230,77 @@ struct TrackMenu: View {
     private var isCurrent: Bool { player.current?.id == track.id || player.pendingTrack?.id == track.id }
     private var hasArtist: Bool { !(track.artistID ?? "").isEmpty }
     private var hasAlbum: Bool { !(track.albumID ?? "").isEmpty }
+    static func shareText(for track: Track) -> String { "\(track.title) — \(track.artist)" }
     var body: some View {
         Menu {
             Section {
-                Button { library.toggleFavorite(track) } label: {
+                Button { Haptics.light(); library.toggleFavorite(track) } label: {
                     Label(library.isFavorite(track) ? L("Favorilerden çıkar") : L("Favorilere ekle"),
                           systemImage: library.isFavorite(track) ? "star.slash" : "star")
                 }.accessibilityIdentifier("track.options.favorite")
                 Button { chooseList = true } label: { Label("Listeye ekle", systemImage: "text.badge.plus") }
                     .accessibilityIdentifier("track.options.playlist")
                 if library.localURL(track.id) != nil {
-                    Button(role: .destructive) { library.removeDownload(track) } label: { Label("İndirmeyi sil", systemImage: "trash") }
+                    Button(role: .destructive) { Haptics.light(); library.removeDownload(track) } label: { Label("İndirmeyi sil", systemImage: "trash") }
                 } else {
-                    Button { downloads.enqueue(track) } label: { Label("İndir", systemImage: "arrow.down.circle") }
+                    Button { Haptics.light(); downloads.enqueue(track) } label: { Label("İndir", systemImage: "arrow.down.circle") }
                         .accessibilityIdentifier("track.options.download")
                 }
+                ShareLink(item: Self.shareText(for: track)) {
+                    Label(L("Paylaş"), systemImage: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("track.options.share")
             }
             if !isCurrent {
                 Section {
-                    Button { player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
+                    Button { Haptics.light(); player.playNext(track) } label: { Label("Sıradaki çal", systemImage: "text.line.first.and.arrowtriangle.forward") }
                         .accessibilityIdentifier("track.options.next")
                     if !player.queue.contains(where: { $0.id == track.id }) {
-                        Button { player.addToQueue(track) } label: { Label("Sıraya ekle", systemImage: "text.line.last.and.arrowtriangle.forward") }
+                        Button { Haptics.light(); player.addToQueue(track) } label: { Label("Sıraya ekle", systemImage: "text.line.last.and.arrowtriangle.forward") }
                             .accessibilityIdentifier("track.options.append")
                     }
                 }
             }
             if hasArtist || hasAlbum {
                 Section {
-                    Menu {
+                    if inNowPlayingSheet {
                         if let albumID = track.albumID, !albumID.isEmpty {
-                            NavigationLink { AlbumDetailView(collection: .init(id: albumID, title: track.album, artist: track.artist, artwork: track.artwork)) } label: {
-                                Label("Albüme git", systemImage: "square.stack")
+                            Button {
+                                Haptics.selection()
+                                let col = MusicCollection(id: albumID, title: track.album, artist: track.artist, artwork: track.artwork)
+                                player.isPresented = false
+                                Task {
+                                    try? await Task.sleep(for: .milliseconds(220))
+                                    player.requestedNavigation = .album(col)
+                                }
+                            } label: {
+                                Label(L("Albüme git"), systemImage: "square.stack")
                             }
                         }
                         if let artistID = track.artistID, !artistID.isEmpty {
-                            NavigationLink { ArtistDetailView(id: artistID, name: track.artist) } label: { Label("Sanatçıya git", systemImage: "person") }
+                            Button {
+                                Haptics.selection()
+                                player.isPresented = false
+                                Task {
+                                    try? await Task.sleep(for: .milliseconds(220))
+                                    player.requestedNavigation = .artist(id: artistID, name: track.artist)
+                                }
+                            } label: {
+                                Label(L("Sanatçıya git"), systemImage: "person")
+                            }
                         }
-                    } label: { Label(L("Sanatçı ve albüm"), systemImage: "arrow.up.right") }
+                    } else {
+                        Menu {
+                            if let albumID = track.albumID, !albumID.isEmpty {
+                                NavigationLink { AlbumDetailView(collection: .init(id: albumID, title: track.album, artist: track.artist, artwork: track.artwork)) } label: {
+                                    Label("Albüme git", systemImage: "square.stack")
+                                }
+                            }
+                            if let artistID = track.artistID, !artistID.isEmpty {
+                                NavigationLink { ArtistDetailView(id: artistID, name: track.artist) } label: { Label("Sanatçıya git", systemImage: "person") }
+                            }
+                        } label: { Label(L("Sanatçı ve albüm"), systemImage: "arrow.up.right") }
+                    }
                 }
             }
         } label: {
@@ -298,6 +374,7 @@ struct TrackListView: View {
     var tracks: [Track]
     var subtitle: String? = nil
     var style: Style = .collection
+    var completeAlbum: MusicCollection? = nil
     @EnvironmentObject private var player: MusicPlayer
     @EnvironmentObject private var downloads: DownloadManager
     @State private var searchText = ""
@@ -346,6 +423,25 @@ struct TrackListView: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .padding(.top, 14)
+                        }
+                        if let album = completeAlbum, !album.id.isEmpty, !album.id.hasPrefix("local:") {
+                            NavigationLink {
+                                AlbumDetailView(collection: album)
+                            } label: {
+                                HStack {
+                                    Text(L("Tüm Albümü Göster"))
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(Color.coral)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color.coral.opacity(0.8))
+                                }
+                                .padding(.vertical, 14)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(TrackRowButtonStyle())
+                            .accessibilityIdentifier("album.showComplete.\(album.id)")
                         }
                     }
                 } else {
@@ -556,14 +652,40 @@ private struct CollectionButtonStyle: ButtonStyle {
 }
 
 
+private actor ArtistPortraitCache {
+    static let shared = ArtistPortraitCache()
+    private var urls: [String: String] = [:]
+
+    func url(for artistID: String) async -> String? {
+        if let cached = urls[artistID] { return cached.isEmpty ? nil : cached }
+        guard let profile = try? await API.shared.artist(artistID),
+              let found = profile.artist.artwork ?? profile.tracks.first?.artwork,
+              !found.isEmpty else {
+            urls[artistID] = ""
+            return nil
+        }
+        urls[artistID] = found
+        return found
+    }
+}
+
 struct ArtistPortrait: View {
     var url: String?
     var name: String
+    var artistID: String? = nil
+    @State private var fetchedURL: String?
+
+    private var resolvedURL: String? {
+        if let url, !url.isEmpty { return url }
+        if let fetchedURL, !fetchedURL.isEmpty { return fetchedURL }
+        return nil
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let diameter = min(geometry.size.width, geometry.size.height)
-            if let url, !url.isEmpty {
-                Artwork(url: url, radius: diameter / 2)
+            if let resolvedURL {
+                Artwork(url: resolvedURL, radius: diameter / 2)
                     .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.8))
             } else {
                 ZStack {
@@ -577,5 +699,14 @@ struct ArtistPortrait: View {
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityLabel(name)
+        .task(id: artistID ?? "") {
+            guard (url == nil || url?.isEmpty == true),
+                  let artistID, !artistID.isEmpty,
+                  !artistID.hasPrefix("local:"),
+                  !CommandLine.arguments.contains("-serverURL") else { return }
+            if let found = await ArtistPortraitCache.shared.url(for: artistID), !Task.isCancelled {
+                fetchedURL = found
+            }
+        }
     }
 }

@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("dolbyAtmosMode") private var dolbyAtmosMode = "auto"
     @AppStorage("crossfadeEnabled") private var crossfadeEnabled = false
     @AppStorage("crossfadeSeconds") private var crossfadeSeconds = 4.0
+    @AppStorage("eqPreset") private var eqPreset = AudioEQPreset.off.rawValue
     @State private var status: String?
     @State private var document = BackupDocument()
     @State private var exporting = false
@@ -117,7 +118,9 @@ struct SettingsView: View {
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                         Spacer(minLength: 8)
-                        if crossfadeEnabled {
+                        if eqPreset != AudioEQPreset.off.rawValue, let preset = AudioEQPreset(rawValue: eqPreset) {
+                            SettingsValueText(text: L(preset.title))
+                        } else if crossfadeEnabled {
                             SettingsValueText(text: String(format: L("%lld sn"), Int64(crossfadeSeconds.rounded())))
                         }
                     }
@@ -591,12 +594,18 @@ private struct DolbyAtmosSettingsView: View {
 }
 
 private struct PlaybackSettingsView: View {
+    @EnvironmentObject private var player: MusicPlayer
     @AppStorage("crossfadeEnabled") private var crossfadeEnabled = false
     @AppStorage("crossfadeSeconds") private var crossfadeSeconds = 4.0
+    @AppStorage("eqPreset") private var eqPreset = AudioEQPreset.off.rawValue
     @AppStorage("soundCheckEnabled") private var soundCheckEnabled = true
     @AppStorage("infiniteAutoplay") private var infiniteAutoplay = true
     @AppStorage("useListeningHistory") private var useListeningHistory = true
     @AppStorage("animatedArtwork") private var animatedArtwork = true
+
+    private var activeEQTitle: String {
+        L((AudioEQPreset(rawValue: eqPreset) ?? .off).title)
+    }
 
     var body: some View {
         List {
@@ -638,6 +647,21 @@ private struct PlaybackSettingsView: View {
             .listRowBackground(Color.musicElevated)
 
             Section {
+                NavigationLink {
+                    EqualizerSettingsView()
+                } label: {
+                    HStack(spacing: 12) {
+                        SettingsIconTile(symbol: "slider.vertical.3", color: Color(red: 0.58, green: 0.34, blue: 0.88))
+                        Text(L("Ekolayzer"))
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: 8)
+                        SettingsValueText(text: activeEQTitle)
+                    }
+                    .frame(minHeight: 44)
+                }
+                .accessibilityIdentifier("settings.playback.eq")
+
                 Toggle(isOn: $soundCheckEnabled) {
                     HStack(spacing: 12) {
                         SettingsIconTile(symbol: "speaker.wave.2.fill", color: Color(red: 0.20, green: 0.68, blue: 0.42))
@@ -718,6 +742,85 @@ private struct PlaybackSettingsView: View {
         .musicSettingsList()
         .navigationTitle(L("Geçiş ve Oynatma"))
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: soundCheckEnabled) { _, _ in player.applyAudioSettings() }
+    }
+}
+
+private struct EqualizerSettingsView: View {
+    @EnvironmentObject private var player: MusicPlayer
+    @AppStorage("eqPreset") private var eqPreset = AudioEQPreset.off.rawValue
+
+    private var currentPreset: AudioEQPreset { AudioEQPreset(rawValue: eqPreset) ?? .off }
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 16) {
+                    eqBandMeter(label: "Bass", db: currentPreset.gainsDB.low)
+                    eqBandMeter(label: "Mid", db: currentPreset.gainsDB.mid)
+                    eqBandMeter(label: "Treble", db: currentPreset.gainsDB.high)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            } header: {
+                Text(L("Frekans Dengesi"))
+            }
+            .listRowBackground(Color.musicElevated)
+
+            Section {
+                ForEach(AudioEQPreset.allCases) { preset in
+                    let selected = currentPreset == preset
+                    Button {
+                        eqPreset = preset.rawValue
+                        player.applyAudioSettings()
+                    } label: {
+                        HStack {
+                            Text(L(preset.title))
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                            Spacer(minLength: 12)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.coral)
+                                .frame(width: 22)
+                                .opacity(selected ? 1 : 0)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(TrackRowButtonStyle())
+                    .accessibilityIdentifier("settings.eq." + preset.rawValue)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+            .listRowBackground(Color.musicElevated)
+        }
+        .musicSettingsList()
+        .navigationTitle(L("Ekolayzer"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func eqBandMeter(label: String, db: Float) -> some View {
+        let normalized = CGFloat((db + 6.0) / 12.0)
+        return VStack(spacing: 6) {
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.primary.opacity(0.08))
+                    .frame(width: 28, height: 52)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.coral)
+                    .frame(width: 28, height: max(8, 52 * min(1, max(0.08, normalized))))
+                    .animation(.spring(response: 0.28, dampingFraction: 0.78), value: db)
+            }
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(String(format: "%+.1f dB", db))
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

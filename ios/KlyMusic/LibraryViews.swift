@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct LibraryPin: Codable, Identifiable, Equatable, Hashable {
     var id: String
@@ -211,9 +212,9 @@ struct LibraryView: View {
             VStack(spacing: 6) {
                 Group {
                     if pin.kind == "playlist", let list = library.playlists.first(where: { $0.id.uuidString == pin.targetID }) {
-                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 10)
+                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 10, playlistID: list.id)
                     } else if pin.kind == "artist" {
-                        ArtistPortrait(url: pin.artwork, name: pin.title)
+                        ArtistPortrait(url: pin.artwork, name: pin.title, artistID: pin.targetID)
                     } else {
                         Artwork(url: pin.artwork, radius: 10)
                     }
@@ -295,14 +296,19 @@ struct LibraryView: View {
         return NavigationLink {
             switch entry.content {
             case .playlist(let list): PlaylistDetailView(playlist: list)
-            case .album(let track): TrackListView(title: entry.title, tracks: albumTracks(track), subtitle: entry.artist.isEmpty ? nil : entry.artist)
+            case .album(let track):
+                let albumCol: MusicCollection? = {
+                    guard let albumID = track.albumID, !albumID.isEmpty else { return nil }
+                    return MusicCollection(id: albumID, title: entry.title, artist: entry.artist, artwork: track.artwork)
+                }()
+                TrackListView(title: entry.title, tracks: albumTracks(track), subtitle: entry.artist.isEmpty ? nil : entry.artist, completeAlbum: albumCol)
             }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 Group {
                     switch entry.content {
                     case .playlist(let list):
-                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 10)
+                        PlaylistArtwork(tracks: library.tracks(in: list), radius: 10, playlistID: list.id)
                     case .album(let track):
                         Artwork(url: track.artwork, radius: 10)
                     }
@@ -595,7 +601,7 @@ struct PlaylistsView: View {
         let isPinned = LibraryPinsStore.contains(id: pin.id, in: pinsValue)
         return NavigationLink { PlaylistDetailView(playlist: playlist) } label: {
             HStack(spacing: 14) {
-                PlaylistArtwork(tracks: library.tracks(in: playlist), radius: 12)
+                PlaylistArtwork(tracks: library.tracks(in: playlist), radius: 12, playlistID: playlist.id)
                     .frame(width: 58, height: 58)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(playlist.name)
@@ -627,21 +633,43 @@ struct CreatePlaylistView: View {
     @Environment(\.dismiss) private var dismiss
     var initialTrack: Track? = nil
     @State private var name = ""
+    @State private var playlistDescription = ""
+    @State private var pickedPhoto: PhotosPickerItem? = nil
+    @State private var pickedCoverData: Data? = nil
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     HStack {
                         Spacer()
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(LinearGradient(colors: [Color.coral.opacity(0.22), Color.musicElevated], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            Image(systemName: "music.note.list")
-                                .font(.system(size: 52, weight: .light))
-                                .foregroundStyle(Color.coral)
+                        PhotosPicker(selection: $pickedPhoto, matching: .images) {
+                            ZStack {
+                                if let pickedCoverData, let image = UIImage(data: pickedCoverData) {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(LinearGradient(colors: [Color.coral.opacity(0.22), Color.musicElevated], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    Image(systemName: "music.note.list")
+                                        .font(.system(size: 52, weight: .light))
+                                        .foregroundStyle(Color.coral)
+                                }
+                            }
+                            .frame(width: 164, height: 164)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(alignment: .bottomTrailing) {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(7)
+                                    .background(.black.opacity(0.58), in: Circle())
+                                    .padding(8)
+                            }
+                            .shadow(color: .black.opacity(0.22), radius: 14, y: 7)
                         }
-                        .frame(width: 164, height: 164)
-                        .shadow(color: .black.opacity(0.22), radius: 14, y: 7)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(L("Kapak Fotoğrafı Seç"))
                         Spacer()
                     }
                     .padding(.vertical, 6)
@@ -655,6 +683,10 @@ struct CreatePlaylistView: View {
                         .multilineTextAlignment(.center)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("playlist.name")
+                    TextField(L("Açıklama (isteğe bağlı)"), text: $playlistDescription)
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("playlist.description")
                 }
                 .listRowBackground(Color.musicElevated)
             }
@@ -663,6 +695,14 @@ struct CreatePlaylistView: View {
             .background(Color.pageBackground)
             .navigationTitle(L("Yeni Çalma Listesi"))
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: pickedPhoto) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        pickedCoverData = data
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L("Vazgeç")) { dismiss() }
@@ -670,10 +710,17 @@ struct CreatePlaylistView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L("Oluştur")) {
+                        Haptics.light()
                         let existing = Set(library.playlists.map(\.id))
                         library.createPlaylist(name)
-                        if let initialTrack, let list = library.playlists.first(where: { !existing.contains($0.id) }) {
-                            library.add(initialTrack, to: list)
+                        if let list = library.playlists.first(where: { !existing.contains($0.id) }) {
+                            if let initialTrack { library.add(initialTrack, to: list) }
+                            if let pickedCoverData {
+                                PlaylistCustomizationStore.shared.setCustomCoverData(pickedCoverData, for: list.id)
+                            }
+                            if !playlistDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                PlaylistCustomizationStore.shared.setDescription(playlistDescription, for: list.id)
+                            }
                         }
                         dismiss()
                     }
@@ -718,6 +765,8 @@ struct LibraryLink: View {
 struct PlaylistArtwork: View {
     var tracks: [Track]
     var radius: CGFloat = 12
+    var playlistID: UUID? = nil
+    @ObservedObject private var customization = PlaylistCustomizationStore.shared
 
     private var uniqueArtworks: [String] {
         var seen = Set<String>()
@@ -735,7 +784,9 @@ struct PlaylistArtwork: View {
         GeometryReader { geometry in
             let mosaic = uniqueArtworks
             Group {
-                if mosaic.count >= 4 {
+                if let playlistID, let custom = customization.coverImage(for: playlistID) {
+                    Image(uiImage: custom).resizable().scaledToFill()
+                } else if mosaic.count >= 4 {
                     VStack(spacing: 0) {
                         ForEach(0..<2) { row in
                             HStack(spacing: 0) {
@@ -792,7 +843,7 @@ struct PlaylistPicker: View {
                     VStack(spacing: 0) {
                         Button { library.add(track, to: list); dismiss() } label: {
                             HStack(spacing: 14) {
-                                PlaylistArtwork(tracks: library.tracks(in: list), radius: 10)
+                                PlaylistArtwork(tracks: library.tracks(in: list), radius: 10, playlistID: list.id)
                                     .frame(width: 56, height: 56)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(list.name)
@@ -844,13 +895,20 @@ struct PlaylistDetailView: View {
     @EnvironmentObject private var downloads: DownloadManager
     @Environment(\.dismiss) private var dismiss
     @AppStorage(LibraryPinsStore.storageKey) private var pinsValue = ""
+    @ObservedObject private var customization = PlaylistCustomizationStore.shared
     @State private var editing: EditMode = .inactive
     @State private var deleting = false
     @State private var rename = false
     @State private var newName = ""
+    @State private var editDescription = false
+    @State private var descriptionDraft = ""
+    @State private var addingSongs = false
+    @State private var changingCover = false
+    @State private var coverPickerItem: PhotosPickerItem? = nil
     @State private var searchText = ""
 
     var tracks: [Track] { library.tracks(in: playlist) }
+    private var playlistDescription: String { customization.description(for: playlist.id) }
     private var isFiltering: Bool { !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !editing.isEditing }
     private var visibleTracks: [Track] {
         isFiltering ? TrackListSort.apply(.standard, query: searchText, to: tracks) : tracks
@@ -883,7 +941,7 @@ struct PlaylistDetailView: View {
         List {
             Section {
                 VStack(spacing: 16) {
-                    PlaylistArtwork(tracks: tracks, radius: 14)
+                    PlaylistArtwork(tracks: tracks, radius: 14, playlistID: playlist.id)
                         .frame(width: 236, height: 236)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .shadow(color: .black.opacity(0.32), radius: 18, x: 0, y: 9)
@@ -897,6 +955,13 @@ struct PlaylistDetailView: View {
                         Text(L("Çalma Listesi"))
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(Color.coral)
+                        if !playlistDescription.isEmpty {
+                            Text(playlistDescription)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(3)
+                        }
                         Text(durationText)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -904,6 +969,22 @@ struct PlaylistDetailView: View {
 
                     CollectionPlayButtons(tracks: visibleTracks)
                         .padding(.top, 4)
+
+                    if !editing.isEditing {
+                        Button {
+                            Haptics.selection()
+                            addingSongs = true
+                        } label: {
+                            Label(L("Şarkı Ekle"), systemImage: "plus")
+                                .font(.system(size: 14.5, weight: .semibold))
+                                .foregroundStyle(Color.coral)
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 9)
+                                .background(Color.musicElevated, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("playlist.addSongs")
+                    }
 
                     if !tracks.isEmpty {
                         Divider()
@@ -932,6 +1013,22 @@ struct PlaylistDetailView: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            Haptics.light()
+                            player.playNext(track)
+                        } label: {
+                            Label(L("Sıradaki çal"), systemImage: "text.line.first.and.arrowtriangle.forward")
+                        }
+                        .tint(.indigo)
+                        Button {
+                            Haptics.light()
+                            player.addToQueue(track)
+                        } label: {
+                            Label(L("Sıraya ekle"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                        }
+                        .tint(.orange)
+                    }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             playlist.trackIDs.removeAll { $0 == track.id }
@@ -981,11 +1078,19 @@ struct PlaylistDetailView: View {
                         .foregroundStyle(Color.coral)
                 } else {
                     Menu {
+                        Button { addingSongs = true } label: { Label(L("Şarkı Ekle"), systemImage: "plus") }
                         Button { pinsValue = LibraryPinsStore.toggle(playlistPin, in: pinsValue) } label: {
                             Label(L(isPinned ? "Sabitlemeyi Kaldır" : "Kütüphaneye Sabitle"), systemImage: isPinned ? "pin.slash" : "pin")
                         }
                         Button { editing = .active } label: { Label(L("Çalma Listesini Düzenle"), systemImage: "pencil") }
                         Button { newName = playlist.name; rename = true } label: { Label(L("Yeniden Adlandır"), systemImage: "textformat") }
+                        Button { descriptionDraft = playlistDescription; editDescription = true } label: { Label(L("Açıklamayı Düzenle"), systemImage: "text.alignleft") }
+                        Button { changingCover = true } label: { Label(L("Kapağı Değiştir"), systemImage: "photo") }
+                        if customization.hasCustomCover(for: playlist.id) {
+                            Button(role: .destructive) { customization.setCustomCoverData(nil, for: playlist.id) } label: {
+                                Label(L("Özel Kapağı Kaldır"), systemImage: "trash")
+                            }
+                        }
                         Section {
                             Button { tracks.forEach { downloads.enqueue($0) } } label: { Label(L("İndir"), systemImage: "arrow.down.circle") }
                             Button(role: .destructive) { deleting = true } label: { Label(L("Çalma Listesini Sil"), systemImage: "trash") }
@@ -1010,6 +1115,113 @@ struct PlaylistDetailView: View {
                 if !value.isEmpty { playlist.name = String(value.prefix(100)); library.commit() }
             }.disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button(L("Vazgeç"), role: .cancel) { }
+        }
+        .alert(L("Açıklamayı Düzenle"), isPresented: $editDescription) {
+            TextField(L("Açıklama (isteğe bağlı)"), text: $descriptionDraft)
+            Button(L("Kaydet")) {
+                customization.setDescription(descriptionDraft, for: playlist.id)
+            }
+            Button(L("Vazgeç"), role: .cancel) { }
+        }
+        .photosPicker(isPresented: $changingCover, selection: $coverPickerItem, matching: .images)
+        .onChange(of: coverPickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    customization.setCustomCoverData(data, for: playlist.id)
+                }
+            }
+        }
+        .sheet(isPresented: $addingSongs) {
+            AddTracksToPlaylistSheet(playlist: playlist)
+        }
+    }
+}
+
+private struct AddTracksToPlaylistSheet: View {
+    @Bindable var playlist: SavedPlaylist
+    @EnvironmentObject private var library: LibraryStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var results: [Track] = []
+    @State private var loading = false
+
+    private var suggestions: [Track] {
+        var seen = Set<String>()
+        return (library.favorites + library.recent).filter { seen.insert($0.id).inserted }
+    }
+
+    private var displayedTracks: [Track] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? suggestions : results
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if loading && results.isEmpty {
+                    HStack { Spacer(); ProgressView().tint(Color.coral); Spacer() }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else if displayedTracks.isEmpty {
+                    EmptyState(symbol: "music.note", title: "Sonuç bulunamadı", message: "Bir şarkı, sanatçı ya da albüm ara.")
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else {
+                    ForEach(displayedTracks) { track in
+                        let added = playlist.trackIDs.contains(track.id)
+                        HStack(spacing: 12) {
+                            Artwork(url: track.artwork, radius: 7).frame(width: 48, height: 48)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(track.title).font(.system(size: 15.5, weight: .medium)).lineLimit(1)
+                                Text(track.artist).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Button {
+                                Haptics.light()
+                                if added {
+                                    playlist.trackIDs.removeAll { $0 == track.id }
+                                    library.commit()
+                                } else {
+                                    library.add(track, to: playlist)
+                                }
+                            } label: {
+                                Image(systemName: added ? "checkmark.circle.fill" : "plus.circle.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(added ? Color.coral : Color.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("playlist.addTrack.\(track.id)")
+                        }
+                        .padding(.vertical, 4)
+                        .listRowBackground(Color.clear)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.pageBackground)
+            .navigationTitle(L("Şarkı Ekle"))
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: Text(L("Şarkı, sanatçı veya albüm")))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L("Bitti")) { dismiss() }
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.coral)
+                }
+            }
+            .task(id: query) {
+                let clean = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !clean.isEmpty else {
+                    results = []; loading = false; return
+                }
+                loading = true
+                try? await Task.sleep(for: .milliseconds(250))
+                if Task.isCancelled { return }
+                results = (try? await API.shared.search(clean).tracks) ?? []
+                loading = false
+            }
         }
     }
 }
@@ -1085,6 +1297,22 @@ struct DownloadsView: View {
                             }
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    Haptics.light()
+                                    player.playNext(track)
+                                } label: {
+                                    Label(L("Sıradaki çal"), systemImage: "text.line.first.and.arrowtriangle.forward")
+                                }
+                                .tint(.indigo)
+                                Button {
+                                    Haptics.light()
+                                    player.addToQueue(track)
+                                } label: {
+                                    Label(L("Sıraya ekle"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                                }
+                                .tint(.orange)
+                            }
                             .swipeActions { Button(L("Sil"), role: .destructive) { library.removeDownload(track) } }
                         }
                     }
@@ -1191,7 +1419,8 @@ struct SavedAlbumsView: View {
                                 TrackListView(
                                     title: album.title,
                                     tracks: library.saved.compactMap(\.track).filter { $0.albumID == album.id },
-                                    subtitle: album.artist
+                                    subtitle: album.artist,
+                                    completeAlbum: album
                                 )
                             } label: {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -1283,7 +1512,7 @@ struct FollowedArtistsView: View {
                     ForEach(visibleArtists, id: \.0) { artist in
                         NavigationLink { ArtistDetailView(id: artist.0, name: artist.1) } label: {
                             HStack(spacing: 16) {
-                                ArtistPortrait(url: portraits[artist.0] ?? fallbackArt[artist.0], name: artist.1)
+                                ArtistPortrait(url: portraits[artist.0] ?? fallbackArt[artist.0], name: artist.1, artistID: artist.0)
                                     .frame(width: 58, height: 58)
                                     .clipShape(Circle())
                                 VStack(alignment: .leading, spacing: 4) {

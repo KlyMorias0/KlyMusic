@@ -1474,6 +1474,7 @@ private struct RadioStation: Identifiable {
     let query: String
     let symbol: String
     let colors: [Color]
+    var streamURL: URL? = nil
 }
 
 struct RadioView: View {
@@ -1484,20 +1485,31 @@ struct RadioView: View {
 
     private let liveStations: [RadioStation] = [
         .init(
-            id: "hits",
-            title: "Hit Müzik İstasyonu",
-            subtitle: "Günün her anına uygun popüler hitler",
-            query: "Pop Hits",
-            symbol: "dot.radiowaves.left.and.right",
-            colors: [Color(red: 0.98, green: 0.14, blue: 0.23), Color(red: 0.62, green: 0.08, blue: 0.24)]
-        ),
-        .init(
             id: "tr-pop",
             title: "Türkçe Pop İstasyonu",
             subtitle: "En sevilen Türkçe pop parçaları",
             query: "Türkçe Pop",
             symbol: "music.mic",
-            colors: [Color(red: 0.88, green: 0.22, blue: 0.44), Color(red: 0.36, green: 0.10, blue: 0.46)]
+            colors: [Color(red: 0.88, green: 0.22, blue: 0.44), Color(red: 0.36, green: 0.10, blue: 0.46)],
+            streamURL: URL(string: "https://listen.powerapp.com.tr/powerturk/128/chunks.m3u8")
+        ),
+        .init(
+            id: "hits",
+            title: "Hit Müzik İstasyonu",
+            subtitle: "Günün her anına uygun popüler hitler",
+            query: "Pop Hits",
+            symbol: "dot.radiowaves.left.and.right",
+            colors: [Color(red: 0.98, green: 0.14, blue: 0.23), Color(red: 0.62, green: 0.08, blue: 0.24)],
+            streamURL: URL(string: "https://listen.powerapp.com.tr/powerpop/128/chunks.m3u8")
+        ),
+        .init(
+            id: "az-live",
+            title: "Azerbaycan Canlı Radyo",
+            subtitle: "Bakü'den kesintisiz canlı müzik yayını",
+            query: "Azeri Pop",
+            symbol: "dot.radiowaves.left.and.right",
+            colors: [Color(red: 0.08, green: 0.48, blue: 0.72), Color(red: 0.10, green: 0.20, blue: 0.44)],
+            streamURL: URL(string: "https://icecast.livetv.az/yurdfm")
         ),
         .init(
             id: "chill",
@@ -1505,7 +1517,8 @@ struct RadioView: View {
             subtitle: "Geceye eşlik eden sakin ve akustik seçkiler",
             query: "Chill Akustik",
             symbol: "moon.stars.fill",
-            colors: [Color(red: 0.16, green: 0.24, blue: 0.62), Color(red: 0.10, green: 0.12, blue: 0.32)]
+            colors: [Color(red: 0.16, green: 0.24, blue: 0.62), Color(red: 0.10, green: 0.12, blue: 0.32)],
+            streamURL: URL(string: "https://ice4.somafm.com/groovesalad-128-aac")
         ),
         .init(
             id: "rap",
@@ -1773,6 +1786,18 @@ struct RadioView: View {
     }
 
     private func playStation(_ station: RadioStation) async {
+        Haptics.light()
+        if let streamURL = station.streamURL {
+            player.playLiveRadio(
+                id: station.id,
+                title: L(station.title),
+                subtitle: L(station.subtitle),
+                streamURL: streamURL,
+                artwork: stationArtwork[station.id],
+                fallbackQuery: station.query
+            )
+            return
+        }
         loadingID = station.id
         defer { loadingID = nil }
         var tracks = (try? await API.shared.search(station.query).tracks) ?? []
@@ -1937,7 +1962,7 @@ struct QueryView: View {
                                             ArtistDetailView(id: artist.id, name: artist.name)
                                         } label: {
                                             VStack(spacing: 8) {
-                                                ArtistPortrait(url: artist.artwork, name: artist.name)
+                                                ArtistPortrait(url: artist.artwork, name: artist.name, artistID: artist.id)
                                                     .frame(width: 88, height: 88)
                                                     .clipShape(Circle())
                                                 Text(artist.name)
@@ -2037,6 +2062,7 @@ struct LibrarySearchResults {
 struct SearchView: View {
     @State private var query = ""
     @State private var result = SearchResponse()
+    @State private var suggestions: [String] = []
     @State private var loading = false
     @State private var failure: String?
     @State private var filter = "all"
@@ -2067,6 +2093,10 @@ struct SearchView: View {
                     }
                 } else {
                     filters
+
+                    if scope == "catalog" && !suggestions.isEmpty {
+                        suggestionBar
+                    }
 
                     if loading && scope == "catalog" {
                         ProgressView().frame(maxWidth: .infinity).padding(30)
@@ -2099,11 +2129,13 @@ struct SearchView: View {
         .task(id: scope + "|" + query) {
             guard hasQuery else {
                 result = SearchResponse()
+                suggestions = []
                 loading = false
                 failure = nil
                 return
             }
             guard scope == "catalog" else {
+                suggestions = []
                 loading = false
                 failure = nil
                 return
@@ -2111,14 +2143,49 @@ struct SearchView: View {
             loading = true
             failure = nil
             do {
+                let targetQuery = query
                 try await Task.sleep(for: .milliseconds(200))
                 try Task.checkCancellation()
+                async let suggested = API.shared.searchSuggestions(targetQuery)
                 await search()
+                let list = await suggested
+                if !Task.isCancelled && targetQuery == query && scope == "catalog" {
+                    suggestions = list
+                }
             } catch { }
         }
         .onSubmit(of: .search) { saveHistory() }
         .onChange(of: scope) { _, value in
             if value == "catalog", filter == "playlists" { filter = "all" }
+        }
+    }
+
+    private var suggestionBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(suggestions.enumerated()), id: \.offset) { idx, item in
+                    Button {
+                        Haptics.selection()
+                        query = item
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text(item)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.musicElevated, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("search.suggestion.\(idx)")
+                }
+            }
+            .padding(.horizontal, 20)
         }
     }
 
@@ -2234,7 +2301,7 @@ struct SearchView: View {
                                             artistDestination(artist)
                                         } label: {
                                             VStack(spacing: 8) {
-                                                ArtistPortrait(url: artist.artwork, name: artist.name)
+                                                ArtistPortrait(url: artist.artwork, name: artist.name, artistID: artist.id)
                                                     .frame(width: 80, height: 80)
                                                     .clipShape(Circle())
                                                     .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
@@ -2352,6 +2419,7 @@ struct SearchView: View {
                                 subtitle: L("Sanatçı"),
                                 artwork: topArtist.artwork,
                                 isArtist: true,
+                                artistID: topArtist.id,
                                 trailingSymbol: "chevron.right"
                             )
                         }
@@ -2390,10 +2458,10 @@ struct SearchView: View {
         }
     }
 
-    private func topResultCard(title: String, subtitle: String, artwork: String?, isArtist: Bool, trailingSymbol: String) -> some View {
+    private func topResultCard(title: String, subtitle: String, artwork: String?, isArtist: Bool, artistID: String? = nil, trailingSymbol: String) -> some View {
         HStack(spacing: 12) {
             if isArtist {
-                ArtistPortrait(url: artwork, name: title)
+                ArtistPortrait(url: artwork, name: title, artistID: artistID)
                     .frame(width: 58, height: 58)
                     .clipShape(Circle())
             } else {
@@ -2431,7 +2499,7 @@ struct SearchView: View {
                 PlaylistDetailView(playlist: playlist)
             } label: {
                 HStack(spacing: 14) {
-                    PlaylistArtwork(tracks: library.tracks(in: playlist))
+                    PlaylistArtwork(tracks: library.tracks(in: playlist), playlistID: playlist.id)
                         .frame(width: 52, height: 52)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
@@ -2463,7 +2531,7 @@ struct SearchView: View {
                 artistDestination(artist)
             } label: {
                 HStack(spacing: 14) {
-                    ArtistPortrait(url: artist.artwork, name: artist.name)
+                    ArtistPortrait(url: artist.artwork, name: artist.name, artistID: artist.id)
                         .frame(width: 52, height: 52)
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -2851,6 +2919,21 @@ private struct AlbumTrackRow: View {
             .accessibilityLabel("\(track.title), \(track.artist)")
             .accessibilityHint(L("Çal"))
             .accessibilityIdentifier("track.row.\(track.id)")
+            .contextMenu {
+                Button { Haptics.light(); library.toggleFavorite(track) } label: {
+                    Label(library.isFavorite(track) ? L("Favorilerden çıkar") : L("Favorilere ekle"),
+                          systemImage: library.isFavorite(track) ? "star.slash" : "star")
+                }
+                Button { Haptics.light(); player.playNext(track) } label: {
+                    Label(L("Sıradaki çal"), systemImage: "text.line.first.and.arrowtriangle.forward")
+                }
+                Button { Haptics.light(); player.addToQueue(track) } label: {
+                    Label(L("Sıraya ekle"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                }
+                ShareLink(item: TrackMenu.shareText(for: track)) {
+                    Label(L("Paylaş"), systemImage: "square.and.arrow.up")
+                }
+            }
 
             TrackMenu(track: track)
         }
